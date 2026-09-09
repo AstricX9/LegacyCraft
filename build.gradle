@@ -18,6 +18,7 @@ dependencies {
     implementation "org.lwjgl:lwjgl:${lwjglVersion}"
     implementation "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
     implementation "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+    implementation 'com.google.code.gson:gson:2.11.0'
 
     runtimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-glfw:${lwjglVersion}:natives-windows"
@@ -28,7 +29,12 @@ dependencies {
 }
 
 application {
-    mainClass = 'org.example.Main'
+    mainClass = 'net.minecraft.client.main.Main'
+    applicationDefaultJvmArgs = ['-Xms512m', '-Xmx2g']
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 java {
