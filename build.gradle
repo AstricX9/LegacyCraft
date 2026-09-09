@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    lwjglVersion = '3.3.4'
+}
+
+dependencies {
+    implementation "org.lwjgl:lwjgl:${lwjglVersion}"
+    implementation "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
+    implementation "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+
+    runtimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-glfw:${lwjglVersion}:natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}:natives-windows"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+application {
+    mainClass = 'org.example.Main'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
