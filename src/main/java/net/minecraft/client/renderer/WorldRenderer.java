@@ -37,7 +37,11 @@ public final class WorldRenderer {
             double dx=cx*CHUNK+8-player.x,dz=cz*CHUNK+8-player.z;
             if(dx*dx+dz*dz>(renderDistance+14)*(renderDistance+14))continue;
             long key=World.chunkKey(cx,cz);
-            RenderChunk renderChunk=renderChunks.computeIfAbsent(key,ignored->new RenderChunk(cx,cz));
+            RenderChunk renderChunk=renderChunks.get(key);
+            if(renderChunk==null){
+                renderChunk=new RenderChunk(cx,cz);
+                renderChunks.put(key,renderChunk);
+            }
             if(renderChunk.dirty) rebuild(renderChunk);
             glCallList(renderChunk.list);
         }

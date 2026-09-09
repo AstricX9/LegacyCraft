@@ -2,6 +2,10 @@
 
 A from-scratch Java/LWJGL recreation of the Minecraft 1.8.9 survival experience.
 
+The current playable foundation discovers the supplied 1.8.9 blockstates and
+textures at runtime, bakes inherited JSON block models, and stores its unbounded
+horizontal world in lazily generated 16x16 chunks made from 16x16x16 sections.
+
 ## Run
 
 ```powershell

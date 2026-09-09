@@ -12,15 +12,16 @@ are not copied wholesale.
 |---|---|---|
 | `net.minecraft.client` | main loop, timing, input orchestration | playable |
 | `net.minecraft.client.gui` | scaled GUI, bitmap text, screens, HUD | font + HUD |
-| `net.minecraft.client.renderer` | camera, world, entities, particles, weather | chunk world |
-| `net.minecraft.client.renderer.texture` | atlases, animation, resource textures | block/GUI atlases |
+| `net.minecraft.client.renderer` | camera, world, entities, particles, weather | streamed baked-model chunk meshes |
+| `net.minecraft.client.renderer.block.model` | blockstate/model inheritance and baked quads | default variants + parent models |
+| `net.minecraft.client.renderer.texture` | atlases, animation, resource textures | discovered block/GUI atlases |
 | `net.minecraft.client.audio` | sound events, music, positioned playback | planned |
-| `net.minecraft.block` | blocks, materials, properties, block states | initial registry set |
+| `net.minecraft.block` | blocks, materials, properties, block states | resource-discovered registry |
 | `net.minecraft.item` | items, stacks, tools, food, armor | planned |
 | `net.minecraft.entity` | entities, AI, attributes, combat | planned |
 | `net.minecraft.inventory` | slots, containers, crafting, furnaces | planned |
-| `net.minecraft.world` | simulation and block access | finite milestone world |
-| `net.minecraft.world.chunk` | chunk lifecycle, sections and streaming | renderer chunks only |
+| `net.minecraft.world` | simulation and block access | unbounded horizontal block access |
+| `net.minecraft.world.chunk` | chunk lifecycle, sections and streaming | lazy chunks + 16x16x16 sections |
 | `net.minecraft.world.biome` | climate, terrain and decoration | initial terrain noise |
 | `net.minecraft.world.storage` | NBT, region files, saves | planned |
 | `net.minecraft.network` | 1.8 protocol and packet handlers | planned |
@@ -38,8 +39,8 @@ are not copied wholesale.
 
 ## Near-term vertical slices
 
-1. Chunk sections and infinite chunk streaming, migrated conceptually from the old project.
-2. Data-driven block states/models using the supplied 1.8.9 JSON files.
+1. Represent full block-state properties and select matching/multipart model variants.
+2. Add chunk scheduling, persistence and server-owned generation around the existing sections.
 3. Main menu, pause menu, options, GUI scaling and language lookup.
 4. Inventory, item stacks, survival mining, drops and crafting.
 5. Skylight/block light with cross-chunk propagation and emissive blocks.
