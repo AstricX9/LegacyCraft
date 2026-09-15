@@ -3,6 +3,9 @@ plugins {
     id 'application'
 }
 
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
 group = 'org.example'
 version = '1.0-SNAPSHOT'
 
@@ -41,6 +44,101 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
+}
+
+def generatedGameData = layout.buildDirectory.dir('generated/resources/gameData')
+
+sourceSets.main.resources.srcDir(generatedGameData)
+
+/**
+ * Expands the compact authoring defaults into one self-contained JSON file for
+ * every discovered block and item.  The generated manifests are the sole
+ * authority for runtime IDs, so classpath/filesystem enumeration order can
+ * never change persisted IDs.
+ */
+tasks.register('generateGameData') {
+    def assets = file('src/main/resources/assets')
+    def blockstates = file('src/main/resources/assets/minecraft/blockstates')
+    def itemModels = file('src/main/resources/assets/minecraft/models/item')
+    def definitions = file('src/main/resources/assets/legacycraft/definitions')
+    inputs.dir(blockstates)
+    inputs.dir(itemModels)
+    inputs.dir(definitions)
+    outputs.dir(generatedGameData)
+
+    doLast {
+        def parser = new JsonSlurper()
+        def outputRoot = generatedGameData.get().asFile
+        delete(outputRoot)
+
+        def readJson = { File source -> parser.parse(source, 'UTF-8') as Map }
+        def readOverrides = { File directory ->
+            def result = [:]
+            if (directory.exists()) {
+                directory.eachFileMatch(~/.*\.json/) { file ->
+                    def value = readJson(file)
+                    result[value.name as String] = value
+                }
+            }
+            result
+        }
+        def writeJson = { File target, Object value ->
+            target.parentFile.mkdirs()
+            target.setText(JsonOutput.prettyPrint(JsonOutput.toJson(value)) + System.lineSeparator(), 'UTF-8')
+        }
+        def definitionPath = { String type, String name ->
+            def split = name.split(':', 2)
+            "legacycraft:definitions/${type}/${split[0]}/${split[1]}.json"
+        }
+
+        def blockDefaults = readJson(new File(definitions, 'block_defaults.json'))
+        def blockOverrides = readOverrides(new File(definitions, 'blocks'))
+        def blockNames = blockstates.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
+            .collect { "minecraft:${it.name[0..<-5]}" }
+        blockNames.addAll(blockOverrides.keySet())
+        blockNames = blockNames.unique().toSorted()
+        blockNames.remove('minecraft:air')
+        blockNames.add(0, 'minecraft:air')
+        def blockNameSet = blockNames as Set
+        def blockEntries = []
+        blockNames.eachWithIndex { name, index ->
+            def value = new LinkedHashMap(blockDefaults)
+            value.putAll(blockOverrides[name] ?: [:])
+            value.name = name
+            value.index = index
+            def location = definitionPath('blocks', name)
+            def relative = location.substring(location.indexOf(':') + 1)
+            writeJson(new File(outputRoot, "assets/legacycraft/${relative}"), value)
+            blockEntries << [index: index, name: name, definition: location]
+        }
+        writeJson(new File(outputRoot, 'assets/legacycraft/indexes/blocks.json'),
+            [format: 1, count: blockEntries.size(), entries: blockEntries])
+
+        def itemDefaults = readJson(new File(definitions, 'item_defaults.json'))
+        def itemOverrides = readOverrides(new File(definitions, 'items'))
+        def itemNames = itemModels.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
+            .collect { "minecraft:${it.name[0..<-5]}" }
+            .toSorted()
+        def itemEntries = []
+        itemNames.eachWithIndex { name, index ->
+            def value = new LinkedHashMap(itemDefaults)
+            value.putAll(itemOverrides[name] ?: [:])
+            value.name = name
+            value.index = index
+            value.model = value.model ?: "minecraft:item/${name.substring(name.indexOf(':') + 1)}"
+            value.placeBlock = value.placeBlock ?: (blockNameSet.contains(name) ? name : null)
+            def location = definitionPath('items', name)
+            def relative = location.substring(location.indexOf(':') + 1)
+            writeJson(new File(outputRoot, "assets/legacycraft/${relative}"), value)
+            itemEntries << [index: index, name: name, definition: location]
+        }
+        writeJson(new File(outputRoot, 'assets/legacycraft/indexes/items.json'),
+            [format: 1, count: itemEntries.size(), entries: itemEntries])
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn(tasks.named('generateGameData'))
 }
 
 test {

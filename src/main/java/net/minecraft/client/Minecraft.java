@@ -3,6 +3,7 @@ package net.minecraft.client;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.client.entity.Player;
+import net.minecraft.client.audio.SoundRegistry;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.WorldRenderer;
@@ -12,6 +13,10 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.resources.ClasspathResourceManager;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.client.settings.GameSettings;
+import net.minecraft.item.ItemRegistry;
+import net.minecraft.item.ItemStack;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.server.IntegratedServer;
 import net.minecraft.world.World;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
@@ -35,12 +40,15 @@ public final class Minecraft {
     private long window;
     private World world;
     private Player player;
+    private IntegratedServer server;
     private TextureAtlas atlas;
     private FontRenderer fontRenderer;
     private WorldRenderer renderer;
     private BlockRegistry blockRegistry;
+    private ItemRegistry itemRegistry;
+    private SoundRegistry soundRegistry;
     private BlockModelManager modelManager;
-    private Block[] hotbar;
+    private Inventory hotbar;
     private int width = INITIAL_WIDTH, height = INITIAL_HEIGHT;
     private int selectedSlot;
     private final GameSettings gameSettings = new GameSettings();
@@ -59,6 +67,7 @@ public final class Minecraft {
             init();
             loop();
         } finally {
+            if (server != null) server.close();
             if (renderer != null) renderer.destroy();
             if (fontRenderer != null) fontRenderer.destroy();
             if (atlas != null) atlas.destroy();
@@ -119,19 +128,20 @@ public final class Minecraft {
         });
 
         blockRegistry = BlockRegistry.load(resourceManager);
+        itemRegistry = ItemRegistry.load(resourceManager, blockRegistry);
+        soundRegistry = SoundRegistry.load(resourceManager);
         modelManager = new BlockModelManager(resourceManager, blockRegistry);
-        hotbar = new Block[]{
-            blockRegistry.get("minecraft:grass"), blockRegistry.get("minecraft:cobblestone"),
-            blockRegistry.get("minecraft:oak_planks"), blockRegistry.get("minecraft:brick_block"),
-            blockRegistry.get("minecraft:glass"), blockRegistry.get("minecraft:oak_log"),
-            blockRegistry.get("minecraft:sand"), blockRegistry.get("minecraft:crafting_table"),
-            blockRegistry.get("minecraft:diamond_ore")
-        };
+        hotbar = new Inventory(9);
+        String[] initialItems = {"minecraft:grass", "minecraft:cobblestone", "minecraft:oak_planks",
+            "minecraft:brick_block", "minecraft:glass", "minecraft:oak_log", "minecraft:sand",
+            "minecraft:crafting_table", "minecraft:diamond_ore"};
+        for (int i = 0; i < initialItems.length; i++) hotbar.set(i, stack(initialItems[i]));
         atlas = new TextureAtlas(resourceManager);
         atlas.load();
         fontRenderer = new FontRenderer(resourceManager);
         fontRenderer.load();
         world = new World(blockRegistry, 889L);
+        server = new IntegratedServer(world);
         player = new Player(world);
         renderer = new WorldRenderer(world, atlas, modelManager);
 
@@ -152,17 +162,24 @@ public final class Minecraft {
     private void loop() {
         double previous = glfwGetTime();
         double accumulator = 0;
+        double serverAccumulator = 0;
         final double tick = 1.0 / 120.0;
+        final double serverTick = 1.0 / IntegratedServer.TICKS_PER_SECOND;
         while (!glfwWindowShouldClose(window)) {
             double now = glfwGetTime();
             double frame = Math.min(0.1, now - previous);
             previous = now;
             accumulator += frame;
+            serverAccumulator += frame;
             glfwPollEvents();
 
             while (accumulator >= tick) {
                 if (mouseCaptured) player.update(window, tick);
                 accumulator -= tick;
+            }
+            while (serverAccumulator >= serverTick) {
+                server.tick();
+                serverAccumulator -= serverTick;
             }
             interact();
             render(now);
@@ -178,7 +195,7 @@ public final class Minecraft {
                 titleTimer = 0;
                 glfwSetWindowTitle(window, String.format(Locale.ROOT,
                     "LegacyCraft 1.8.9  |  XYZ %.1f / %.1f / %.1f  |  %s",
-                    player.x, player.y, player.z, hotbar[selectedSlot].name().path().replace('_', ' ')));
+                    player.x, player.y, player.z, hotbar.get(selectedSlot).item().name().path().replace('_', ' ')));
             }
         }
     }
@@ -195,8 +212,9 @@ public final class Minecraft {
         }
         if (placePressed && hit != null && world.inBounds(hit.placeX(), hit.placeY(), hit.placeZ())
             && world.get(hit.placeX(), hit.placeY(), hit.placeZ()).isAir()
-            && !player.intersectsBlock(hit.placeX(), hit.placeY(), hit.placeZ())) {
-            world.set(hit.placeX(), hit.placeY(), hit.placeZ(), hotbar[selectedSlot]);
+            && !player.intersectsBlock(hit.placeX(), hit.placeY(), hit.placeZ())
+            && hotbar.get(selectedSlot).item().placedBlock() != null) {
+            world.set(hit.placeX(), hit.placeY(), hit.placeZ(), hotbar.get(selectedSlot).item().placedBlock());
             renderer.changed(hit.placeX(), hit.placeZ());
         }
         breakPressed = placePressed = false;
@@ -298,7 +316,7 @@ public final class Minecraft {
             left - 1 + selectedSlot * slot, top - 1, 24, 24);
         for (int i = 0; i < 9; i++) {
             float x = left + 3 + i * 20;
-            drawHotbarTile(hotbar[i], x, top + 3, 16);
+            drawHotbarTile(hotbar.get(i), x, top + 3, 16);
         }
 
         atlas.bindIcons();
@@ -310,7 +328,11 @@ public final class Minecraft {
         glColor4f(1, 1, 1, 1);
     }
 
-    private void drawHotbarTile(Block block, float x, float y, float size) {
+    private ItemStack stack(String name) { return new ItemStack(itemRegistry.get(name), 64); }
+
+    private void drawHotbarTile(ItemStack stack, float x, float y, float size) {
+        Block block = stack.item().placedBlock();
+        if (block == null) return;
         BakedModel model = modelManager.getModel(block);
         TextureAtlas.Tile t = atlas.tile(model.particleTexture());
         atlas.bind(); glEnable(GL_TEXTURE_2D); glColor4f(1, 1, 1, 1);
@@ -333,10 +355,14 @@ public final class Minecraft {
             line += 10;
             fontRenderer.drawStringWithShadow("Facing: " + facingName(), 2, line, 0xFFFFFF);
             line += 10;
-            fontRenderer.drawStringWithShadow("Selected: §f" + hotbar[selectedSlot].name().path(),
+            fontRenderer.drawStringWithShadow("Selected: §f" + hotbar.get(selectedSlot).item().name().path(),
                 2, line, 0xA0A0A0);
             line += 10;
-            fontRenderer.drawStringWithShadow("Blocks: " + blockRegistry.size() + "  Chunks: " + world.loadedChunkCount(),
+            fontRenderer.drawStringWithShadow("Blocks: " + blockRegistry.size() + "  Items: " + itemRegistry.size()
+                + "  Chunks: " + world.loadedChunkCount(),
+                2, line, 0xA0A0A0);
+            line += 10;
+            fontRenderer.drawStringWithShadow("Sounds: " + soundRegistry.size() + "  Server ticks: " + server.tickCount(),
                 2, line, 0xA0A0A0);
         }
     }

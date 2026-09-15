@@ -1,0 +1,10 @@
+{
+  "material": "rock",
+  "solid": true,
+  "opaque": true,
+  "translucent": false,
+  "hardness": 1.5,
+  "renderType": "model",
+  "tintColor": "#FFFFFF",
+  "lightLevel": 0
+}

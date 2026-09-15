@@ -14,73 +14,89 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
+import java.util.HashSet;
+import java.util.Set;
 
-/** Discovers the supplied blockstate pack and assigns stable alphabetical runtime IDs. */
+/** Loads individually-authored block definitions through a generated, stable ID index. */
 public final class BlockRegistry {
-    private static final ResourceLocation PROPERTIES = new ResourceLocation("legacycraft:block_properties.json");
+    private static final ResourceLocation INDEX = new ResourceLocation("legacycraft:indexes/blocks.json");
     private final Map<ResourceLocation, Block> byName = new LinkedHashMap<>();
     private final List<Block> byId = new ArrayList<>();
 
     public static BlockRegistry load(IResourceManager resources) {
         BlockRegistry registry = new BlockRegistry();
         try {
-            JsonObject root;
-            try (var reader = new InputStreamReader(resources.open(PROPERTIES), StandardCharsets.UTF_8)) {
-                root = JsonParser.parseReader(reader).getAsJsonObject();
+            JsonObject index;
+            try (var reader = new InputStreamReader(resources.open(INDEX), StandardCharsets.UTF_8)) {
+                index = JsonParser.parseReader(reader).getAsJsonObject();
             }
-            JsonObject defaults = root.getAsJsonObject("defaults");
-            JsonObject overrides = root.getAsJsonObject("blocks");
-            TreeSet<ResourceLocation> names = new TreeSet<>((a,b) -> a.toString().compareTo(b.toString()));
-            for (ResourceLocation file : resources.list(new ResourceLocation("minecraft:blockstates"), ".json")) {
-                String path = file.path().substring("blockstates/".length());
-                names.add(new ResourceLocation(file.namespace(), path.substring(0, path.length() - 5)));
+            int expectedCount = index.get("count").getAsInt();
+            Set<ResourceLocation> names = new HashSet<>();
+            for (JsonElement rawEntry : index.getAsJsonArray("entries")) {
+                JsonObject entry = rawEntry.getAsJsonObject();
+                int id = entry.get("index").getAsInt();
+                if (id != registry.byId.size())
+                    throw new IllegalStateException("Non-contiguous block index: expected "
+                        + registry.byId.size() + " but found " + id);
+                ResourceLocation definition = new ResourceLocation(entry.get("definition").getAsString());
+                JsonObject value;
+                try (var reader = new InputStreamReader(resources.open(definition), StandardCharsets.UTF_8)) {
+                    value = JsonParser.parseReader(reader).getAsJsonObject();
+                }
+                ResourceLocation name = new ResourceLocation(value.get("name").getAsString());
+                if (!name.toString().equals(entry.get("name").getAsString()))
+                    throw new IllegalStateException("Definition/index name mismatch for " + definition);
+                if (value.get("index").getAsInt() != id)
+                    throw new IllegalStateException("Definition/index ID mismatch for " + name);
+                if (!names.add(name)) throw new IllegalStateException("Duplicate block " + name);
+                registry.register(id, name, value);
             }
-            for (String explicit : overrides.keySet()) names.add(new ResourceLocation(explicit));
-            names.remove(new ResourceLocation("minecraft:air"));
-            registry.register(new ResourceLocation("minecraft:air"), defaults,
-                overrides.getAsJsonObject("minecraft:air"));
-            for (ResourceLocation name : names) {
-                JsonObject override = overrides.has(name.toString()) ? overrides.getAsJsonObject(name.toString()) : null;
-                registry.register(name, defaults, override);
-            }
+            if (registry.size() != expectedCount)
+                throw new IllegalStateException("Block index declared " + expectedCount
+                    + " entries but loaded " + registry.size());
+            if (registry.byId.isEmpty() || !registry.byId.get(0).name().toString().equals("minecraft:air"))
+                throw new IllegalStateException("Block index 0 must be minecraft:air");
             return registry;
         } catch (IOException error) {
             throw new IllegalStateException("Could not build the block registry from resources", error);
         }
     }
 
-    private void register(ResourceLocation name, JsonObject defaults, JsonObject override) {
-        String material = stringValue(defaults, override, "material", "rock");
-        boolean solid = booleanValue(defaults, override, "solid", true);
-        boolean opaque = booleanValue(defaults, override, "opaque", true);
-        boolean translucent = booleanValue(defaults, override, "translucent", false);
-        float hardness = floatValue(defaults, override, "hardness", 1.5f);
+    private void register(int id, ResourceLocation name, JsonObject value) {
+        String material = stringValue(value, "material", "rock");
+        boolean solid = booleanValue(value, "solid", true);
+        boolean opaque = booleanValue(value, "opaque", true);
+        boolean translucent = booleanValue(value, "translucent", false);
+        float hardness = floatValue(value, "hardness", 1.5f);
         Block.RenderType renderType = Block.RenderType.valueOf(
-            stringValue(defaults, override, "renderType", "model").toUpperCase());
-        int tint = parseColor(stringValue(defaults, override, "tintColor", "#FFFFFF"));
-        String model = stringValue(defaults, override, "model", null);
+            stringValue(value, "renderType", "model").toUpperCase());
+        int tint = parseColor(stringValue(value, "tintColor", "#FFFFFF"));
+        int lightLevel = intValue(value, "lightLevel", 0);
+        if (lightLevel < 0 || lightLevel > 15)
+            throw new IllegalStateException("Invalid light level for " + name + ": " + lightLevel);
+        String model = stringValue(value, "model", null);
         ResourceLocation modelOverride = model == null ? null : new ResourceLocation(model);
-        Block block = new Block(byId.size(), name, material, solid, opaque, translucent,
-            hardness, renderType, tint, modelOverride);
+        Block block = new Block(id, name, material, solid, opaque, translucent,
+            hardness, renderType, tint, lightLevel, modelOverride);
         byName.put(name, block);
         byId.add(block);
     }
 
-    private static JsonElement value(JsonObject defaults, JsonObject override, String key) {
-        return override != null && override.has(key) ? override.get(key) : defaults.get(key);
-    }
-    private static String stringValue(JsonObject defaults, JsonObject override, String key, String fallback) {
-        JsonElement value = value(defaults, override, key);
+    private static String stringValue(JsonObject object, String key, String fallback) {
+        JsonElement value = object.get(key);
         return value == null || value.isJsonNull() ? fallback : value.getAsString();
     }
-    private static boolean booleanValue(JsonObject defaults, JsonObject override, String key, boolean fallback) {
-        JsonElement value = value(defaults, override, key);
+    private static boolean booleanValue(JsonObject object, String key, boolean fallback) {
+        JsonElement value = object.get(key);
         return value == null ? fallback : value.getAsBoolean();
     }
-    private static float floatValue(JsonObject defaults, JsonObject override, String key, float fallback) {
-        JsonElement value = value(defaults, override, key);
+    private static float floatValue(JsonObject object, String key, float fallback) {
+        JsonElement value = object.get(key);
         return value == null ? fallback : value.getAsFloat();
+    }
+    private static int intValue(JsonObject object, String key, int fallback) {
+        JsonElement value = object.get(key);
+        return value == null ? fallback : value.getAsInt();
     }
     private static int parseColor(String color) {
         return Integer.parseInt(color.startsWith("#") ? color.substring(1) : color, 16) & 0xffffff;

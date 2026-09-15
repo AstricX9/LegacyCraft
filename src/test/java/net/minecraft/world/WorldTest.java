@@ -36,4 +36,12 @@ class WorldTest {
             for (int z = -40; z < 40; z += 19)
                 assertEquals(first.surfaceHeight(x, z), second.surfaceHeight(x, z));
     }
+
+    @Test
+    void assignsGenerationIndexesInCreationOrder() {
+        World world = new World(blocks, 889L);
+        assertEquals(0, world.getChunk(4, 2).generationIndex());
+        assertEquals(1, world.getChunk(-3, 8).generationIndex());
+        assertEquals(0, world.getChunk(4, 2).generationIndex());
+    }
 }

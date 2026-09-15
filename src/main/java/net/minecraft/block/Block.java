@@ -15,11 +15,12 @@ public final class Block {
     private final float hardness;
     private final RenderType renderType;
     private final int tintColor;
+    private final int lightLevel;
     private final ResourceLocation modelOverride;
 
     Block(int registryId, ResourceLocation name, String material, boolean solid, boolean opaque,
           boolean translucent, float hardness, RenderType renderType, int tintColor,
-          ResourceLocation modelOverride) {
+          int lightLevel, ResourceLocation modelOverride) {
         this.registryId = registryId;
         this.name = name;
         this.material = material;
@@ -29,6 +30,7 @@ public final class Block {
         this.hardness = hardness;
         this.renderType = renderType;
         this.tintColor = tintColor;
+        this.lightLevel = lightLevel;
         this.modelOverride = modelOverride;
     }
 
@@ -42,6 +44,7 @@ public final class Block {
     public float hardness() { return hardness; }
     public RenderType renderType() { return renderType; }
     public int tintColor() { return tintColor; }
+    public int lightLevel() { return lightLevel; }
     public ResourceLocation modelOverride() { return modelOverride; }
 
     @Override public String toString() { return name.toString(); }

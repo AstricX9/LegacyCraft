@@ -2,6 +2,8 @@ package net.minecraft.world;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.BiomeSource;
 import net.minecraft.world.chunk.Chunk;
 
 import java.util.Collection;
@@ -16,6 +18,8 @@ public final class World {
     private final Map<Long, Chunk> chunks = new HashMap<>();
     private final BlockRegistry registry;
     private final long seed;
+    private long nextGenerationIndex;
+    private final BiomeSource biomes;
 
     private final Block air, grass, dirt, stone, bedrock, sand, water;
     private final Block oakLog, oakLeaves, coalOre, ironOre, goldOre, diamondOre;
@@ -30,6 +34,7 @@ public final class World {
         oakLog = registry.get("minecraft:oak_log"); oakLeaves = registry.get("minecraft:oak_leaves");
         coalOre = registry.get("minecraft:coal_ore"); ironOre = registry.get("minecraft:iron_ore");
         goldOre = registry.get("minecraft:gold_ore"); diamondOre = registry.get("minecraft:diamond_ore");
+        biomes = new BiomeSource(registry, seed);
     }
 
     public BlockRegistry registry() { return registry; }
@@ -57,6 +62,17 @@ public final class World {
 
     public Collection<Chunk> loadedChunks() { return chunks.values(); }
     public int loadedChunkCount() { return chunks.size(); }
+    public long seed() { return seed; }
+    public Biome biomeAt(int x, int z) { return biomes.sample(x, z); }
+
+    /** Installs a persisted chunk and advances the generation sequence past it. */
+    public void restoreChunk(Chunk chunk) {
+        if (!chunk.isGenerated()) throw new IllegalArgumentException("Restored chunk is not generated");
+        long key = chunkKey(chunk.chunkX(), chunk.chunkZ());
+        if (chunks.putIfAbsent(key, chunk) != null)
+            throw new IllegalStateException("Chunk is already loaded: " + chunk.chunkX() + "," + chunk.chunkZ());
+        nextGenerationIndex = Math.max(nextGenerationIndex, chunk.generationIndex() + 1);
+    }
 
     public int surfaceHeight(int x, int z) {
         Chunk chunk = getChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE));
@@ -70,7 +86,7 @@ public final class World {
 
     private void generate(Chunk chunk) {
         // Mark before feature work so a future cross-chunk decorator cannot recurse indefinitely.
-        chunk.markGenerated();
+        chunk.markGenerated(nextGenerationIndex++);
         int baseX = chunk.chunkX() * Chunk.SIZE;
         int baseZ = chunk.chunkZ() * Chunk.SIZE;
         Random random = new Random(mixSeed(chunk.chunkX(), chunk.chunkZ()));
@@ -79,19 +95,23 @@ public final class World {
         for (int z = 0; z < Chunk.SIZE; z++) {
             for (int x = 0; x < Chunk.SIZE; x++) {
                 int worldX = baseX + x, worldZ = baseZ + z;
+                Biome biome = biomes.sample(worldX, worldZ);
                 double continental = valueNoise(worldX * .018, worldZ * .018, 0) * 16;
                 double hills = valueNoise(worldX * .055, worldZ * .055, 91) * 7;
-                int top = clamp((int)Math.round(65 + continental + hills), 20, 120);
+                int top = clamp((int)Math.round(biome.baseHeight() + continental
+                    + hills * biome.heightVariation() / 7.0), 20, 120);
                 double spawnDistance = Math.hypot(worldX, worldZ);
                 if (spawnDistance < 12) top = Math.max(top, SEA_LEVEL + 5);
                 heights[x][z] = top;
                 boolean beach = top <= SEA_LEVEL + 1;
+                Block topBlock = beach ? sand : biome.topBlock();
+                Block fillerBlock = beach ? sand : biome.fillerBlock();
                 chunk.set(x, 0, z, bedrock.registryId());
                 if (random.nextInt(4) == 0) chunk.set(x, 1, z, bedrock.registryId());
                 for (int y = 1; y <= top; y++) {
                     Block block;
-                    if (y == top) block = beach ? sand : grass;
-                    else if (y >= top - (beach ? 3 : 2)) block = beach ? sand : dirt;
+                    if (y == top) block = topBlock;
+                    else if (y >= top - (beach ? 3 : 2)) block = fillerBlock;
                     else block = oreAt(random,y);
                     chunk.set(x,y,z,block.registryId());
                 }
@@ -103,7 +123,9 @@ public final class World {
         for (int z = 3; z < Chunk.SIZE - 3; z++) {
             for (int x = 3; x < Chunk.SIZE - 3; x++) {
                 int worldX = baseX + x, worldZ = baseZ + z;
-                if (Math.hypot(worldX, worldZ) < 10 || random.nextInt(110) != 0) continue;
+                Biome biome = biomes.sample(worldX, worldZ);
+                if (Math.hypot(worldX, worldZ) < 10 || biome.treeChance() == 0
+                    || random.nextInt(biome.treeChance()) != 0) continue;
                 int y = heights[x][z];
                 if (registry.byId(chunk.get(x,y,z)) == grass) growOak(chunk,x,y+1,z,4+random.nextInt(3));
             }

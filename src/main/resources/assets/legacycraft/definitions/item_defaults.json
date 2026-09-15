@@ -1,0 +1,7 @@
+{
+  "maxStackSize": 64,
+  "maxDamage": 0,
+  "useAction": "none",
+  "food": 0,
+  "saturation": 0.0
+}

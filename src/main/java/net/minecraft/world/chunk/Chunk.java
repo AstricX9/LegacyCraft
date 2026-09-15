@@ -6,12 +6,19 @@ public final class Chunk {
     private final int chunkX, chunkZ;
     private final ChunkSection[] sections = new ChunkSection[HEIGHT / ChunkSection.SIZE];
     private boolean generated;
+    private long generationIndex = -1;
 
     public Chunk(int chunkX, int chunkZ) { this.chunkX = chunkX; this.chunkZ = chunkZ; }
     public int chunkX() { return chunkX; }
     public int chunkZ() { return chunkZ; }
     public boolean isGenerated() { return generated; }
-    public void markGenerated() { generated = true; }
+    public long generationIndex() { return generationIndex; }
+    public void markGenerated(long index) {
+        if (index < 0) throw new IllegalArgumentException("Generation index must be non-negative");
+        if (generated) throw new IllegalStateException("Chunk is already generated");
+        generated = true;
+        generationIndex = index;
+    }
 
     public int get(int x, int y, int z) {
         if (y < 0 || y >= HEIGHT) return 0;
