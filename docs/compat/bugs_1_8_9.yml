@@ -1,0 +1,24 @@
+# Vanilla 1.8.9 bugs/quirks to consider replicating. Format per master
+# context §88. An entry here does NOT mean it's implemented — `replicate`
+# says whether the project has decided to, and `tests` should point at the
+# test that pins it once it is.
+
+- id: MC-trapped-chest-christmas-texture
+  name: Trapped chest Christmas texture
+  subsystem: block rendering / resource pack loading
+  observed_behavior: >
+    A trapped chest renders with a seasonal Christmas-themed texture when the
+    client's local system date falls between December 24 and 26 (inclusive),
+    instead of its normal texture.
+  reproduction_steps: >
+    Set the system clock to Dec 24-26, open a world containing a trapped
+    chest, observe its texture in the resource-pack-driven model.
+  vanilla_1_8_9: true
+  later_fixed: unknown
+  gameplay_relevant: false
+  replicate: false
+  reason: >
+    Cosmetic-only, low priority versus the outstanding worldgen/persistence/
+    protocol gaps tracked in unknowns.yml. Revisit once BlockModelManager
+    supports date-conditional texture swaps in general.
+  tests: []

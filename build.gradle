@@ -61,9 +61,11 @@ tasks.register('generateGameData') {
     def blockstates = file('src/main/resources/assets/minecraft/blockstates')
     def itemModels = file('src/main/resources/assets/minecraft/models/item')
     def definitions = file('src/main/resources/assets/legacycraft/definitions')
+    def legacyBlockIds = file('data/mc189/blocks.json')
     inputs.dir(blockstates)
     inputs.dir(itemModels)
     inputs.dir(definitions)
+    inputs.file(legacyBlockIds)
     outputs.dir(generatedGameData)
 
     doLast {
@@ -93,12 +95,46 @@ tasks.register('generateGameData') {
 
         def blockDefaults = readJson(new File(definitions, 'block_defaults.json'))
         def blockOverrides = readOverrides(new File(definitions, 'blocks'))
-        def blockNames = blockstates.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
-            .collect { "minecraft:${it.name[0..<-5]}" }
-        blockNames.addAll(blockOverrides.keySet())
-        blockNames = blockNames.unique().toSorted()
-        blockNames.remove('minecraft:air')
-        blockNames.add(0, 'minecraft:air')
+
+        // Block IDs are sourced from the verified vanilla 1.8.9 legacy ID table
+        // (data/mc189/blocks.json; see docs/compat/verified_facts.md and
+        // docs/compat/deviations.yml DEV-002) rather than filesystem/classpath
+        // discovery order, so persisted/networked IDs can eventually agree with
+        // real vanilla data instead of only being internally self-consistent.
+        def legacyTable = readJson(legacyBlockIds)
+        def legacyIndex = [:]
+        legacyTable.entries.each { entry -> legacyIndex[entry.name as String] = entry.id as int }
+
+        def discoveredNames = blockstates.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
+            .collect { "minecraft:${it.name[0..<-5]}" } as Set
+        discoveredNames.addAll(blockOverrides.keySet())
+        // Vanilla ships no air.json blockstate (air has no model); it is still
+        // always present at legacy ID 0.
+        discoveredNames.add('minecraft:air')
+
+        def knownNames = discoveredNames.findAll { legacyIndex.containsKey(it) }
+        def extraNames = (discoveredNames - knownNames).toSorted()
+        def orderedKnownNames = knownNames.toSorted { a, b -> (legacyIndex[a] as int) <=> (legacyIndex[b] as int) }
+
+        // The full 1.8.9 catalog (IDs 0-197) is gap-free, so if the supplied
+        // resource pack is complete this reproduces 0..197 exactly and
+        // BlockRegistry's contiguous-index invariant still holds. A gap means
+        // the pack is missing a vanilla block's blockstate file: fail loudly
+        // rather than silently reassigning IDs and quietly losing vanilla-ID
+        // fidelity for every block after the gap.
+        orderedKnownNames.eachWithIndex { name, index ->
+            def expected = legacyIndex[name] as int
+            if (expected != index) {
+                throw new GradleException("Block '${name}' has vanilla legacy ID ${expected}, but only "
+                    + "${index} lower-numbered vanilla block(s) were found in the supplied resource pack, "
+                    + "which would break contiguous registry IDs and vanilla-ID fidelity alike. The "
+                    + "supplied 1.8.9 asset archive under src/main/resources/assets/minecraft is missing "
+                    + "one or more block(s) with legacy ID < ${expected}. See data/mc189/blocks.json.")
+            }
+        }
+
+        def blockNames = new ArrayList(orderedKnownNames)
+        blockNames.addAll(extraNames)
         def blockNameSet = blockNames as Set
         def blockEntries = []
         blockNames.eachWithIndex { name, index ->

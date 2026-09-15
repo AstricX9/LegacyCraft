@@ -1,0 +1,156 @@
+# Open questions blocking full 1.8.9 fidelity. Format per master context §89.
+# Add an entry the moment a HYPOTHESIS is coded against; never leave it silent.
+
+- question: >
+    What is vanilla 1.8.9's exact overworld terrain algorithm (noise octaves,
+    biome-driven height/volatility fields, cave/ravine carving, decoration
+    pass order)?
+  why_it_matters: >
+    World.generate() in net.minecraft.world currently uses an original
+    2-octave value-noise heightmap with hand-picked ore/tree probabilities —
+    a placeholder, not vanilla-equivalent (master context §13). Any seed
+    played today will not match a real 1.8.9 world with the same seed.
+  current_hypothesis: UNKNOWN
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Generate reference chunks in a real 1.8.9 client/server for the golden
+    seed corpus (§13.3) and compare against this repo's output.
+  owner: unassigned
+  status: open
+
+- question: >
+    Are the block legacy IDs in data/mc189/blocks.json actually correct for
+    a real vanilla 1.8.9 client (not just cross-checked wiki mirrors)?
+  why_it_matters: >
+    data/mc189/blocks.json is tagged COMMUNITY_CORROBORATED (two independent
+    wiki sources agree), not VERIFIED_VANILLA. The master doc's evidence
+    hierarchy (source_policy.md) puts black-box observation of the real
+    client above any wiki. generateGameData now derives block registry IDs
+    directly from this file (deviations.yml DEV-002, resolved half), so an
+    error here would silently propagate into every block ID in the game.
+  current_hypothesis: >
+    High confidence — the table is internally contiguous (0-197, no gaps)
+    and two independently maintained wiki mirrors agree exactly — but not
+    yet promoted to VERIFIED_VANILLA.
+  evidence: >
+    minecraft.wiki and minecraft.fandom.com Pre-flattening/Block_IDs pages
+    (see docs/reference_sources.md); IDs 198+ deliberately excluded as
+    post-1.8.9 content per master context §97.
+  vanilla_test_needed: >
+    Spot-check a handful of IDs (e.g. via /give <id> in a real 1.8.9 client,
+    or inspecting a real 1.8.9 world's region file with a hex/NBT viewer)
+    to promote the tag to VERIFIED_VANILLA.
+  owner: unassigned
+  status: open
+
+- question: >
+    What is vanilla 1.8.9's per-block metadata/data-value layout (which bits
+    encode orientation, variant, growth stage, slab half, wool color, etc.),
+    and how should that be layered onto the existing block-ID storage?
+  why_it_matters: >
+    There is still no metadata axis separate from the block ID — one block
+    ID is one full block state today. Stairs facing, slab half, log axis,
+    wool color, crop growth stage, and every other metadata-driven variant
+    are not representable yet. This is the remaining half of DEV-002 and
+    blocks real NBT/Anvil interoperability (§11.4, §12, §15.1).
+  current_hypothesis: >
+    Per-block metadata semantics are individually well documented (Wiki
+    "data values" pages), but there are ~190 blocks' worth to verify.
+    STORAGE LAYER NOW EXISTS: `net.minecraft.block.BlockState` (a (Block,
+    0-15 metadata) value type) plus `World.getState`/`World.setState`
+    implement vanilla's own legacy extended-storage packing, `(blockId <<
+    4) | metadata`, on top of the existing Chunk/ChunkSection `short[]`
+    storage, with `World.get`/`World.set(Block)` kept working unchanged
+    (implicitly metadata 0) for every caller that doesn't know about
+    metadata yet — see WorldBlockStateTest.java. That closes the "where do
+    we even put a metadata value" question. STILL OPEN, and now the whole
+    remaining scope of this entry: (1) the actual per-block bit-layout table
+    (which value means which orientation/variant/stage, per block), (2)
+    wiring BlockModelManager's model lookup to select by (block, metadata)
+    instead of block alone, and (3) wiring placement/interaction logic
+    (Minecraft#interact) to compute and set a real metadata instead of
+    always defaulting to 0. None of these three are implemented yet, so no
+    in-game behavior has changed — every block placed today still ends up
+    at metadata 0 either way.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Per-block: cross-check metadata bit layout against Wiki data-value pages
+    and, where gameplay-relevant, a real vanilla client.
+  owner: unassigned
+  status: open
+
+- question: >
+    What are vanilla 1.8.9's item numeric IDs (256+ for standalone items;
+    block-items reuse their block ID), and how do they map onto the
+    supplied resource pack's item model filenames?
+  why_it_matters: >
+    Larger than originally scoped. ItemRegistry still assigns IDs by sorted
+    `models/item` filename order. Investigating this surfaced that the
+    supplied asset pack (identified by its own version.json as genuinely
+    extracted from the real 1.8.9 client — id "1.8.9", releaseTime
+    2015-12-03 — via the community "minecraft-assets" extraction project)
+    does NOT name its item model files after vanilla's legacy item names
+    1:1. Spot-checked: the model file `oak_door.json` contains texture path
+    "items/door_wood" (the genuine legacy 1.8.9 texture path) but vanilla's
+    real item name for that item is `minecraft:wooden_door` (item ID 324
+    per the pre-flattening Item IDs table) — the extraction tool renamed
+    the *file*, not the in-game identity. Blockstate files were NOT
+    affected (confirmed: `blockstates/wooden_door.json` exists with the
+    correct legacy name; that's why DEV-002's block-ID half was safe to
+    ship as a bare filename lookup). Worse, several item model files exist
+    purely as per-metadata-variant icons for a single shared vanilla item
+    ID — e.g. `granite.json`, `diorite.json`, `andesite.json`,
+    `smooth_granite.json` are four separate model files but ONE vanilla
+    item (`minecraft:stone`, metadata 1-6); same pattern for
+    `coarse_dirt`/`podzol` (`minecraft:dirt` metadata), and very likely
+    every per-color wool/carpet/stained_glass/stained_glass_pane/
+    stained_hardened_clay file. So this is not a simple filename lookup
+    like blocks.json was — it is the SAME missing metadata axis as the
+    entry below. Item identity and block metadata are one task, not two:
+    in vanilla a placeable block's ItemStack IS the block's (id, metadata)
+    pair.
+  current_hypothesis: >
+    Building data/mc189/items.json needs an explicit (model filename or set
+    of filenames) -> (legacy item name, metadata) mapping, not a bare name
+    lookup — effectively blocked on the metadata/BlockState work below,
+    since that work has to build the same (id, metadata) concept anyway.
+  evidence: >
+    Direct read of src/main/resources/version.json (confirms genuine 1.8.9
+    asset provenance) and models/item/oak_door.json vs
+    blockstates/wooden_door.json on this repo's own supplied assets, plus
+    minecraft.wiki's pre-flattening Item IDs page for the correct legacy
+    name/ID.
+  vanilla_test_needed: >
+    None further needed to confirm the mismatch exists; remaining work is
+    design + implementation, tracked under the metadata entry below.
+  owner: unassigned
+  status: open
+
+- question: >
+    Full protocol-47 PLAY packet ID table and codec field layout, in both
+    directions (§49.5).
+  why_it_matters: >
+    PacketBuffer.java only implements VarInt/String/ResourceLocation
+    primitives so far; there is no packet registry, compression, or
+    encryption yet.
+  current_hypothesis: UNKNOWN
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Archived wiki.vg protocol-47 snapshot + packet captures from a real
+    1.8.9 client/server pair.
+  owner: unassigned
+  status: open
+
+- question: >
+    Exact NBT/Anvil (.mca) region file layout for 1.8.9 saves, for
+    exact-interchange-mode save compatibility (§12, §102).
+  why_it_matters: >
+    WorldStorage.java currently uses a custom binary format (LCIW/LCCH
+    magic, no NBT at all) — see deviations.yml DEV-003. It can't load or
+    produce a real vanilla 1.8.9 world.
+  current_hypothesis: UNKNOWN
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Round-trip test against a real 1.8.9-generated world per §12.1.
+  owner: unassigned
+  status: open

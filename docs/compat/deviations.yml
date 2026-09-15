@@ -1,0 +1,123 @@
+# Every intentional or currently-unresolved difference from vanilla 1.8.9
+# behavior, per master context §111 ("no hidden deviations"). Logged from a
+# code-level review of the repo as of this pass — not exhaustive, but nothing
+# below should stay silent.
+
+- id: DEV-001
+  subsystem: world generation
+  vanilla_behavior: >
+    Vanilla 1.8.9 overworld generation uses a specific multi-octave noise
+    pipeline, biome-driven height/volatility fields, structured cave/ravine
+    carving, and an ordered decoration/population pass (master context §13).
+  replica_behavior: >
+    World.generate() (net.minecraft.world.World) uses an original 2-octave
+    value-noise heightmap, hand-picked per-depth ore probabilities, and a
+    simple radius-based oak tree shape. It is deterministic per seed (see
+    WorldTest#terrainGenerationIsDeterministic) but does not target vanilla
+    terrain shape, cave systems, structures, or decoration order at all.
+  reason: >
+    Placeholder so the game is playable end-to-end while other subsystems
+    (rendering, inventory, networking) are built out. Not yet a priority
+    pass.
+  compatibility_effect: >
+    P0 if "1:1" were claimed today for worldgen — a given seed will look
+    nothing like the same seed in real 1.8.9. No caves, ravines, or
+    structures exist at all.
+  user_visible: true
+
+- id: DEV-002
+  subsystem: block registry IDs (block half); item registry IDs (still open)
+  vanilla_behavior: >
+    Vanilla 1.8.9 blocks/items use fixed legacy numeric IDs (pre-flattening),
+    with a separate 0-15 metadata/data-value axis encoding orientation,
+    variant, growth stage, etc. (master context §11.4, §15.1).
+  replica_behavior: >
+    RESOLVED for block IDs: `generateGameData` now sources block IDs from
+    `data/mc189/blocks.json` (the verified 1.8.9 legacy ID table, tagged
+    COMMUNITY_CORROBORATED — see verified_facts.md) instead of sorted
+    filename discovery order, and fails the build loudly if the supplied
+    resource pack is missing a vanilla block (which would otherwise silently
+    break ID fidelity). STORAGE PLUMBING now exists for metadata:
+    `net.minecraft.block.BlockState` is a new immutable (Block, 0-15
+    metadata) value type, and `World.getState`/`World.setState` read/write
+    it against the existing `short[]` Chunk/ChunkSection storage using
+    vanilla's own legacy extended-storage formula, `(blockId << 4) |
+    metadata` (master context §11.4). `World.get`/`World.set(Block)` still
+    work unchanged and always mean metadata 0, so every existing call site
+    (rendering, placement, collision) is unaffected — see
+    WorldBlockStateTest.java. STILL OPEN: nothing yet *produces* a non-zero
+    metadata anywhere — worldgen, block placement (Minecraft#interact), and
+    BlockModelManager's model lookup are all still metadata-0-only, so nothing
+    user-visible has changed yet. Per-block metadata *semantics* (which
+    value means which orientation/variant/growth stage for which block) are
+    not implemented — that is the bulk of the remaining work, tracked in
+    unknowns.yml. Also still open: ItemRegistry still assigns item IDs by
+    sorted `models/item` filename order, not vanilla's real item ID space
+    (vanilla block-items reuse their block ID; standalone items start at
+    256) — investigation found this is now entangled with the metadata work
+    (see unknowns.yml), not a separate simple fix.
+  reason: >
+    Sequencing: fixing ID *values* first (low risk, self-contained), then
+    landing the metadata *storage* plumbing as its own reviewable step
+    before wiring in per-block *semantics* (touches many more files:
+    BlockModelManager, placement logic, eventually item IDs) keeps each
+    change small and testable on its own.
+  compatibility_effect: >
+    Block IDs now match vanilla 1.8.9 by name (assuming a complete supplied
+    asset pack); the (block, metadata) pair can now be stored and read back
+    faithfully, but no code path sets a non-zero metadata yet, so no
+    in-game behavior has changed. Item IDs and all block metadata/variant
+    *semantics* still do not match vanilla, so this remains P0 for real
+    save/protocol interchange (§11.4, §12, §49) until those follow-ups land.
+    No effect on pure single-player behavior today since save/load and
+    networking are both currently custom/local (see DEV-003). NOTE: this
+    change altered what a raw stored chunk short *means* (previously a bare
+    block registry ID; now `(id << 4) | metadata`) — any local save file
+    written before this change will misread block IDs on load and should be
+    regenerated. WorldStorage.java's own format is custom/local already
+    (DEV-003), so this has no effect on real vanilla saves, only on
+    pre-existing LegacyCraft saves.
+  user_visible: false
+
+- id: DEV-003
+  subsystem: world persistence
+  vanilla_behavior: >
+    Vanilla 1.8.9 saves use NBT-encoded Anvil region files (`.mca`) with a
+    documented chunk/section/tile-entity/entity layout (master context §12).
+  replica_behavior: >
+    WorldStorage.java uses a custom, uncompressed-index + gzip-per-chunk
+    binary format (magic `LCIW`/`LCCH`, format version 1) with no NBT
+    involved at all — see `docs/compat/source_policy.md` save-compatibility
+    modes.
+  reason: >
+    Fastest path to working save/load for local testing before NBT support
+    exists.
+  compatibility_effect: >
+    This is currently "Behavioral-only mode" per master context §102, not
+    Import-only or Exact-interchange — LegacyCraft cannot open a real vanilla
+    1.8.9 world, and vanilla cannot open a LegacyCraft world. Should be
+    stated explicitly in the README once NBT/Anvil work begins, per §102's
+    "the project must state which mode it supports."
+  user_visible: true
+
+- id: DEV-004
+  subsystem: server tick loop
+  vanilla_behavior: >
+    A fixed-timestep, deterministic 20 TPS simulation loop whose catch-up
+    behavior under lag is itself a tested compatibility surface (§8, §8.3).
+  replica_behavior: >
+    IntegratedServer.start() drives ticks via
+    ScheduledExecutorService#scheduleAtFixedRate at 1000/20 ms — real
+    wall-clock scheduling, not a deterministic logical clock. Fine for live
+    play, but two runs are not guaranteed to reproduce identical tick
+    timing/count under scheduler jitter, which the replay/golden-test
+    framework (§82, §83) will need to control for.
+  reason: >
+    Simplest correct-looking implementation for the "playable" milestone;
+    determinism under test wasn't yet a concern when it was written.
+  compatibility_effect: >
+    P2 today (no replay/golden harness exists yet to expose it). Will become
+    P0-relevant once deterministic replay tests are added — those should
+    drive IntegratedServer.tick() directly rather than through the
+    wall-clock scheduler.
+  user_visible: false

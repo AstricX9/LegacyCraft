@@ -2,6 +2,7 @@ package net.minecraft.world;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
+import net.minecraft.block.BlockState;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeSource;
 import net.minecraft.world.chunk.Chunk;
@@ -44,13 +45,28 @@ public final class World {
         if (y < 0) return bedrock;
         if (y >= HEIGHT) return air;
         Chunk chunk = getChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE));
-        return registry.byId(chunk.get(floorMod(x, Chunk.SIZE), y, floorMod(z, Chunk.SIZE)));
+        return registry.byId(unpackBlockId(chunk.get(floorMod(x, Chunk.SIZE), y, floorMod(z, Chunk.SIZE))));
     }
 
-    public void set(int x, int y, int z, Block block) {
-        if (!inBounds(x,y,z)) return;
+    /**
+     * Full (block, metadata) state at a position — see {@link BlockState}.
+     * Out-of-world positions report the same synthetic bedrock/air {@link
+     * #get} does, always at metadata 0.
+     */
+    public BlockState getState(int x, int y, int z) {
+        if (y < 0) return BlockState.defaultOf(bedrock);
+        if (y >= HEIGHT) return BlockState.defaultOf(air);
         Chunk chunk = getChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE));
-        chunk.set(floorMod(x, Chunk.SIZE), y, floorMod(z, Chunk.SIZE), block.registryId());
+        return BlockState.unpack(registry, chunk.get(floorMod(x, Chunk.SIZE), y, floorMod(z, Chunk.SIZE)));
+    }
+
+    /** Convenience for callers that don't care about metadata; sets metadata 0. */
+    public void set(int x, int y, int z, Block block) { setState(x, y, z, BlockState.defaultOf(block)); }
+
+    public void setState(int x, int y, int z, BlockState state) {
+        if (!inBounds(x, y, z)) return;
+        Chunk chunk = getChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE));
+        chunk.set(floorMod(x, Chunk.SIZE), y, floorMod(z, Chunk.SIZE), state.packed());
     }
 
     public Chunk getChunk(int chunkX, int chunkZ) {
@@ -78,7 +94,7 @@ public final class World {
         Chunk chunk = getChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE));
         int localX = floorMod(x, Chunk.SIZE), localZ = floorMod(z, Chunk.SIZE);
         for (int y = HEIGHT - 1; y >= 0; y--) {
-            Block block = registry.byId(chunk.get(localX,y,localZ));
+            Block block = registry.byId(unpackBlockId(chunk.get(localX, y, localZ)));
             if (block.isSolid() && block != oakLeaves && block != oakLog) return y;
         }
         return 0;
@@ -106,16 +122,16 @@ public final class World {
                 boolean beach = top <= SEA_LEVEL + 1;
                 Block topBlock = beach ? sand : biome.topBlock();
                 Block fillerBlock = beach ? sand : biome.fillerBlock();
-                chunk.set(x, 0, z, bedrock.registryId());
-                if (random.nextInt(4) == 0) chunk.set(x, 1, z, bedrock.registryId());
+                put(chunk, x, 0, z, bedrock);
+                if (random.nextInt(4) == 0) put(chunk, x, 1, z, bedrock);
                 for (int y = 1; y <= top; y++) {
                     Block block;
                     if (y == top) block = topBlock;
                     else if (y >= top - (beach ? 3 : 2)) block = fillerBlock;
                     else block = oreAt(random,y);
-                    chunk.set(x,y,z,block.registryId());
+                    put(chunk, x, y, z, block);
                 }
-                for (int y = top + 1; y < SEA_LEVEL; y++) chunk.set(x,y,z,water.registryId());
+                for (int y = top + 1; y < SEA_LEVEL; y++) put(chunk, x, y, z, water);
             }
         }
 
@@ -127,7 +143,7 @@ public final class World {
                 if (Math.hypot(worldX, worldZ) < 10 || biome.treeChance() == 0
                     || random.nextInt(biome.treeChance()) != 0) continue;
                 int y = heights[x][z];
-                if (registry.byId(chunk.get(x,y,z)) == grass) growOak(chunk,x,y+1,z,4+random.nextInt(3));
+                if (registry.byId(unpackBlockId(chunk.get(x,y,z))) == grass) growOak(chunk,x,y+1,z,4+random.nextInt(3));
             }
         }
     }
@@ -142,14 +158,14 @@ public final class World {
     }
 
     private void growOak(Chunk chunk, int x, int y, int z, int height) {
-        for (int i=0;i<height;i++) chunk.set(x,y+i,z,oakLog.registryId());
+        for (int i=0;i<height;i++) put(chunk, x, y+i, z, oakLog);
         int crown=y+height-2;
         for(int dy=0;dy<=3;dy++){
             int radius=dy>=2?1:2;
             for(int dz=-radius;dz<=radius;dz++) for(int dx=-radius;dx<=radius;dx++){
                 if(Math.abs(dx)==radius&&Math.abs(dz)==radius&&((x+z+dx+dz+dy)&1)==0)continue;
-                if(chunk.get(x+dx,crown+dy,z+dz)==air.registryId())
-                    chunk.set(x+dx,crown+dy,z+dz,oakLeaves.registryId());
+                if(chunk.get(x+dx,crown+dy,z+dz)==packed(air))
+                    put(chunk, x+dx, crown+dy, z+dz, oakLeaves);
             }
         }
     }
@@ -161,4 +177,9 @@ public final class World {
     private static int clamp(int n,int min,int max){return Math.max(min,Math.min(max,n));}
     public static int floorDiv(int value,int divisor){return Math.floorDiv(value,divisor);} public static int floorMod(int value,int divisor){return Math.floorMod(value,divisor);}
     public static long chunkKey(int x,int z){return((long)x<<32)^(z&0xffffffffL);}
+
+    /** Legacy extended-storage packing shared with {@link BlockState#packed()}, for internal direct-{@link Chunk} writes during generation. */
+    private static int packed(Block block) { return block.registryId() << BlockState.METADATA_BITS; }
+    private static void put(Chunk chunk, int x, int y, int z, Block block) { chunk.set(x, y, z, packed(block)); }
+    private static int unpackBlockId(int packedState) { return packedState >>> BlockState.METADATA_BITS; }
 }
