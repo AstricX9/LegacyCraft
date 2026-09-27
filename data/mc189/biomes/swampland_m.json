@@ -1,0 +1,13 @@
+{
+  "id": 134,
+  "temperature": 0.8,
+  "rainfall": 0.9,
+  "depth": -0.1,
+  "scale": 0.3,
+  "grassColor": "#6A7039",
+  "foliageColor": "#6A7039",
+  "waterColor": "#E0FF70",
+  "treesPerChunk": 2,
+  "grassPerChunk": 5,
+  "flowersPerChunk": 1
+}

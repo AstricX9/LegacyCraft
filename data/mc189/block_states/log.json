@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["oak", "spruce", "birch", "jungle"], "axis": ["y", "x", "z", "none"]},
+  "meta": [{"property": "variant", "bits": 2}, {"property": "axis", "shift": 2, "bits": 2}],
+  "model": {"file": "{variant}_log"}
+}

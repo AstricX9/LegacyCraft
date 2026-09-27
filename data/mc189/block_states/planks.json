@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["oak", "spruce", "birch", "jungle", "acacia", "dark_oak"]},
+  "meta": [{"property": "variant", "bits": 3}],
+  "model": {"file": "{variant}_planks"}
+}

@@ -1,0 +1,18 @@
+{
+  "white_carpet": 0,
+  "orange_carpet": 1,
+  "magenta_carpet": 2,
+  "light_blue_carpet": 3,
+  "yellow_carpet": 4,
+  "lime_carpet": 5,
+  "pink_carpet": 6,
+  "gray_carpet": 7,
+  "silver_carpet": 8,
+  "cyan_carpet": 9,
+  "purple_carpet": 10,
+  "blue_carpet": 11,
+  "brown_carpet": 12,
+  "green_carpet": 13,
+  "red_carpet": 14,
+  "black_carpet": 15
+}

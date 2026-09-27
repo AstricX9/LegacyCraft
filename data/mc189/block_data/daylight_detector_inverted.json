@@ -1,0 +1,6 @@
+{
+  "material": "wood",
+  "hardness": 0.2,
+  "opaque": false,
+  "bounds": [0, 0, 0, 16, 6, 16]
+}

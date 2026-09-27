@@ -1,0 +1,10 @@
+{
+  "id": 26,
+  "temperature": 0.05,
+  "rainfall": 0.3,
+  "depth": 0.0,
+  "scale": 0.025,
+  "topBlock": "minecraft:sand",
+  "fillerBlock": "minecraft:sand",
+  "snow": true
+}

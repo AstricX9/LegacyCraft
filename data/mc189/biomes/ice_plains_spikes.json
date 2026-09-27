@@ -1,0 +1,11 @@
+{
+  "id": 140,
+  "temperature": 0.0,
+  "rainfall": 0.5,
+  "depth": 0.425,
+  "scale": 0.45,
+  "topBlock": "minecraft:snow",
+  "snow": true,
+  "rain": false,
+  "treesPerChunk": 0
+}

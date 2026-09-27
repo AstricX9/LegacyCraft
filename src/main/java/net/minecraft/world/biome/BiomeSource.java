@@ -1,40 +1,47 @@
 package net.minecraft.world.biome;
 
-import net.minecraft.block.BlockRegistry;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.gen.layer.BiomeLayers;
 
-/** Deterministic climate sampler that selects a small legacy overworld biome set. */
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Picks a biome per column using the 1.8.9 layer chain
+ * ({@link BiomeLayers}), seeded from the world seed. VERIFIED_VANILLA: for the
+ * oracle world's seed this reproduces every biome byte the real 1.8.9 server
+ * stored (VanillaBiomeMapTest, 160000/160000 columns).
+ */
 public final class BiomeSource {
-    private final long seed;
-    private final Biome plains, forest, desert, taiga;
+    /** Chunks to keep; the layer chain is deterministic, so this is only about speed. */
+    private static final int CACHED_CHUNKS = 512;
 
-    public BiomeSource(BlockRegistry blocks, long seed) {
-        this.seed = seed;
-        plains = new Biome(id("plains"), .8f, .4f, 65, 7,
-            blocks.get("minecraft:grass"), blocks.get("minecraft:dirt"), 110);
-        forest = new Biome(id("forest"), .7f, .8f, 68, 9,
-            blocks.get("minecraft:grass"), blocks.get("minecraft:dirt"), 28);
-        desert = new Biome(id("desert"), 2f, 0f, 64, 5,
-            blocks.get("minecraft:sand"), blocks.get("minecraft:sand"), 0);
-        taiga = new Biome(id("taiga"), .25f, .8f, 70, 12,
-            blocks.get("minecraft:grass"), blocks.get("minecraft:dirt"), 45);
+    private final BiomeRegistry biomes;
+    private final BiomeLayers layers;
+    private final Map<Long, byte[]> cache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Long, byte[]> eldest) { return size() > CACHED_CHUNKS; }
+    };
+
+    public BiomeSource(BiomeRegistry biomes, long seed) {
+        this.biomes = biomes;
+        this.layers = new BiomeLayers(seed);
     }
 
     public Biome sample(int blockX, int blockZ) {
-        if (Math.hypot(blockX, blockZ) < 12) return plains;
-        double temperature = noise(blockX, blockZ, 17);
-        double rainfall = noise(blockX, blockZ, 53);
-        if (temperature > .35 && rainfall < -.15) return desert;
-        if (temperature < -.42) return taiga;
-        if (rainfall > .30) return forest;
-        return plains;
+        int chunkX = blockX >> 4, chunkZ = blockZ >> 4;
+        byte[] ids;
+        synchronized (cache) {
+            ids = cache.computeIfAbsent((long) chunkX << 32 | chunkZ & 0xffffffffL,
+                key -> layers.chunkBiomes(chunkX, chunkZ));
+        }
+        int id = ids[(blockZ & 15) * 16 + (blockX & 15)] & 0xff;
+        Biome biome = biomes.byId(id);
+        return biome != null ? biome : biomes.get("minecraft:ocean");
     }
 
-    private double noise(int x, int z, int salt) {
-        int cellX = Math.floorDiv(x, 96), cellZ = Math.floorDiv(z, 96);
-        long value = seed + cellX * 341873128712L + cellZ * 132897987541L + salt * 31L;
-        value = (value ^ value >>> 13) * 1274126177L;
-        return ((value ^ value >>> 16) & 0xffff) / 32767.5 - 1;
-    }
-    private static ResourceLocation id(String path) { return new ResourceLocation("minecraft", path); }
+    /** The layer chain itself, for world generation and spawn selection. */
+    public BiomeLayers layers() { return layers; }
+
+    /** The whole 16x16 biome map of a chunk, index {@code z * 16 + x}, as Anvil stores it. */
+    public byte[] chunkBiomes(int chunkX, int chunkZ) { return layers.chunkBiomes(chunkX, chunkZ); }
 }

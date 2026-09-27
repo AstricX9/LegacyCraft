@@ -1,0 +1,4 @@
+{
+  "properties": {"facing": ["south", "west", "north", "east"]},
+  "meta": [{"property": "facing", "bits": 2}]
+}

@@ -1,0 +1,6 @@
+{
+  "class": "piston_extension",
+  "material": "piston",
+  "hardness": 0.5,
+  "opaque": false
+}

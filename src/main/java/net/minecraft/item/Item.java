@@ -1,6 +1,7 @@
 package net.minecraft.item;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.util.ResourceLocation;
 
 /** Immutable item definition loaded from its own generated JSON document. */
@@ -16,10 +17,11 @@ public final class Item {
     private final float saturation;
     private final ResourceLocation model;
     private final Block placedBlock;
+    private final int placedMetadata;
 
     Item(int registryId, ResourceLocation name, int maxStackSize, int maxDamage,
          UseAction useAction, int food, float saturation, ResourceLocation model,
-         Block placedBlock) {
+         Block placedBlock, int placedMetadata) {
         this.registryId = registryId;
         this.name = name;
         this.maxStackSize = maxStackSize;
@@ -29,6 +31,7 @@ public final class Item {
         this.saturation = saturation;
         this.model = model;
         this.placedBlock = placedBlock;
+        this.placedMetadata = placedMetadata;
     }
 
     public int registryId() { return registryId; }
@@ -42,6 +45,9 @@ public final class Item {
     public float saturation() { return saturation; }
     public ResourceLocation model() { return model; }
     public Block placedBlock() { return placedBlock; }
+    /** Metadata the item places before orientation rules apply (the item's variant, e.g. birch planks = 2). */
+    public int placedMetadata() { return placedMetadata; }
+    public BlockState placedState() { return placedBlock == null ? null : BlockState.of(placedBlock, placedMetadata); }
 
     @Override public String toString() { return name.toString(); }
 }

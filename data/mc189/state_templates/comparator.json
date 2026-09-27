@@ -1,0 +1,4 @@
+{
+  "properties": {"facing": ["south", "west", "north", "east"], "mode": ["compare", "subtract"], "powered": ["false", "true"]},
+  "meta": [{"property": "facing", "bits": 2}, {"property": "mode", "shift": 2, "bits": 1}, {"property": "powered", "shift": 3, "bits": 1}]
+}

@@ -1,0 +1,7 @@
+{
+  "material": "glass",
+  "hardness": 0.3,
+  "opaque": false,
+  "fullCube": true,
+  "cullSame": "state"
+}

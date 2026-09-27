@@ -1,0 +1,8 @@
+{
+  "class": "mushroom",
+  "material": "plants",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": false,
+  "bounds": [4.8, 0, 4.8, 11.2, 6.4, 11.2]
+}

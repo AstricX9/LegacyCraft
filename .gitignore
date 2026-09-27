@@ -13,3 +13,8 @@ screenshots/
 # should still be tracked normally.
 src/main/resources/assets/minecraft/
 
+# Runtime files the client writes into its game directory.
+saves/
+resourcepacks/
+options.txt
+servers.dat

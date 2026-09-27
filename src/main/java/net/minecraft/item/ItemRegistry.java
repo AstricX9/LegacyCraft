@@ -56,8 +56,12 @@ public final class ItemRegistry {
                 ResourceLocation model = new ResourceLocation(value.get("model").getAsString());
                 Block placed = value.has("placeBlock") && !value.get("placeBlock").isJsonNull()
                     ? blocks.get(new ResourceLocation(value.get("placeBlock").getAsString())) : null;
+                int placedMeta = value.has("placeMeta") ? value.get("placeMeta").getAsInt() : 0;
+                if (placed == null && value.has("placeBlock") && !value.get("placeBlock").isJsonNull())
+                    throw new IllegalStateException("Item " + name + " places unknown block " + value.get("placeBlock"));
+                if (placedMeta < 0 || placedMeta > 15) throw new IllegalStateException("Invalid placed metadata for " + name);
                 Item item = new Item(id, name, stackSize, maxDamage, action,
-                    value.get("food").getAsInt(), value.get("saturation").getAsFloat(), model, placed);
+                    value.get("food").getAsInt(), value.get("saturation").getAsFloat(), model, placed, placedMeta);
                 registry.byName.put(name, item);
                 registry.byId.add(item);
             }

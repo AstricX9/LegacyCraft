@@ -1,0 +1,9 @@
+{
+  "class": "slab",
+  "material": "wood",
+  "hardness": 2.0,
+  "doubleSlab": "minecraft:double_wooden_slab",
+  "opaque": false,
+  "lightOpacity": 15,
+  "useNeighborBrightness": true
+}

@@ -1,0 +1,14 @@
+{
+  "id": 165,
+  "temperature": 2.0,
+  "rainfall": 0.0,
+  "depth": 0.1,
+  "scale": 0.2,
+  "topBlock": "minecraft:sand",
+  "topMetadata": 1,
+  "fillerBlock": "minecraft:stained_hardened_clay",
+  "fillerMetadata": 1,
+  "rain": false,
+  "grassColor": "#90814D",
+  "foliageColor": "#9E814D"
+}

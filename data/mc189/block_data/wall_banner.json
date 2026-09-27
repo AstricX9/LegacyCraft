@@ -1,0 +1,8 @@
+{
+  "class": "wall_sign",
+  "material": "wood",
+  "hardness": 1.0,
+  "opaque": false,
+  "solid": false,
+  "renderType": "entity"
+}

@@ -4,7 +4,8 @@ import net.minecraft.util.ResourceLocation;
 
 import java.util.List;
 
-public record BakedModel(List<BakedQuad> quads, ResourceLocation particleTexture) {
+/** @param ambientOcclusion the model's {@code ambientocclusion} flag (false for torches, flowers and other cross models) */
+public record BakedModel(List<BakedQuad> quads, ResourceLocation particleTexture, boolean ambientOcclusion) {
     public BakedModel {
         quads = List.copyOf(quads);
     }

@@ -1,0 +1,8 @@
+{
+  "material": "fire",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": false,
+  "lightLevel": 15,
+  "targetable": false
+}

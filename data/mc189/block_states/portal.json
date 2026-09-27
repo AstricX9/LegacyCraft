@@ -1,0 +1,4 @@
+{
+  "properties": {"axis": ["x", "z"]},
+  "meta": [{"property": "axis", "bits": 2, "map": [null, "x", "z", null]}]
+}

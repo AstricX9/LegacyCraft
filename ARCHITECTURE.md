@@ -10,19 +10,20 @@ are not copied wholesale.
 
 | Package | Responsibility | Current milestone |
 |---|---|---|
-| `net.minecraft.client` | main loop, timing, input orchestration | playable |
-| `net.minecraft.client.gui` | scaled GUI, bitmap text, screens, HUD | font + HUD |
-| `net.minecraft.client.renderer` | camera, world, entities, particles, weather | streamed chunk meshes + typed entity dispatch |
-| `net.minecraft.client.renderer.block.model` | blockstate/model inheritance and baked quads | default variants + parent models |
+| `net.minecraft.client` | main loop, timing, input orchestration, integrated-server session | playable, menus + saves |
+| `net.minecraft.client.gui` | scaled GUI, bitmap text, screens, HUD | full 1.8.9 menu graph + F3 (layout HYPOTHESIS) |
+| `net.minecraft.client.renderer` | camera, world, entities, particles, weather | 16x16x16 section VBOs built on worker threads, frustum culling, opaque then sorted translucent pass, time-of-day lightmap, sky/fog/clouds (SkyRenderer) + typed entity dispatch |
+| `net.minecraft.client.renderer.block.model` | blockstate/model inheritance and baked quads | state-mapped + weighted variants, element/variant rotation, uvlock |
 | `net.minecraft.client.renderer.texture` | atlases, animation, resource textures | discovered block/GUI atlases |
 | `net.minecraft.client.audio` | sound events, music, positioned playback | sounds.json event/variant registry |
-| `net.minecraft.block` | blocks, materials, properties, block states | indexed per-definition registry |
+| `net.minecraft.block` | blocks, materials, properties, block states | 1.8.9 ID table + metadata codec; one class per kind of block (actual state, shapes, placement, support) |
 | `net.minecraft.item` | items, stacks, tools, food, armor | indexed definitions + stacks/durability |
 | `net.minecraft.entity` | entities, AI, attributes, combat | lifecycle + runtime ID manager |
 | `net.minecraft.inventory` | slots, containers, crafting, furnaces | stack inventory + shaped recipes |
 | `net.minecraft.world` | simulation and block access | biome-aware unbounded block access |
 | `net.minecraft.world.chunk` | chunk lifecycle, sections and streaming | lazy indexed chunks + 16x16x16 sections |
-| `net.minecraft.world.biome` | climate, terrain and decoration | deterministic climate/terrain selection |
+| `net.minecraft.world.biome` | climate, terrain and decoration | 1.8.9 biome table + colours; vanilla GenLayer placement |
+| `net.minecraft.world.gen` | terrain shape, surface, carvers, population | 1.8.9 overworld pipeline: density terrain, biome surfaces, caves/ravines, ores/trees/plants/lakes (DEV-001, DEV-016) |
 | `net.minecraft.world.storage` | NBT, region files, saves | atomic metadata + compressed chunk saves |
 | `net.minecraft.network` | 1.8 protocol and packet handlers | protocol states + bounds-checked packet codec |
 | `net.minecraft.server` | integrated/dedicated authoritative simulation | 20 TPS integrated server + entity ticking |
@@ -39,9 +40,9 @@ are not copied wholesale.
 
 ## Near-term vertical slices
 
-1. Represent full block-state properties and select matching/multipart model variants.
+1. ~~Represent full block-state properties and select matching model variants~~ (done; 1.8.9 has no multipart). ~~Per-state collision/selection boxes and support-based block updates~~ (done; see DEV-005, DEV-007 for what remains).
 2. Add asynchronous chunk scheduling around persisted, server-owned generation.
-3. Main menu, pause menu, options, GUI scaling and language lookup.
+3. ~~Main menu, pause menu, options, GUI scaling and language lookup~~ (done; screenshot comparison pending, see unknowns.yml).
 4. Containers, survival mining/drop rules and recipe-data loading around the inventory core.
 5. Skylight/block light with cross-chunk propagation and emissive blocks.
 6. NBT/Anvil compatibility, combat/AI, sound playback, particles, weather, redstone and packet handlers.

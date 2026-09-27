@@ -1,0 +1,8 @@
+{
+  "class": "portal",
+  "material": "portal",
+  "hardness": -1.0,
+  "opaque": false,
+  "solid": false,
+  "lightLevel": 11
+}

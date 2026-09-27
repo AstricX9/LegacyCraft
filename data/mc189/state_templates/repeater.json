@@ -1,0 +1,4 @@
+{
+  "properties": {"delay": ["1", "2", "3", "4"], "facing": ["south", "west", "north", "east"], "locked": ["false", "true"]},
+  "meta": [{"property": "facing", "bits": 2}, {"property": "delay", "shift": 2, "bits": 2}]
+}

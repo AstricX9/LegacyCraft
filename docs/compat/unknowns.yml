@@ -6,17 +6,66 @@
     biome-driven height/volatility fields, cave/ravine carving, decoration
     pass order)?
   why_it_matters: >
-    World.generate() in net.minecraft.world currently uses an original
-    2-octave value-noise heightmap with hand-picked ore/tree probabilities —
-    a placeholder, not vanilla-equivalent (master context §13). Any seed
-    played today will not match a real 1.8.9 world with the same seed.
-  current_hypothesis: UNKNOWN
-  evidence: none captured yet
+    World.generate() now runs a clean-room reimplementation of the whole
+    pipeline (DEV-001). Only the biome map is verified; the density terrain
+    matched about 21% of the oracle world's column heights before the float
+    fixes in this pass, and the surface, carvers and population are coded
+    from recall.
+  current_hypothesis: >
+    HYPOTHESIS, recalled from 1.8.9 (ChunkProviderGenerate, the biome
+    genTerrainBlocks overrides, MapGenCaves, MapGenRavine, BiomeDecorator and
+    the WorldGen* features), with each Random draw in its original order.
+    Specific recalls that are least certain: WorldGenVines setting the vine
+    face toward its support (the code here does); mesa biomes adding 20 gold
+    veins at y 32-80 in 1.8.9 (included); the spruce (Taiga2) accepting
+    farmland under it; the swamp puddle and mesa band noises sampling the
+    transposed (z, x) coordinates vanilla passes to the biome hook; the
+    decorator ore order dirt, gravel, diorite, granite, andesite.
+  evidence: >
+    Self-consistency only (TerrainGenerationTest, WorldGenerationGoldenTest).
   vanilla_test_needed: >
-    Generate reference chunks in a real 1.8.9 client/server for the golden
-    seed corpus (§13.3) and compare against this repo's output.
+    Re-run VanillaTerrainTest for the density field, then compare whole
+    chunks (block and metadata) of the oracle world against ChunkGenerator
+    for the terrain stage and against a populated region for decoration.
   owner: unassigned
   status: open
+
+- question: >
+    How does vanilla 1.8.9 place biomes (the GenLayer zoom/erosion chain),
+    and are the per-biome numbers in data/mc189/biomes right?
+  why_it_matters: >
+    Biome placement decides the whole look of a seed, and each biome's
+    depth/scale feeds terrain height. The per-biome
+    temperature/rainfall/depth/scale/decoration numbers are HYPOTHESIS from
+    1.8-era documentation; the colour behaviour is checked (BiomeColorsTest),
+    which indirectly confirms temperature and rainfall for the biomes it
+    covers. The nether/end biomes are not in the table yet.
+  current_hypothesis: >
+    ANSWERED for placement: the chain is island, fuzzy zoom, add-island
+    erosion, climate categories (snow/cool-warm/heat-ice/special), two
+    zooms, mushroom and deep-ocean passes, biome pick, two zooms, biome
+    edges, hills (fed by the river-init field), rare biomes, four zooms with
+    an add-island after the first and a shore after the second, smooth,
+    river mix, Voronoi zoom — each layer with its own fixed base seed.
+    Still HYPOTHESIS: the per-biome depth/scale/decoration numbers. The
+    mutated biomes now follow vanilla's derivation (BiomeGenMutated adds 0.1
+    to depth and 0.2 to scale; savanna M and ice spikes have their own
+    rules; mega spruce taiga has temperature 0.25), and ice spikes have a snow
+    surface; the data files had copied their base biome's numbers.
+  evidence: >
+    VERIFIED_VANILLA (tier 0) for placement: VanillaBiomeMapTest seeds the
+    chain with the oracle world's seed (-412575085214022153) and reproduces
+    the biome byte the real 1.8.9 server stored for 160000/160000 columns
+    across 625 chunks.
+    Supplied colour maps (tier 1) plus the documented biome colours reproduce
+    exactly for plains, desert, forest, jungle, taiga, ice plains and extreme
+    hills, so those temperature/rainfall pairs are right.
+  vanilla_test_needed: >
+    Still open for the numbers: check depth/scale against observed terrain
+    heights per biome once vanilla terrain noise is implemented, and add the
+    nether/end biomes.
+  owner: unassigned
+  status: partly answered — placement verified, per-biome numbers open
 
 - question: >
     Are the block legacy IDs in data/mc189/blocks.json actually correct for
@@ -29,9 +78,11 @@
     directly from this file (deviations.yml DEV-002, resolved half), so an
     error here would silently propagate into every block ID in the game.
   current_hypothesis: >
-    High confidence — the table is internally contiguous (0-197, no gaps)
-    and two independently maintained wiki mirrors agree exactly — but not
-    yet promoted to VERIFIED_VANILLA.
+    High confidence. The table is internally contiguous (0-197, no gaps),
+    two independently maintained wiki mirrors agree exactly, and a full scan
+    of a real 1.8.9 server world (40,960,000 blocks) found no ID outside the
+    table. What is still unproven is the name attached to each ID, since a
+    save stores numbers only; that needs a placed-block check per ID.
   evidence: >
     minecraft.wiki and minecraft.fandom.com Pre-flattening/Block_IDs pages
     (see docs/reference_sources.md); IDs 198+ deliberately excluded as
@@ -48,34 +99,99 @@
     encode orientation, variant, growth stage, slab half, wool color, etc.),
     and how should that be layered onto the existing block-ID storage?
   why_it_matters: >
-    There is still no metadata axis separate from the block ID — one block
-    ID is one full block state today. Stairs facing, slab half, log axis,
-    wool color, crop growth stage, and every other metadata-driven variant
-    are not representable yet. This is the remaining half of DEV-002 and
-    blocks real NBT/Anvil interoperability (§11.4, §12, §15.1).
+    Metadata decides stairs facing, slab half, log axis, wool color, crop
+    growth stage and every other variant. A wrong bit layout would render
+    and save the wrong block, and would break real NBT/Anvil and protocol
+    interoperability (§11.4, §12, §15.1).
   current_hypothesis: >
-    Per-block metadata semantics are individually well documented (Wiki
-    "data values" pages), but there are ~190 blocks' worth to verify.
-    STORAGE LAYER NOW EXISTS: `net.minecraft.block.BlockState` (a (Block,
-    0-15 metadata) value type) plus `World.getState`/`World.setState`
-    implement vanilla's own legacy extended-storage packing, `(blockId <<
-    4) | metadata`, on top of the existing Chunk/ChunkSection `short[]`
-    storage, with `World.get`/`World.set(Block)` kept working unchanged
-    (implicitly metadata 0) for every caller that doesn't know about
-    metadata yet — see WorldBlockStateTest.java. That closes the "where do
-    we even put a metadata value" question. STILL OPEN, and now the whole
-    remaining scope of this entry: (1) the actual per-block bit-layout table
-    (which value means which orientation/variant/stage, per block), (2)
-    wiring BlockModelManager's model lookup to select by (block, metadata)
-    instead of block alone, and (3) wiring placement/interaction logic
-    (Minecraft#interact) to compute and set a real metadata instead of
-    always defaulting to 0. None of these three are implemented yet, so no
-    in-game behavior has changed — every block placed today still ends up
-    at metadata 0 either way.
+    IMPLEMENTED AS HYPOTHESIS: `data/mc189/block_states/` holds a
+    bit-layout table for all 198 blocks (authored from 1.8.x data-value
+    documentation, not yet cross-checked line by line), consumed by
+    BlockStateDefinition; model lookup, worldgen and placement all use it
+    (deviations.yml DEV-002). What IS verified: every decodable state of
+    every block maps to a variant the supplied 1.8.9 blockstate files define
+    (BlockStateModelMappingTest), and every supplied blockstate file except
+    item_frame is reachable — so property names and value spellings match
+    vanilla. What is NOT verified: which raw metadata value means which
+    property value (e.g. torch 1=east, stairs 0=east, door lower-half
+    facing order, mushroom-block 11-13 fallback, invalid-value fallbacks),
+    and the default state of each block.
+  evidence: >
+    Supplied 1.8.9 blockstates (tier 1) for names/values; spot checks in
+    BlockStateDefinitionTest encode the HYPOTHESIS layouts.
+  vanilla_test_needed: >
+    Cross-check every table entry against the archived pre-flattening
+    data-value pages, then place/setblock each metadata in a real 1.8.9
+    client and compare the rendered orientation (screenshot corpus, §85).
+  owner: unassigned
+  status: partially resolved
+
+- question: >
+    Which exact rules does vanilla 1.8.9 use for the neighbour-derived
+    ("actual") block properties and for orienting a block on placement?
+  why_it_matters: >
+    The block classes (actualState, placements) implement these as behavioural
+    HYPOTHESIS. Specific doubts: fences/walls attaching to glass-material
+    full cubes (glowstone, sea lantern: treated as NOT attaching); stems
+    bending to a fruit at any age (implemented) vs only at age 7; the door
+    hinge rule's left/right convention; torch/ladder support fallbacks when
+    the clicked face cannot hold them; redstone dust attachment to every
+    power source; tripwire-hook "suspended" using opaque-cube below. The
+    stair shape rule and the top-half left/right mirror ARE verified by
+    geometry against the supplied assets (StairShapeGeometryTest).
+  current_hypothesis: >
+    HYPOTHESIS as implemented in the net.minecraft.block classes, but the
+    support rules are now checked against a real 1.8.9 world: every one of
+    7.5M placed blocks satisfies them (VanillaStateRulesTest), which also
+    exercises the metadata those rules read. That comparison already
+    corrected the vine rule. Still unchecked: placement orientation (nothing
+    in a generated world records how a player would have placed it) and the
+    neighbour-derived properties, which vanilla does not store.
+  evidence: >
+    VanillaStateRulesTest over a 1.8.9 server world; asset geometry for stairs
+  vanilla_test_needed: >
+    Build each neighbour configuration in a real 1.8.9 client and compare
+    screenshots; place each orientable block from each face/yaw and read
+    back the metadata (F3 or a region-file dump).
+  owner: unassigned
+  status: open
+
+- question: >
+    Exact 1.8.9 collision/selection boxes for blocks the models cannot
+    confirm, and the exact "can this block stay" rules.
+  why_it_matters: >
+    Block-class box values for fences, walls, panes, stairs, chests, hoppers,
+    cauldrons, pistons, torches, buttons, levers, cocoa, skulls etc. and the
+    BlockUpdates support rules are HYPOTHESIS. Small box differences change
+    movement, PvP and targeting (master context §15.2).
+  current_hypothesis: HYPOTHESIS as implemented in the block classes (selectionBox, collisionBoxes, canStay)
+  evidence: >
+    Doors, trapdoors, slabs, carpets, snow layers, cakes, beds, anvils,
+    farmland, enchanting tables, daylight detectors and flower pots match the
+    supplied models (BlockShapesModelTest); stair collision matches the stair
+    models' filled cells.
+  vanilla_test_needed: >
+    Walk into / stand on each shape in a real 1.8.9 client and record F3
+    coordinates where movement stops; remove supports under each attached
+    block and record what breaks.
+  owner: unassigned
+  status: open
+
+- question: >
+    How does 1.8.9 pick among weighted blockstate variants (per-position
+    seed and weighted selection) and how does uvlock remap faces that
+    declare explicit UVs?
+  why_it_matters: >
+    Random grass/stone/dirt texture rotations are visible everywhere.
+    WeightedModel#positionSeed implements a remembered coordinate hash and
+    selection (HYPOTHESIS); ModelBaker's uvlock recomputes UVs from world
+    position, which is exact for faces using default UVs but unverified for
+    faces with explicit UVs.
+  current_hypothesis: HYPOTHESIS as implemented in WeightedModel / ModelBaker
   evidence: none captured yet
   vanilla_test_needed: >
-    Per-block: cross-check metadata bit layout against Wiki data-value pages
-    and, where gameplay-relevant, a real vanilla client.
+    Screenshot a flat grass/stone field at known coordinates in vanilla and
+    compare per-block rotations; compare uvlocked stairs/fences side by side.
   owner: unassigned
   status: open
 
@@ -142,15 +258,203 @@
   status: open
 
 - question: >
-    Exact NBT/Anvil (.mca) region file layout for 1.8.9 saves, for
+    Writing 1.8.9 NBT/Anvil saves (and their tile entities and entities) for
     exact-interchange-mode save compatibility (§12, §102).
   why_it_matters: >
-    WorldStorage.java currently uses a custom binary format (LCIW/LCCH
-    magic, no NBT at all) — see deviations.yml DEV-003. It can't load or
-    produce a real vanilla 1.8.9 world.
-  current_hypothesis: UNKNOWN
-  evidence: none captured yet
+    Reading is done and verified, but WorldStorage still writes a custom
+    binary format (LCIW/LCCH magic) — see deviations.yml DEV-003 — so
+    LegacyCraft cannot yet hand a world back to vanilla.
+  current_hypothesis: >
+    RESOLVED for reading: net.minecraft.nbt and
+    net.minecraft.world.storage.anvil read real 1.8.9 region files
+    (blocks, metadata, light, biomes, populated flags); the layout is in
+    verified_facts.md. Still open: writing region files, and the tile
+    entity/entity payloads inside chunks.
+  evidence: >
+    A 1.8.9 server world read back in full (40,960,000 blocks) and its light
+    reproduced exactly (VanillaWorldComparisonTest).
   vanilla_test_needed: >
     Round-trip test against a real 1.8.9-generated world per §12.1.
+  owner: unassigned
+  status: open
+
+- question: >
+    Exact 1.8.9 GUI pixel layout: button positions, text y offsets, list
+    row heights, scrollbar geometry, panorama blur passes and splash-text
+    pulse on every menu added in this pass (§63, §66, §121).
+  why_it_matters: >
+    The menu graph (title, singleplayer, create world + more options,
+    Superflat/Customized, options tree, multiplayer, pause, death, loading)
+    is built from memory of the 1.8.9 client and tagged HYPOTHESIS in each
+    class. Captions come from the supplied en_US.lang, so wording is right;
+    geometry is not yet verified.
+  current_hypothesis: >
+    Positions as coded in net.minecraft.client.gui (e.g. title buttons at
+    height/4+48 in 24px steps, Options sub-screen buttons at
+    height/6+48-6 onwards, world list rows 36px between y=32 and
+    height-64).
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Screenshot each screen in a real 1.8.9 client at 854x480 and 1280x720
+    with GUI scale Auto and 2, then diff against LegacyCraft at the same
+    size (§85, §121).
+  owner: unassigned
+  status: open
+
+- question: >
+    options.txt details for 1.8.9: line order, float formatting, and the
+    defaults of every option (§66, §68).
+  why_it_matters: >
+    GameSettings reads and writes vanilla option names so a real
+    options.txt round-trips, but the order and a few defaults (chat
+    heights, realmsNotifications, fboEnable) are from memory.
+  current_hypothesis: As coded in GameSettings.toLines().
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Diff a fresh vanilla 1.8.9 options.txt against one LegacyCraft writes
+    with default settings.
+  owner: unassigned
+  status: open
+
+- question: >
+    Which level.dat tags does 1.8.9 write for a new singleplayer world, and
+    with what types and defaults (§12)?
+  why_it_matters: >
+    LevelInfo writes RandomSeed, generatorName/Version/Options, GameType,
+    MapFeatures, Spawn*, Time, DayTime, LastPlayed, LevelName, version
+    19133, weather, hardcore, allowCommands, Difficulty(Locked), world
+    border defaults, GameRules and a Player compound, and preserves tags it
+    does not know. Types and defaults are COMMUNITY_CORROBORATED only.
+  current_hypothesis: As coded in LevelInfo.toNbt().
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Create a world in vanilla 1.8.9 and compare its level.dat (NBT dump)
+    with one LegacyCraft creates from the same settings.
+  owner: unassigned
+  status: open
+
+- question: >
+    The exact Superflat preset strings, the Customized-world slider ranges,
+    page layout and the seven named Customized presets' values.
+  why_it_matters: >
+    FlatGeneratorInfo.PRESETS and ChunkProviderSettings.FIELDS are from
+    memory; the Customized presets are listed but not applicable until
+    their JSON is captured.
+  current_hypothesis: Classic Flat is "3;7,2*3,2;1;village"; other strings as coded.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Copy each preset's text from the vanilla preset screens (both have a
+    share box) into this file.
+  owner: unassigned
+  status: open
+
+- question: >
+    F3 visuals in 1.8.9: chunk-border colours (F3+G), lagometer styling
+    (Alt+F3), axis-crosshair size, and whether each F3 key combination
+    existed in 1.8.9 (F3+G and F3+N especially).
+  why_it_matters: >
+    The text lines are pinned by GuiOverlayDebugTest; the drawn overlays
+    and combo set are HYPOTHESIS.
+  current_hypothesis: As coded in DebugRenderer, GuiOverlayDebug and Minecraft.handleDebugCombo.
+  evidence: none captured yet
+  vanilla_test_needed: Screenshot vanilla 1.8.9 with each combination active.
+  owner: unassigned
+  status: open
+
+- question: >
+    Creative inventory contents and layout in 1.8.9: which items each tab
+    lists and in what order, whether variants (spawn eggs, potions,
+    enchanted books) appear individually, and the pixel layout (tab
+    offsets, scrollbar, search field, Survival Inventory tab slots,
+    destroy slot).
+  why_it_matters: >
+    creative_tabs.json and GuiContainerCreative are reconstructed from
+    memory; CreativeTabsTest pins only internal consistency.
+  current_hypothesis: As in assets/legacycraft/creative_tabs.json and GuiContainerCreative.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Screenshot every tab of a vanilla 1.8.9 creative inventory (GUI scale
+    2) and diff the item order and slot positions.
+  owner: unassigned
+  status: open
+
+- question: >
+    Creative click details: stack size given by creative pick block
+    (middle click on a block), whether right-clicking the search field
+    clears it in 1.8.9, and the survival inventory's crafting-grid and
+    result positions (88,26 / 144,36 assumed).
+  why_it_matters: Small behaviour differences a 1.8.9 player would notice.
+  current_hypothesis: Full stack; no right-click clear; positions as coded in GuiInventory.
+  evidence: none captured yet
+  vanilla_test_needed: Try each in vanilla 1.8.9 and screenshot the survival inventory.
+  owner: unassigned
+  status: open
+
+- question: >
+    Creative flight constants: horizontal top speed (10.92 m/s, 21.6
+    sprinting), vertical speed (7.5 m/s), acceleration curve, and the
+    double-tap window (7 ticks).
+  why_it_matters: >
+    Player.fly eases velocity with 0.91/0.6 per-tick drag applied
+    continuously at 120 Hz, which approximates but does not replay
+    vanilla's 20 Hz integration.
+  current_hypothesis: Constants in Player (FLY_SPEED, FLY_SPRINT_SPEED, FLY_VERTICAL_SPEED, FLY_TOGGLE_WINDOW).
+  evidence: none captured yet
+  vanilla_test_needed: Record F3 coordinates per tick while flying in vanilla 1.8.9.
+  owner: unassigned
+  status: open
+
+- question: >
+    GUI item rendering and HUD sprites: the block-item transform in the
+    GUI, item tint colours, heart/food/armor/xp sprite coordinates in
+    icons.png, and the held-item name position and fade.
+  why_it_matters: ItemRenderer and GuiIngame are HYPOTHESIS until screenshot-compared.
+  current_hypothesis: As coded in ItemRenderer and GuiIngame.
+  evidence: none captured yet
+  vanilla_test_needed: Screenshot the hotbar and inventories in vanilla 1.8.9 at GUI scale 2 and diff.
+  owner: unassigned
+  status: open
+
+- question: >
+    Block breaking and drops: the corrected hardness values in
+    data/mc189/block_data, tool effectiveness lists and harvest levels
+    (ToolValues), and every drop rule in assets/legacycraft/loot/blocks.json
+    and BlockDrops (counts, chances, which variant a block drops).
+  why_it_matters: >
+    Break times and drops are the core of survival play; all values are
+    written from knowledge of vanilla, not measured.
+  current_hypothesis: As coded; e.g. stone by hand 7.5 s, with a wooden pickaxe 1.15 s.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Time breaks with each tool tier in vanilla 1.8.9 (F3 tick counter) and
+    tally drops over many breaks of leaves, gravel, crops and ores.
+  owner: unassigned
+  status: open
+
+- question: >
+    Dropped item entities: gravity/drag/bounce constants, pickup delay
+    (10 ticks from blocks, 40 thrown), pickup box (player box grown 1, 0.5,
+    1), merge distance and interval, render size (0.25 block cubes, 0.5
+    sprites), bob height and spin speed, and the throw velocity.
+  why_it_matters: EntityItem and the renderer are HYPOTHESIS.
+  current_hypothesis: As coded in EntityItem and Minecraft.renderItemEntities.
+  evidence: none captured yet
+  vanilla_test_needed: Record F3 positions of a thrown item per tick in vanilla 1.8.9 and screenshot dropped items.
+  owner: unassigned
+  status: open
+
+- question: >
+    Sky formulas: celestial angle easing, sky colour by temperature (the
+    commonly quoted plains sky is #78A7FF, the recalled formula gives
+    #79A7FF), fog and sunrise colours, star placement (Random 10842), moon
+    phase UVs, cloud geometry and colours, fast clouds' texel size (8
+    blocks vs fancy's 12), and the lightmap curve.
+  why_it_matters: SkyRenderer and LightMap are HYPOTHESIS; the sky fills half of most screenshots.
+  current_hypothesis: As coded in SkyRenderer and LightMap.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Screenshot vanilla 1.8.9 and LegacyCraft at the same --seed/--pos and
+    /time set values (0, 6000, 12000, 13000, 18000, 23000) with fancy and
+    fast graphics; compare sky, fog, star and cloud pixels.
   owner: unassigned
   status: open

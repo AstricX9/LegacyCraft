@@ -1,0 +1,5 @@
+{
+  "properties": {"triggered": ["false", "true"]},
+  "meta": [{"property": "triggered", "bits": 1}],
+  "model": {"ignore": ["triggered"]}
+}

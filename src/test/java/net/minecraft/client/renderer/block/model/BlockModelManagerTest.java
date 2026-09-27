@@ -14,12 +14,12 @@ class BlockModelManagerTest {
         BlockRegistry blocks = BlockRegistry.load(resources);
         BlockModelManager models = new BlockModelManager(resources, blocks);
 
-        BakedModel stone = models.getModel(blocks.get("minecraft:stone"));
+        BakedModel stone = models.getModel(blocks.get("minecraft:stone").defaultState());
         assertEquals(6, stone.quads().size());
         assertTrue(stone.quads().stream()
             .allMatch(quad -> quad.texture().toString().equals("minecraft:textures/blocks/stone.png")));
 
-        BakedModel craftingTable = models.getModel(blocks.get("minecraft:crafting_table"));
+        BakedModel craftingTable = models.getModel(blocks.get("minecraft:crafting_table").defaultState());
         assertEquals(6, craftingTable.quads().size());
         assertTrue(craftingTable.quads().stream()
             .map(BakedQuad::texture)

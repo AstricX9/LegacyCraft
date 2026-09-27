@@ -1,0 +1,8 @@
+{
+  "id": 15,
+  "temperature": 0.9,
+  "rainfall": 1.0,
+  "depth": 0.0,
+  "scale": 0.025,
+  "topBlock": "minecraft:mycelium"
+}

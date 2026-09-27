@@ -1,0 +1,11 @@
+{
+  "id": 17,
+  "temperature": 2.0,
+  "rainfall": 0.0,
+  "depth": 0.45,
+  "scale": 0.3,
+  "topBlock": "minecraft:sand",
+  "fillerBlock": "minecraft:sand",
+  "rain": false,
+  "cactiPerChunk": 10
+}

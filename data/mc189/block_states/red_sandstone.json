@@ -1,0 +1,5 @@
+{
+  "properties": {"type": ["red_sandstone", "chiseled_red_sandstone", "smooth_red_sandstone"]},
+  "meta": [{"property": "type", "bits": 2}],
+  "model": {"file": "{type}"}
+}

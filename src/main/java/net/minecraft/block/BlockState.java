@@ -1,5 +1,8 @@
 package net.minecraft.block;
 
+import java.util.SortedMap;
+import java.util.TreeMap;
+
 /**
  * A pre-flattening vanilla "block state": a {@link Block} plus its 0-15
  * metadata/data value (master context §11.4, §15.1 — orientation, variant,
@@ -12,13 +15,11 @@ package net.minecraft.block;
  * {@link net.minecraft.world.World} can keep using its existing {@code short}
  * chunk storage unchanged.
  *
- * <p>This class only carries the (block, metadata) identity. It does not yet
- * interpret what a given metadata value <i>means</i> for a given block
- * (facing, half, color, ...) — that per-block semantics is still open, see
- * {@code docs/compat/unknowns.yml}. Every existing call site that only knows
- * about {@code Block} keeps working unchanged and implicitly means metadata
- * 0; nothing currently sets a non-zero metadata, so this change is additive
- * plumbing, not yet a behavior change.
+ * <p>What a metadata value <i>means</i> is defined per block by its
+ * {@link net.minecraft.block.state.BlockStateDefinition}: {@link #values()}
+ * decodes the stored properties and {@link #with(String, String)} re-encodes.
+ * Properties derived from neighbours (fence connections, stair shape...) are
+ * not stored; see {@link Block#actualState}.
  */
 public final class BlockState {
     /** Vanilla legacy metadata is a nibble: 0-15. */
@@ -42,10 +43,32 @@ public final class BlockState {
         return new BlockState(block, metadata);
     }
 
+    /** The raw metadata-0 state, which is what legacy storage holds for a bare block ID. See {@link Block#defaultState()}. */
     public static BlockState defaultOf(Block block) { return of(block, 0); }
 
     public Block block() { return block; }
     public int metadata() { return metadata; }
+
+    /** Stored property values decoded from the metadata (derived properties at their defaults). */
+    public SortedMap<String, String> values() { return block.stateDefinition().decode(metadata); }
+
+    public String get(String property) {
+        String value = values().get(property);
+        if (value == null) throw new IllegalArgumentException(block + " has no property " + property);
+        return value;
+    }
+
+    /** A copy with one stored property changed; derived properties cannot be stored. */
+    public BlockState with(String property, String value) {
+        var definition = block.stateDefinition();
+        if (!definition.hasProperty(property) || !definition.properties().get(property).contains(value))
+            throw new IllegalArgumentException(block + " has no state " + property + "=" + value);
+        if (!definition.isStored(property))
+            throw new IllegalArgumentException(block + " property " + property + " is derived from neighbours, not stored");
+        SortedMap<String, String> updated = new TreeMap<>(values());
+        updated.put(property, value);
+        return of(block, definition.encode(updated));
+    }
 
     /** Legacy extended-storage packing: {@code (registryId << 4) | metadata}. */
     public int packed() { return (block.registryId() << METADATA_BITS) | metadata; }

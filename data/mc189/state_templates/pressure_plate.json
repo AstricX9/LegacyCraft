@@ -1,0 +1,4 @@
+{
+  "properties": {"powered": ["false", "true"]},
+  "meta": [{"property": "powered", "bits": 1}]
+}

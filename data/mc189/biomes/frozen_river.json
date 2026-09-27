@@ -1,0 +1,9 @@
+{
+  "id": 11,
+  "temperature": 0.0,
+  "rainfall": 0.5,
+  "depth": -0.5,
+  "scale": 0.0,
+  "snow": true,
+  "rain": false
+}

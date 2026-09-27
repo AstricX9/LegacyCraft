@@ -1,0 +1,10 @@
+{
+  "id": 164,
+  "temperature": 1.0,
+  "rainfall": 0.0,
+  "depth": 1.05,
+  "scale": 1.2125,
+  "rain": false,
+  "treesPerChunk": 1,
+  "grassPerChunk": 20
+}

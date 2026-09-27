@@ -1,0 +1,7 @@
+{
+  "material": "barrier",
+  "hardness": -1.0,
+  "opaque": false,
+  "fullCube": true,
+  "renderType": "invisible"
+}

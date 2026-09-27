@@ -51,21 +51,24 @@ def generatedGameData = layout.buildDirectory.dir('generated/resources/gameData'
 sourceSets.main.resources.srcDir(generatedGameData)
 
 /**
- * Expands the compact authoring defaults into one self-contained JSON file for
- * every discovered block and item.  The generated manifests are the sole
- * authority for runtime IDs, so classpath/filesystem enumeration order can
- * never change persisted IDs.
+ * Expands the per-block authoring data into self-contained per-block and
+ * per-item JSON files. Every 1.8.9 block has exactly one file in each of
+ * data/mc189/block_data, block_states and block_items (organised 1:1 with the
+ * block, like vanilla's one-blockstate-file-per-name assets). Block data
+ * (definitions/blocks) and block states (states/blocks) are generated as
+ * separate files and are never merged into one document. The generated
+ * manifests are the sole authority for runtime IDs, so classpath/filesystem
+ * enumeration order can never change persisted IDs.
  */
 tasks.register('generateGameData') {
-    def assets = file('src/main/resources/assets')
     def blockstates = file('src/main/resources/assets/minecraft/blockstates')
     def itemModels = file('src/main/resources/assets/minecraft/models/item')
     def definitions = file('src/main/resources/assets/legacycraft/definitions')
-    def legacyBlockIds = file('data/mc189/blocks.json')
+    def mc189 = file('data/mc189')
     inputs.dir(blockstates)
     inputs.dir(itemModels)
     inputs.dir(definitions)
-    inputs.file(legacyBlockIds)
+    inputs.dir(mc189)
     outputs.dir(generatedGameData)
 
     doLast {
@@ -88,64 +91,95 @@ tasks.register('generateGameData') {
             target.parentFile.mkdirs()
             target.setText(JsonOutput.prettyPrint(JsonOutput.toJson(value)) + System.lineSeparator(), 'UTF-8')
         }
-        def definitionPath = { String type, String name ->
+        def generatedPath = { String kind, String name ->
             def split = name.split(':', 2)
-            "legacycraft:definitions/${type}/${split[0]}/${split[1]}.json"
+            "legacycraft:${kind}/${split[0]}/${split[1]}.json"
+        }
+        def writeGenerated = { String location, Object value ->
+            writeJson(new File(outputRoot, "assets/legacycraft/${location.substring(location.indexOf(':') + 1)}"), value)
         }
 
-        def blockDefaults = readJson(new File(definitions, 'block_defaults.json'))
-        def blockOverrides = readOverrides(new File(definitions, 'blocks'))
-
-        // Block IDs are sourced from the verified vanilla 1.8.9 legacy ID table
+        // Block IDs are sourced from the vanilla 1.8.9 legacy ID table
         // (data/mc189/blocks.json; see docs/compat/verified_facts.md and
         // docs/compat/deviations.yml DEV-002) rather than filesystem/classpath
         // discovery order, so persisted/networked IDs can eventually agree with
         // real vanilla data instead of only being internally self-consistent.
-        def legacyTable = readJson(legacyBlockIds)
+        def legacyTable = readJson(new File(mc189, 'blocks.json'))
+        def legacyEntries = legacyTable.entries.toSorted { a, b -> (a.id as int) <=> (b.id as int) }
         def legacyIndex = [:]
-        legacyTable.entries.each { entry -> legacyIndex[entry.name as String] = entry.id as int }
-
-        def discoveredNames = blockstates.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
-            .collect { "minecraft:${it.name[0..<-5]}" } as Set
-        discoveredNames.addAll(blockOverrides.keySet())
-        // Vanilla ships no air.json blockstate (air has no model); it is still
-        // always present at legacy ID 0.
-        discoveredNames.add('minecraft:air')
-
-        def knownNames = discoveredNames.findAll { legacyIndex.containsKey(it) }
-        def extraNames = (discoveredNames - knownNames).toSorted()
-        def orderedKnownNames = knownNames.toSorted { a, b -> (legacyIndex[a] as int) <=> (legacyIndex[b] as int) }
-
-        // The full 1.8.9 catalog (IDs 0-197) is gap-free, so if the supplied
-        // resource pack is complete this reproduces 0..197 exactly and
-        // BlockRegistry's contiguous-index invariant still holds. A gap means
-        // the pack is missing a vanilla block's blockstate file: fail loudly
-        // rather than silently reassigning IDs and quietly losing vanilla-ID
-        // fidelity for every block after the gap.
-        orderedKnownNames.eachWithIndex { name, index ->
-            def expected = legacyIndex[name] as int
-            if (expected != index) {
-                throw new GradleException("Block '${name}' has vanilla legacy ID ${expected}, but only "
-                    + "${index} lower-numbered vanilla block(s) were found in the supplied resource pack, "
-                    + "which would break contiguous registry IDs and vanilla-ID fidelity alike. The "
-                    + "supplied 1.8.9 asset archive under src/main/resources/assets/minecraft is missing "
-                    + "one or more block(s) with legacy ID < ${expected}. See data/mc189/blocks.json.")
+        legacyEntries.eachWithIndex { entry, index ->
+            String name = entry.name
+            if ((entry.id as int) != index || legacyIndex.containsKey(name)) {
+                throw new GradleException("Invalid legacy block table: expected unique block ID ${index}, found ${entry}")
             }
+            legacyIndex[name] = index
+        }
+        if (legacyIndex['minecraft:air'] != 0) {
+            throw new GradleException('The legacy block table must start with minecraft:air at ID 0')
+        }
+        def blockNames = new ArrayList(legacyIndex.keySet())
+
+        // One file per block in each folder: none missing, none extra.
+        def perBlock = { String folder ->
+            def directory = new File(mc189, folder)
+            def files = [:]
+            directory.eachFileMatch(~/.*\.json/) { file -> files['minecraft:' + file.name[0..<-5]] = file }
+            def extra = files.keySet().findAll { !legacyIndex.containsKey(it) }
+            def missing = blockNames.findAll { !files.containsKey(it) }
+            if (extra) throw new GradleException("data/mc189/${folder} has files for non-1.8.9 blocks: ${extra}")
+            if (missing) throw new GradleException("data/mc189/${folder} is missing files for: ${missing}")
+            files.collectEntries { name, file -> [(name): readJson(file)] }
         }
 
-        def blockNames = new ArrayList(orderedKnownNames)
-        blockNames.addAll(extraNames)
-        def blockNameSet = blockNames as Set
+        // Block data and block states are kept apart; each side only accepts
+        // its own keys so the two can never drift back into one document.
+        def dataKeys = ['class', 'doubleSlab', 'fruit', 'material', 'hardness', 'opaque', 'fullCube', 'solid', 'translucent',
+                        'renderType', 'cullSame', 'tintColor', 'lightLevel', 'lightOpacity', 'useNeighborBrightness', 'model', 'bounds',
+                        'collision', 'targetable'] as Set
+        def stateKeys = ['properties', 'defaults', 'meta', 'model'] as Set
+        def requireKeys = { String source, Map value, Set allowed ->
+            def unknown = value.keySet().findAll { !allowed.contains(it) }
+            if (unknown) throw new GradleException("${source} has keys ${unknown} that do not belong there (allowed: ${allowed})")
+        }
+
+        def blockDefaults = readJson(new File(mc189, 'block_defaults.json'))
+        requireKeys('data/mc189/block_defaults.json', blockDefaults, dataKeys)
+        def blockData = perBlock('block_data')
+        def blockStates = perBlock('block_states')
+        def blockItems = perBlock('block_items')
+        def stateTemplates = [:]
+        new File(mc189, 'state_templates').eachFileMatch(~/.*\.json/) { file ->
+            def template = readJson(file)
+            requireKeys("data/mc189/state_templates/${file.name}", template, stateKeys)
+            stateTemplates[file.name[0..<-5]] = template
+        }
+        blockData.each { name, value -> requireKeys("data/mc189/block_data ${name}", value as Map, dataKeys) }
+
         def blockEntries = []
         blockNames.eachWithIndex { name, index ->
             def value = new LinkedHashMap(blockDefaults)
-            value.putAll(blockOverrides[name] ?: [:])
+            value.putAll(blockData[name])
             value.name = name
             value.index = index
-            def location = definitionPath('blocks', name)
-            def relative = location.substring(location.indexOf(':') + 1)
-            writeJson(new File(outputRoot, "assets/legacycraft/${relative}"), value)
-            blockEntries << [index: index, name: name, definition: location]
+            def location = generatedPath('definitions/blocks', name)
+            writeGenerated(location, value)
+            def entry = [index: index, name: name, definition: location]
+
+            def source = blockStates[name] as Map
+            requireKeys("data/mc189/block_states ${name}", source, stateKeys + ['template'] as Set)
+            def states = [:]
+            if (source.template) {
+                def template = stateTemplates[source.template]
+                if (template == null) throw new GradleException("${name} uses unknown state template ${source.template}")
+                states.putAll(template as Map)
+            }
+            source.each { key, stateValue -> if (key != 'template') states[key] = stateValue }
+            if (states) {
+                def statesLocation = generatedPath('states/blocks', name)
+                writeGenerated(statesLocation, [name: name] + states)
+                entry.states = statesLocation
+            }
+            blockEntries << entry
         }
         writeJson(new File(outputRoot, 'assets/legacycraft/indexes/blocks.json'),
             [format: 1, count: blockEntries.size(), entries: blockEntries])
@@ -153,8 +187,23 @@ tasks.register('generateGameData') {
         def itemDefaults = readJson(new File(definitions, 'item_defaults.json'))
         def itemOverrides = readOverrides(new File(definitions, 'items'))
         def itemNames = itemModels.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
-            .collect { "minecraft:${it.name[0..<-5]}" }
+            .collect { 'minecraft:' + it.name[0..<-5] }
             .toSorted()
+        def itemNameSet = itemNames as Set
+
+        // Which (block, metadata) each block item places, from each block's own
+        // data/mc189/block_items file ({} = the block has no item).
+        def placements = [:]
+        blockNames.each { String blockName ->
+            (blockItems[blockName] as Map).each { itemPath, meta ->
+                String itemName = 'minecraft:' + itemPath
+                if (!itemNameSet.contains(itemName)) throw new GradleException("${blockName} maps missing item model ${itemName}")
+                if (placements.containsKey(itemName)) throw new GradleException("Item ${itemName} places more than one block")
+                if ((meta as int) < 0 || (meta as int) > 15) throw new GradleException("Invalid placed metadata for ${itemName}")
+                placements[itemName] = [block: blockName, meta: meta as int]
+            }
+        }
+
         def itemEntries = []
         itemNames.eachWithIndex { name, index ->
             def value = new LinkedHashMap(itemDefaults)
@@ -162,14 +211,40 @@ tasks.register('generateGameData') {
             value.name = name
             value.index = index
             value.model = value.model ?: "minecraft:item/${name.substring(name.indexOf(':') + 1)}"
-            value.placeBlock = value.placeBlock ?: (blockNameSet.contains(name) ? name : null)
-            def location = definitionPath('items', name)
-            def relative = location.substring(location.indexOf(':') + 1)
-            writeJson(new File(outputRoot, "assets/legacycraft/${relative}"), value)
+            if (!value.placeBlock && placements.containsKey(name)) {
+                value.placeBlock = placements[name].block
+                value.placeMeta = placements[name].meta
+            }
+            def location = generatedPath('definitions/items', name)
+            writeGenerated(location, value)
             itemEntries << [index: index, name: name, definition: location]
         }
         writeJson(new File(outputRoot, 'assets/legacycraft/indexes/items.json'),
             [format: 1, count: itemEntries.size(), entries: itemEntries])
+
+        // Biomes: one authored file per biome, same shape as the block data.
+        def biomeKeys = ['id', 'temperature', 'rainfall', 'depth', 'scale', 'topBlock', 'topMetadata', 'fillerBlock',
+                         'fillerMetadata', 'snow', 'rain', 'grassColor', 'foliageColor', 'grassMix', 'waterColor',
+                         'treesPerChunk', 'grassPerChunk', 'flowersPerChunk', 'cactiPerChunk', 'mushroomsPerChunk'] as Set
+        def biomeEntries = []
+        def biomeIds = [:]
+        new File(mc189, 'biomes').listFiles({ f -> f.name.endsWith('.json') } as FileFilter).toSorted { it.name }.each { file ->
+            def value = readJson(file)
+            String name = 'minecraft:' + file.name[0..<-5]
+            requireKeys("data/mc189/biomes/${file.name}", value, biomeKeys)
+            int id = value.id as int
+            if (id < 0 || id > 255) throw new GradleException("Biome ${name} has an out-of-range ID ${id}")
+            if (biomeIds.containsKey(id)) throw new GradleException("Biome ID ${id} is used by both ${biomeIds[id]} and ${name}")
+            biomeIds[id] = name
+            def definition = new LinkedHashMap(value)
+            definition.name = name
+            def location = generatedPath('definitions/biomes', name)
+            writeGenerated(location, definition)
+            biomeEntries << [id: id, name: name, definition: location]
+        }
+        biomeEntries = biomeEntries.toSorted { it.id }
+        writeJson(new File(outputRoot, 'assets/legacycraft/indexes/biomes.json'),
+            [format: 1, count: biomeEntries.size(), entries: biomeEntries])
     }
 }
 
@@ -179,4 +254,9 @@ tasks.named('processResources') {
 
 test {
     useJUnitPlatform()
+    maxHeapSize = '1500m'
+    // Let -Dlegacycraft.* reach the tests (the oracle world path, probe switches).
+    System.properties.each { key, value ->
+        if (key.toString().startsWith('legacycraft.')) systemProperty(key.toString(), value)
+    }
 }

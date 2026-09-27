@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["oak", "spruce", "birch", "jungle"], "decayable": ["true", "false"], "check_decay": ["false", "true"]},
+  "meta": [{"property": "variant", "bits": 2}, {"property": "decayable", "shift": 2, "bits": 1}, {"property": "check_decay", "shift": 3, "bits": 1}],
+  "model": {"file": "{variant}_leaves", "ignore": ["decayable", "check_decay"]}
+}

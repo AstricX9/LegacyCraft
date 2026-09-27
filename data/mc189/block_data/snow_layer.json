@@ -1,0 +1,7 @@
+{
+  "class": "snow_layer",
+  "material": "snow",
+  "hardness": 0.1,
+  "opaque": false,
+  "solid": true
+}

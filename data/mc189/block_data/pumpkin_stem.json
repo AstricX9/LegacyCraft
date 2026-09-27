@@ -1,0 +1,8 @@
+{
+  "class": "stem",
+  "material": "plants",
+  "hardness": 0.0,
+  "fruit": "minecraft:pumpkin",
+  "opaque": false,
+  "solid": false
+}

@@ -1,6 +1,8 @@
 package net.minecraft.world.storage;
 
 import net.minecraft.block.BlockRegistry;
+import net.minecraft.world.biome.BiomeRegistry;
+import net.minecraft.block.BlockState;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 
@@ -22,7 +24,8 @@ import java.util.zip.GZIPOutputStream;
 public final class WorldStorage {
     private static final int INDEX_MAGIC = 0x4c434957; // LCIW
     private static final int CHUNK_MAGIC = 0x4c434348; // LCCH
-    private static final int FORMAT = 1;
+    /** 2 added the per-chunk "populated" flag; format 1 chunks load as populated (they were finished worlds). */
+    private static final int FORMAT = 2;
     private static final String INDEX_FILE = "level.lci";
 
     private WorldStorage() {}
@@ -51,12 +54,18 @@ public final class WorldStorage {
         moveAtomically(temporary, target);
     }
 
-    public static World load(Path directory, BlockRegistry blocks) throws IOException {
+    public static World load(Path directory, BlockRegistry blocks, BiomeRegistry biomes) throws IOException {
+        return load(directory, blocks, seed -> new World(blocks, biomes, seed));
+    }
+
+    /** Loads chunks into a world built by {@code factory} from the saved seed (lets flat worlds keep their layers). */
+    public static World load(Path directory, BlockRegistry blocks, java.util.function.LongFunction<World> factory) throws IOException {
         Path index = directory.resolve(INDEX_FILE);
         try (var input = new DataInputStream(new BufferedInputStream(Files.newInputStream(index)))) {
             require(input.readInt() == INDEX_MAGIC, "Not a LegacyCraft world index");
-            require(input.readInt() == FORMAT, "Unsupported world index version");
-            World world = new World(blocks, input.readLong());
+            int format = input.readInt();
+            require(format == 1 || format == FORMAT, "Unsupported world index version");
+            World world = factory.apply(input.readLong());
             int count = input.readInt();
             require(count >= 0, "Negative chunk count");
             for (int i = 0; i < count; i++) {
@@ -77,6 +86,7 @@ public final class WorldStorage {
             output.writeInt(chunk.chunkX());
             output.writeInt(chunk.chunkZ());
             output.writeLong(chunk.generationIndex());
+            output.writeBoolean(chunk.isPopulated());
             for (int y = 0; y < Chunk.HEIGHT; y++)
                 for (int z = 0; z < Chunk.SIZE; z++)
                     for (int x = 0; x < Chunk.SIZE; x++) output.writeShort(chunk.get(x, y, z));
@@ -89,22 +99,26 @@ public final class WorldStorage {
         Path source = directory.resolve(fileName(expectedX, expectedZ));
         try (var input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(source))))) {
             require(input.readInt() == CHUNK_MAGIC, "Invalid chunk file " + source);
-            require(input.readInt() == FORMAT, "Unsupported chunk version");
+            int format = input.readInt();
+            require(format == 1 || format == FORMAT, "Unsupported chunk version");
             int x = input.readInt(), z = input.readInt();
             long generationIndex = input.readLong();
+            boolean populated = format == 1 || input.readBoolean();
             require(x == expectedX && z == expectedZ && generationIndex == expectedIndex,
                 "Chunk index entry does not match " + source);
             Chunk chunk = new Chunk(x, z);
             for (int y = 0; y < Chunk.HEIGHT; y++) {
                 for (int localZ = 0; localZ < Chunk.SIZE; localZ++) {
                     for (int localX = 0; localX < Chunk.SIZE; localX++) {
-                        int id = input.readUnsignedShort();
+                        int packed = input.readUnsignedShort();
+                        int id = packed >>> BlockState.METADATA_BITS;
                         require(id < registrySize, "Unknown block ID " + id + " in " + source);
-                        chunk.set(localX, y, localZ, id);
+                        chunk.set(localX, y, localZ, packed);
                     }
                 }
             }
             chunk.markGenerated(generationIndex);
+            if (populated) chunk.markPopulated();
             return chunk;
         }
     }

@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["oak", "spruce", "birch", "jungle", "acacia", "dark_oak"], "half": ["bottom", "top"]},
+  "meta": [{"property": "variant", "bits": 3}, {"property": "half", "shift": 3, "bits": 1}],
+  "model": {"file": "{variant}_slab"}
+}

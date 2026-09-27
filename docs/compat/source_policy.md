@@ -39,6 +39,22 @@ Tag nontrivial compatibility claims in comments/commit messages:
 - Community decompilations/mappings are research pointers only.
 - No official-affiliation branding.
 
+## Differential comparison against a real 1.8.9 world
+
+Tier 0 evidence in practice: generate a world with the official **1.8.9
+dedicated server** (no account needed), then point the test suite at it:
+
+```
+gradlew test -Dlegacycraft.vanillaWorld=C:/Server/world
+```
+
+`VanillaWorldComparisonTest` reads the Anvil region files and compares
+vanilla's own data with ours — every block ID and biome ID against our
+tables, and the sky/block light vanilla stored against what our light engine
+computes for the same blocks. It is skipped when no such world is present.
+Only chunks vanilla finished lighting (`LightPopulated`) are compared, with
+two rings of neighbours imported so light can reach them.
+
 ## Companion files in this directory
 
 - `verified_facts.md` — anchors confirmed against Tier 0–3 sources.

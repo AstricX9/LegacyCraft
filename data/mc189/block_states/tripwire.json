@@ -1,0 +1,5 @@
+{
+  "properties": {"attached": ["false", "true"], "disarmed": ["false", "true"], "east": ["false", "true"], "north": ["false", "true"], "powered": ["false", "true"], "south": ["false", "true"], "suspended": ["false", "true"], "west": ["false", "true"]},
+  "meta": [{"property": "powered", "bits": 1}, {"property": "suspended", "shift": 1, "bits": 1}, {"property": "attached", "shift": 2, "bits": 1}, {"property": "disarmed", "shift": 3, "bits": 1}],
+  "model": {"ignore": ["disarmed", "powered"]}
+}

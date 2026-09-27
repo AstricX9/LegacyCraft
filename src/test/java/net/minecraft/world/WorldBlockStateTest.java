@@ -4,6 +4,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.world.biome.BiomeRegistry;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,17 +14,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Exercises the (block, metadata) storage added on top of the existing
  * Chunk/ChunkSection short-array encoding (see BlockState and the
- * World.getState/setState pair). Nothing yet computes a *meaningful*
- * metadata for any block — this only proves the plumbing is sound: values
+ * World.getState/setState pair). What a metadata value means is tested in
+ * BlockStateDefinitionTest; this only proves the storage is sound: values
  * round-trip, unrelated positions are unaffected, and the legacy-vanilla
  * pack/unpack formula ((id << 4) | metadata) is exactly what's stored.
  */
 class WorldBlockStateTest {
     private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
+    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
 
     @Test
     void setStateAndGetStateRoundTripMetadata() {
-        World world = new World(blocks, 4242L);
+        World world = new World(blocks, biomes, 4242L);
         Block wool = blocks.get("minecraft:wool");
 
         world.setState(10, 90, 10, BlockState.of(wool, 14));
@@ -35,7 +37,7 @@ class WorldBlockStateTest {
 
     @Test
     void plainSetDefaultsToMetadataZero() {
-        World world = new World(blocks, 4242L);
+        World world = new World(blocks, biomes, 4242L);
         Block cobblestone = blocks.get("minecraft:cobblestone");
 
         world.set(11, 90, 10, cobblestone);
@@ -45,7 +47,7 @@ class WorldBlockStateTest {
 
     @Test
     void getIgnoresMetadataForBackwardCompatibility() {
-        World world = new World(blocks, 4242L);
+        World world = new World(blocks, biomes, 4242L);
         Block wool = blocks.get("minecraft:wool");
 
         world.setState(12, 90, 10, BlockState.of(wool, 7));
@@ -55,7 +57,7 @@ class WorldBlockStateTest {
 
     @Test
     void settingOneStateDoesNotDisturbNeighbors() {
-        World world = new World(blocks, 4242L);
+        World world = new World(blocks, biomes, 4242L);
         Block wool = blocks.get("minecraft:wool");
         Block stone = blocks.get("minecraft:stone");
         world.set(13, 90, 10, stone);
@@ -68,7 +70,7 @@ class WorldBlockStateTest {
 
     @Test
     void unsetPositionDefaultsToAirAtMetadataZero() {
-        World world = new World(blocks, 4242L);
+        World world = new World(blocks, biomes, 4242L);
         assertEquals(BlockState.of(blocks.air(), 0), world.getState(200, 250, 200));
     }
 

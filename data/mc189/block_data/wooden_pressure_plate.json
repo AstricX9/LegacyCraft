@@ -1,0 +1,7 @@
+{
+  "class": "pressure_plate",
+  "material": "wood",
+  "hardness": 0.5,
+  "opaque": false,
+  "solid": false
+}

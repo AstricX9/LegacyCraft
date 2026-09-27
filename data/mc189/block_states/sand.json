@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["sand", "red_sand"]},
+  "meta": [{"property": "variant", "bits": 1}],
+  "model": {"file": "{variant}"}
+}

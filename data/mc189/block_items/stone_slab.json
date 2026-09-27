@@ -1,0 +1,10 @@
+{
+  "stone_slab": 0,
+  "sandstone_slab": 1,
+  "wood_old_slab": 2,
+  "cobblestone_slab": 3,
+  "brick_slab": 4,
+  "stone_brick_slab": 5,
+  "nether_brick_slab": 6,
+  "quartz_slab": 7
+}

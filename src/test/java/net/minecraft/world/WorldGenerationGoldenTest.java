@@ -2,6 +2,7 @@ package net.minecraft.world;
 
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.world.biome.BiomeRegistry;
 import net.minecraft.util.StateHash;
 import org.junit.jupiter.api.Test;
 
@@ -21,12 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  */
 class WorldGenerationGoldenTest {
     private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
+    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
     private static final int CHUNK_RADIUS = 3;
 
     @Test
     void sameSeedReproducesIdenticalRegionStateAcrossIndependentWorlds() {
-        World first = new World(blocks, 20260915L);
-        World second = new World(blocks, 20260915L);
+        World first = new World(blocks, biomes, 20260915L);
+        World second = new World(blocks, biomes, 20260915L);
 
         long firstHash = StateHash.regionHash(first, CHUNK_RADIUS);
         long secondHash = StateHash.regionHash(second, CHUNK_RADIUS);
@@ -37,9 +39,31 @@ class WorldGenerationGoldenTest {
     }
 
     @Test
+    void populatedRegionReproducesItselfForTheSameRequestOrder() {
+        World first = new World(blocks, biomes, 20260915L);
+        World second = new World(blocks, biomes, 20260915L);
+        for (int cz = -CHUNK_RADIUS - 1; cz <= CHUNK_RADIUS + 1; cz++) {
+            for (int cx = -CHUNK_RADIUS - 1; cx <= CHUNK_RADIUS + 1; cx++) {
+                first.getChunk(cx, cz);
+                second.getChunk(cx, cz);
+            }
+        }
+        assertEquals(StateHash.regionHash(first, CHUNK_RADIUS), StateHash.regionHash(second, CHUNK_RADIUS),
+            "Population (lakes, ores, trees...) must be deterministic for a given seed and request order.");
+    }
+
+    /**
+     * The terrain stage (shape, surface, caves, ravines) depends only on the
+     * seed and chunk position. Population is left out: in vanilla 1.8.9 it is
+     * order-dependent (neighbouring chunks' features compete for the same
+     * space, and a chunk is populated when its neighbours happen to exist).
+     */
+    @Test
     void requestingChunksInADifferentOrderDoesNotChangeTheResultingState() {
-        World inOrder = new World(blocks, 20260915L);
-        World reversed = new World(blocks, 20260915L);
+        World inOrder = new World(blocks, biomes, 20260915L);
+        World reversed = new World(blocks, biomes, 20260915L);
+        inOrder.disablePopulation();
+        reversed.disablePopulation();
 
         // Force generation in the opposite (cz outer, cx inner, descending) order
         // before hashing, to catch any accidental cross-chunk state leak (see
@@ -59,8 +83,8 @@ class WorldGenerationGoldenTest {
 
     @Test
     void differentSeedsProduceDifferentRegionState() {
-        World first = new World(blocks, 20260915L);
-        World second = new World(blocks, 20260916L);
+        World first = new World(blocks, biomes, 20260915L);
+        World second = new World(blocks, biomes, 20260916L);
 
         assertNotEquals(StateHash.regionHash(first, CHUNK_RADIUS), StateHash.regionHash(second, CHUNK_RADIUS),
             "Sanity check: the hash must actually be sensitive to world state, "

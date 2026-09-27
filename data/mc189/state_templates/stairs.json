@@ -1,0 +1,5 @@
+{
+  "properties": {"facing": ["east", "west", "south", "north"], "half": ["bottom", "top"], "shape": ["straight", "inner_left", "inner_right", "outer_left", "outer_right"]},
+  "defaults": {"facing": "north"},
+  "meta": [{"property": "facing", "bits": 2}, {"property": "half", "shift": 2, "bits": 1}]
+}

@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["stone", "cobblestone", "stone_brick", "mossy_brick", "cracked_brick", "chiseled_brick"]},
+  "meta": [{"property": "variant", "bits": 3}],
+  "model": {"file": "{variant}_monster_egg"}
+}

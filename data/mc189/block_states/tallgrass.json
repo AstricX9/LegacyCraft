@@ -1,0 +1,5 @@
+{
+  "properties": {"type": ["dead_bush", "tall_grass", "fern"]},
+  "meta": [{"property": "type", "bits": 2}],
+  "model": {"file": "{type}"}
+}

@@ -10,19 +10,58 @@
     pipeline, biome-driven height/volatility fields, structured cave/ravine
     carving, and an ordered decoration/population pass (master context §13).
   replica_behavior: >
-    World.generate() (net.minecraft.world.World) uses an original 2-octave
-    value-noise heightmap, hand-picked per-depth ore probabilities, and a
-    simple radius-based oak tree shape. It is deterministic per seed (see
-    WorldTest#terrainGenerationIsDeterministic) but does not target vanilla
-    terrain shape, cave systems, structures, or decoration order at all.
+    MOSTLY ADDRESSED. World.generate() now runs the vanilla pipeline
+    (net.minecraft.world.gen): ChunkGenerator fills the 5x33x5 density field
+    (TerrainGenerator), applies the biome surface (SurfaceBuilder: bedrock,
+    top/filler layers, gravel sea floors, sandstone under sand, frozen
+    water, extreme hills stone/gravel, mega taiga podzol, savanna M, swamp
+    puddles, mesa clay bands and bryce spires), then MapGenCaves and
+    MapGenRavine; ChunkPopulator runs lakes, dungeons and BiomeDecorator
+    (ores, disks, the biome's trees, huge mushrooms, flowers, grass, dead
+    bushes, lily pads, mushrooms, sugar cane, pumpkins, cacti, springs and
+    each biome's extras) once a chunk's east, south and south-east
+    neighbours exist, then freezes water and lays snow. The spawn point is
+    chosen with vanilla's biome search and grass walk (World.findSpawn).
+    RESOLVED for biome placement: net.minecraft.world.gen.layer implements
+    the vanilla GenLayer chain; VanillaBiomeMapTest matches vanilla's stored
+    biome byte for 160000/160000 columns over 625 chunks.
+    Terrain shape: VanillaTerrainTest scored the density pipeline at about
+    21% of columns exactly right before this pass. This pass changed two
+    things it measures: the biome kernel now accumulates in float as vanilla
+    does, and the noise scales use vanilla's float settings (684.412f, and
+    684.412f/80f and /160f for the main noise) instead of the double
+    literals; the float coordinate scale differs from 684.412 by about 1e-5
+    per block, which grows to a visible offset in the noise far from the
+    origin and is the best remaining candidate for the unexplained residual.
+    It also reproduces a quirk of vanilla's improved noise: the corner
+    gradients are cached per y lattice cell, so later samples in the same
+    cell reuse the first sample's y fraction (the previous code recomputed
+    them, which is smoother than vanilla). With these, VanillaTerrainTest
+    scores 96.42% of the oracle's 160000 columns exactly (from ~21%); of
+    the 5731 misses, 5654 are ours-higher, the pattern expected from caves,
+    ravines, lakes and swamp puddles, which lower vanilla's stored ground
+    but are not in the raw density heights the test compares.
+    The whole terrain stage (ChunkGenerator: shape, surface, caves,
+    ravines) against the same chunks: ground height 98.75%; the bedrock
+    floor at y=1-4, drawn from the same Random as the surface layers,
+    99.997% of 640000 cells; 95.2% of vanilla's underground open cells are
+    carved by ours too; the ground block agrees in 93.1% of columns, and the
+    disagreements are the ones population makes (sand, gravel and clay
+    disks, dirt under trees, granite/diorite/andesite and ores), which this
+    comparison does not run.
+    Everything after the density field is HYPOTHESIS: recalled from 1.8.9
+    with Random draws in the original order, not yet compared block for
+    block with the oracle world (unknowns.yml). The differences that are
+    known are listed in DEV-016. The per-biome decoration counts and tree
+    choices live in BiomeDecorator rather than in data/mc189/biomes, whose
+    count fields are no longer read by generation.
   reason: >
-    Placeholder so the game is playable end-to-end while other subsystems
-    (rendering, inventory, networking) are built out. Not yet a priority
-    pass.
+    Terrain is most of what a player sees; the pipeline is wired in now so
+    the oracle comparison can target the full chunk rather than heights only.
   compatibility_effect: >
-    P0 if "1:1" were claimed today for worldgen — a given seed will look
-    nothing like the same seed in real 1.8.9. No caves, ravines, or
-    structures exist at all.
+    P1 until the oracle comparison passes: a seed now has the right biomes
+    and vanilla-shaped land, caves and decoration, but individual blocks may
+    still differ from real 1.8.9, and structures are missing (DEV-016).
   user_visible: true
 
 - id: DEV-002
@@ -32,30 +71,30 @@
     with a separate 0-15 metadata/data-value axis encoding orientation,
     variant, growth stage, etc. (master context §11.4, §15.1).
   replica_behavior: >
-    RESOLVED for block IDs: `generateGameData` now sources block IDs from
-    `data/mc189/blocks.json` (the verified 1.8.9 legacy ID table, tagged
-    COMMUNITY_CORROBORATED — see verified_facts.md) instead of sorted
-    filename discovery order, and fails the build loudly if the supplied
-    resource pack is missing a vanilla block (which would otherwise silently
-    break ID fidelity). STORAGE PLUMBING now exists for metadata:
-    `net.minecraft.block.BlockState` is a new immutable (Block, 0-15
-    metadata) value type, and `World.getState`/`World.setState` read/write
-    it against the existing `short[]` Chunk/ChunkSection storage using
-    vanilla's own legacy extended-storage formula, `(blockId << 4) |
-    metadata` (master context §11.4). `World.get`/`World.set(Block)` still
-    work unchanged and always mean metadata 0, so every existing call site
-    (rendering, placement, collision) is unaffected — see
-    WorldBlockStateTest.java. STILL OPEN: nothing yet *produces* a non-zero
-    metadata anywhere — worldgen, block placement (Minecraft#interact), and
-    BlockModelManager's model lookup are all still metadata-0-only, so nothing
-    user-visible has changed yet. Per-block metadata *semantics* (which
-    value means which orientation/variant/growth stage for which block) are
-    not implemented — that is the bulk of the remaining work, tracked in
-    unknowns.yml. Also still open: ItemRegistry still assigns item IDs by
-    sorted `models/item` filename order, not vanilla's real item ID space
-    (vanilla block-items reuse their block ID; standalone items start at
-    256) — investigation found this is now entangled with the metadata work
-    (see unknowns.yml), not a separate simple fix.
+    RESOLVED for block IDs: `generateGameData` sources block IDs from
+    `data/mc189/blocks.json` (the 1.8.9 legacy ID table, tagged
+    COMMUNITY_CORROBORATED — see verified_facts.md), and the block registry
+    is now EXACTLY that table (IDs 0-197). The earlier local-only IDs 198+
+    for species/colour blockstate files (oak_planks, red_wool, ...) are gone:
+    those are metadata variants of canonical blocks.
+    RESOLVED (as HYPOTHESIS data) for metadata semantics:
+    `data/mc189/block_states/<block>.json` defines each block's state
+    properties (shared shapes via `state_templates`), its 4-bit metadata
+    layout, neighbour-derived ("actual") properties and its blockstate-file
+    mapping. Block data (material, shapes, light) is kept separately in
+    `block_data/<block>.json` and item placement in `block_items/<block>.json`;
+    the build generates data and states as separate per-block files. `BlockStateDefinition` decodes/encodes
+    metadata, the per-block classes (BlockFence, BlockStairs, ...) derive fence/pane/wall connections,
+    stair shape, door halves, double plants, snowy grass, vines, stems,
+    redstone dust and tripwire, `StateMapper` picks the blockstate variant,
+    and rendering, worldgen (log/leaves) and placement are all state-aware.
+    The metadata bit layouts are HYPOTHESIS (see unknowns.yml); the model
+    mapping half is checked against the supplied 1.8.9 blockstates by
+    BlockStateModelMappingTest. STILL OPEN: ItemRegistry still assigns item
+    IDs by sorted `models/item` filename order, not vanilla's item ID space
+    (block-items reuse their block ID; standalone items start at 256). Items
+    now carry the (block, metadata) they place (`Item#placedState`) via
+    data/mc189/block_items, which is the groundwork for real item IDs.
   reason: >
     Sequencing: fixing ID *values* first (low risk, self-contained), then
     landing the metadata *storage* plumbing as its own reviewable step
@@ -63,20 +102,14 @@
     BlockModelManager, placement logic, eventually item IDs) keeps each
     change small and testable on its own.
   compatibility_effect: >
-    Block IDs now match vanilla 1.8.9 by name (assuming a complete supplied
-    asset pack); the (block, metadata) pair can now be stored and read back
-    faithfully, but no code path sets a non-zero metadata yet, so no
-    in-game behavior has changed. Item IDs and all block metadata/variant
-    *semantics* still do not match vanilla, so this remains P0 for real
-    save/protocol interchange (§11.4, §12, §49) until those follow-ups land.
-    No effect on pure single-player behavior today since save/load and
-    networking are both currently custom/local (see DEV-003). NOTE: this
-    change altered what a raw stored chunk short *means* (previously a bare
-    block registry ID; now `(id << 4) | metadata`) — any local save file
-    written before this change will misread block IDs on load and should be
-    regenerated. WorldStorage.java's own format is custom/local already
-    (DEV-003), so this has no effect on real vanilla saves, only on
-    pre-existing LegacyCraft saves.
+    Block IDs and (block, metadata) pairs now mean what they mean in vanilla
+    1.8.9, to the extent the HYPOTHESIS metadata table is right. Item IDs
+    still do not match vanilla, so this remains P0 for real save/protocol
+    interchange (§11.4, §12, §49) until item IDs land. NOTE: LegacyCraft
+    saves written before the registry was trimmed to IDs 0-197 contain IDs
+    198+ and are rejected on load by WorldStorage ("Unknown block ID"); they
+    must be regenerated. WorldStorage's format is custom/local (DEV-003), so
+    real vanilla saves are unaffected.
   user_visible: false
 
 - id: DEV-003
@@ -85,10 +118,15 @@
     Vanilla 1.8.9 saves use NBT-encoded Anvil region files (`.mca`) with a
     documented chunk/section/tile-entity/entity layout (master context §12).
   replica_behavior: >
-    WorldStorage.java uses a custom, uncompressed-index + gzip-per-chunk
+    WorldStorage.java still uses a custom, uncompressed-index + gzip-per-chunk
     binary format (magic `LCIW`/`LCCH`, format version 1) with no NBT
     involved at all — see `docs/compat/source_policy.md` save-compatibility
-    modes.
+    modes. PARTLY ADDRESSED: LegacyCraft can now READ vanilla saves —
+    net.minecraft.nbt (NbtIo/NbtTag) and net.minecraft.world.storage.anvil
+    (RegionFile/AnvilChunkReader) load 1.8.9 region files, including block
+    IDs and metadata, vanilla's stored sky/block light, biomes and the
+    populated flags. Writing Anvil, tile entities and entities are still
+    missing, so this is not yet import-only mode for actual play.
   reason: >
     Fastest path to working save/load for local testing before NBT support
     exists.
@@ -121,3 +159,326 @@
     drive IntegratedServer.tick() directly rather than through the
     wall-clock scheduler.
   user_visible: false
+
+- id: DEV-005
+  subsystem: block collision and selection shapes
+  vanilla_behavior: >
+    Per-state collision and selection boxes (stairs, slabs, fences, panes,
+    doors, ladders, carpets, snow layers...; master context §15.2, §28).
+  replica_behavior: >
+    MOSTLY RESOLVED: each block class gives every state its selection box and
+    collision boxes (static ones from `bounds`/`collision` in
+    data/mc189/block_data, state-dependent ones in the block classes: slabs, stairs,
+    fences/walls at 1.5 high, panes, gates (none when open), doors,
+    trapdoors, ladders, snow layers, cakes, chests, hoppers, cauldrons,
+    pistons...). The player clips its box against them axis by axis (Y, X,
+    Z) with a 0.6 step height, and the crosshair ray targets selection boxes.
+    Doors, trapdoors, slabs, carpets, snow layers, cakes, beds and anvils are
+    checked against the supplied models (BlockShapesModelTest); the rest are
+    HYPOTHESIS values. STILL DIFFERENT: ladders/vines are not climbable,
+    webs/soul sand/ice do not change movement, and player movement itself
+    (speeds, friction, jump) is not vanilla physics yet.
+  reason: >
+    Collision shapes landed; the movement physics they feed is its own slice
+    (master context §27, §28).
+  compatibility_effect: >
+    P1 for movement/PvP until vanilla movement physics and climbing land.
+  user_visible: true
+
+- id: DEV-006
+  subsystem: block rendering outside the JSON model path
+  vanilla_behavior: >
+    Tile-entity special renderers (chests, ender/trapped chests, signs,
+    banners, skulls, end portal), the fluid renderer (sloped, flowing water
+    and lava), flower-pot contents from the tile entity, fire drawn from
+    neighbour flammability, repeaters locked by a powered side repeater, and
+    biome-dependent grass/foliage/water colours (master context §56).
+  replica_behavior: >
+    Tile-entity blocks draw the missing-model cube; fluids draw a still-
+    texture cube; flower pots always look empty; fire always uses the
+    no-neighbours variant; repeater `locked` is always false; grass/foliage
+    colours are the fixed `tintColor` constants (spruce/birch leaves, lily
+    pads, stems and redstone dust use their fixed vanilla-style colours).
+  reason: >
+    Each needs its own subsystem (tile entities, fluid simulation, biome
+    colour maps); the block-state slice only covers the JSON model path.
+  compatibility_effect: >
+    P1/P2 visual mismatches for those specific blocks; no effect on stored
+    state.
+  user_visible: true
+
+- id: DEV-007
+  subsystem: block updates after placement/breaking
+  vanilla_behavior: >
+    Neighbour notifications, support checks (torches, plants, doors drop when
+    their support goes), two-block structures breaking together, and rail
+    auto-shaping on placement (master context §16).
+  replica_behavior: >
+    PARTLY RESOLVED: `BlockUpdates` runs after every player edit. Each
+    neighbour re-checks its support and breaks (to air) when it loses it, so
+    doors, tall plants and beds break as a pair, torches/buttons/levers/
+    ladders/signs pop off removed walls, plants need their soil, cacti and
+    sugar cane break as columns, and vines drop unsupported sides.
+    Placement refuses states that could not stay. STILL MISSING: item
+    drops, falling sand/gravel, rail auto-shaping, redstone power
+    propagation, fluid flow, scheduled and random ticks, and the exact
+    1.8.9 update order (vanilla notifies in a fixed direction order and some
+    blocks break on the next tick instead of immediately).
+  reason: >
+    Needs entities (drops, falling blocks) and the server tick scheduler.
+  compatibility_effect: >
+    P1 gameplay mismatch for redstone, farms and anything update-order
+    sensitive.
+  user_visible: true
+
+- id: DEV-008
+  subsystem: lighting
+  vanilla_behavior: >
+    Sky and block light per position with incremental relighting (known
+    glitches: dark spots, light missed across unloaded chunk borders), a
+    day/night cycle driving sky brightness, a flickering torch tint, the
+    gamma slider, and light stored in saves (master context §18).
+  replica_behavior: >
+    LightEngine computes the ideal light field: sky light falls straight
+    down at full strength through transparent blocks, both kinds spread
+    losing max(1, opacity) per block, opacity from block_data
+    (lightOpacity; opaque cubes 15, leaves/web 1, water/ice 3, and 1.8's
+    fully light-blocking slabs, stairs and farmland which then render with
+    their neighbours' light). Rendering uses a daytime lightmap at default
+    gamma without flicker, and 1.8-style smooth lighting with ambient
+    occlusion. VERIFIED against a real 1.8.9 server world: recomputing the
+    light for its chunks reproduces vanilla's stored sky light exactly
+    (262144/262144 blocks over four chunks) and its block light in all but
+    two, which hold stale light vanilla left behind
+    (VanillaWorldComparisonTest). The lightmap is a 16x16 texture rebuilt
+    for the sun's brightness (day/night) and the gamma slider, sampled per
+    vertex like vanilla's (HYPOTHESIS formula). STILL DIFFERENT: no torch
+    flicker, lightning or night vision, vanilla's relighting glitches are
+    not reproduced (ours is the exact field), and light is recomputed on
+    load instead of being saved.
+  reason: >
+    The visible lighting model first; time of day, settings and save
+    format are their own slices.
+  compatibility_effect: >
+    P2 visual differences in edge cases (vanilla light bugs, exact
+    lightmap colours, no torch flicker).
+  user_visible: true
+
+- id: DEV-009
+  subsystem: client defaults and world loading
+  vanilla_behavior: >
+    Render distance defaults to 12 chunks, and singleplayer prepares a
+    25x25-chunk spawn area behind the "Building terrain" screen (master
+    context §78).
+  replica_behavior: >
+    options.txt defaults to 4 chunks, and the spawn area prepared before
+    play is the render distance plus one chunk (at most vanilla's 12-chunk
+    radius). Chunks are generated on the render thread (under a 6 ms
+    per-frame budget; meshes are built on worker threads), so vanilla's
+    625 chunks at 12 chunks' distance would still stall the first frames.
+  reason: >
+    Keep the client responsive until chunk generation moves off the render
+    thread (ARCHITECTURE.md near-term slice 2).
+  compatibility_effect: >
+    P3: loading takes less time and the progress bar moves differently;
+    no effect on generated terrain. Players can raise the render distance
+    in Video Settings or with F3+F.
+  user_visible: true
+
+- id: DEV-010
+  subsystem: menu entries whose systems do not exist yet
+  vanilla_behavior: >
+    Every Options/pause-menu entry works: Super Secret Settings cycles a
+    post-processing shader, Music & Sounds controls audio, Snooper sends
+    machine data, Achievements/Statistics open their screens, buttons click
+    audibly, Language supports Unicode glyph pages, and Shift+F3 draws the
+    profiler pie chart.
+  replica_behavior: >
+    All screens exist with vanilla layout and translated captions. Still
+    missing behind them: no shader pipeline (Super Secret Settings is
+    disabled), no audio output (sound levels are saved but silent; button
+    clicks are silent), the snooper never sends anything, Achievements and
+    Statistics are disabled in the pause menu, the font has no Unicode
+    pages, and the profiler chart is not drawn. Broadcast Settings shows
+    the same "Twitch Broadcasting Unavailable" screen vanilla shows when its
+    Twitch SDK fails to load.
+  reason: >
+    Menus first; each backing system is its own slice.
+  compatibility_effect: >
+    P2 for audio/Unicode fonts, P3 for the rest. Settings still round-trip
+    through options.txt so nothing is lost.
+  user_visible: true
+
+- id: DEV-011
+  subsystem: world types and creation options
+  vanilla_behavior: >
+    Large Biomes, AMPLIFIED, Customized and Debug Mode generate their own
+    terrain; Superflat places structures and decoration listed in its
+    preset; Generate Structures and Bonus Chest take effect (§13.2).
+  replica_behavior: >
+    All options are chosen, stored in level.dat with vanilla tag names and
+    reloaded, and Superflat places its layers and biome (no decoration).
+    Large Biomes, AMPLIFIED and Customized generate DEFAULT terrain (DEV-001);
+    no structures, no bonus chest, and the Customized settings are saved but
+    not applied.
+  reason: >
+    The create-world flow is independent of the generator; wiring each type
+    into TerrainGenerator follows the terrain work.
+  compatibility_effect: >
+    P1 for those world types (they look like DEFAULT); the flow and
+    level.dat contents themselves follow 1.8.9.
+  user_visible: true
+
+- id: DEV-012
+  subsystem: branding text
+  vanilla_behavior: >
+    The title screen shows "Minecraft 1.8.9" and "Copyright Mojang AB. Do
+    not distribute!"; the F3 version line reads "Minecraft 1.8.9
+    (1.8.9/vanilla)".
+  replica_behavior: >
+    The title screen shows "LegacyCraft 1.8.9" and "Not affiliated with
+    Mojang or Microsoft"; F3 keeps vanilla's format but reports the client
+    brand as "legacycraft" (as any modified 1.8.9 client does). Every such
+    string lives in net.minecraft.client.Branding.
+  reason: >
+    Master context §2.8: project branding must not imply official Mojang or
+    Microsoft affiliation.
+  compatibility_effect: >
+    P3 screenshot difference in two text strings; intentional and permanent.
+  user_visible: true
+
+- id: DEV-013
+  subsystem: multiplayer, LAN, Realms and resource-pack menus
+  vanilla_behavior: >
+    Server list entries are pinged (MOTD, player count, latency bars,
+    favicon), Join/Direct Connect log in over protocol 47, Open to LAN
+    starts a LAN server, Realms opens the Realms client, and extra resource
+    packs can be enabled and reordered (§49, §53, §77).
+  replica_behavior: >
+    The screens, servers.dat, lastServer and the resource-pack folder all
+    work, but pings show "Can't connect to server", joining ends on
+    "Failed to connect to the server" with a note that the protocol-47
+    client is not implemented, Open to LAN is disabled, Realms shows a
+    notice screen, and packs in resourcepacks/ are listed but cannot be
+    selected because the resource manager only reads the base pack.
+  reason: >
+    Networking and the resource-pack stack are separate milestones (§94
+    Milestone 8, §53).
+  compatibility_effect: >
+    P0 for multiplayer until protocol 47 lands; the menus themselves follow
+    1.8.9.
+  user_visible: true
+
+- id: DEV-014
+  subsystem: F3 debug screen values
+  vanilla_behavior: >
+    Every F3 value is live: chunk dispatcher queues (pC/pU/aB), entity
+    render culling counts, particle count, chunk inhabited time in Local
+    Difficulty, and F3+B draws entity hitboxes (§67).
+  replica_behavior: >
+    Lines, labels, order and number formats follow 1.8.9, but values the
+    engine does not track yet are reported as zero (pC/pU/aB, B:, P:, the
+    inhabited-time part of Local Difficulty), "C:" counts built meshes
+    rather than frustum-visible ones, F3+B toggles but has no entities to
+    outline, and F3+D has no chat to clear.
+  reason: >
+    Those counters belong to renderer/entity systems that do not exist yet.
+  compatibility_effect: >
+    P3; the numbers become right as each system lands.
+  user_visible: true
+
+- id: DEV-015
+  subsystem: In-game interface, items and block breaking
+  vanilla_behavior: >
+    Slots support drag-splitting and double-click collecting; the 2x2 and
+    3x3 grids craft; chests, banners and heads render their tile-entity
+    models as items and dropped items are extruded 1/16-thick sprites; the
+    inventory screens show the player model and the first-person hand
+    swings; item names use rarity colours and advanced tooltips add a grey
+    registry-name line; level.dat stores vanilla item ids and chunks store
+    item entities; every spawn egg, banner pattern and potion variant is
+    listed in the creative tabs; hearts shake and blink, air, mount and
+    boss bars exist; breaking plays sounds and particles; Fortune and Silk
+    Touch change drops.
+  replica_behavior: >
+    Blocks break over time with 1.8.9's hardness/tool rules and drop item
+    entities that fall, merge, despawn after 5 minutes and are picked up;
+    Q and clicks outside an inventory throw items; death scatters the
+    inventory. But: no drag-splitting or double-click; the crafting grid
+    holds items but shows no result (no recipe data); builtin/entity items
+    draw nothing; no player model, hand or swing; dropped flat items are
+    flat double-sided quads; every name is white and the registry-name
+    tooltip line is omitted; saved inventories use LegacyCraft item names
+    as ids and dropped items are not saved with the world; spawn eggs,
+    banners and the enchanted golden apple are listed once each; hearts
+    are static and only health/food/armor/xp rows exist (no damage,
+    hunger or experience sources); no sounds or particles; no enchantments.
+  reason: >
+    Recipes, tile-entity item rendering, entity persistence, the player
+    model, audio and enchantments are separate milestones.
+  compatibility_effect: >
+    P1 for survival progression (no crafting); creative building and
+    survival mining/collecting work.
+  user_visible: true
+
+- id: DEV-016
+  subsystem: world generation (population and chunk lifecycle)
+  vanilla_behavior: >
+    Population also places villages, mineshafts, strongholds, desert and
+    jungle temples, witch huts and ocean monuments; dungeon chests hold loot
+    and spawners have a mob; springs flow into waterfalls and lava falls at
+    generation time; animals are spawned after decoration; every block write
+    relights immediately. Some features read state that survives between
+    chunks: the big oak generator keeps its height limit from one tree to
+    the next, the mesa spire noise is seeded with whatever seed the biome saw
+    last (0 on the first world of a session), and a biome's top block as last
+    set by the surface builder is what caves put back over dirt.
+  replica_behavior: >
+    No structures; dungeon chests are empty and spawners have no mob (the
+    Random draws spent on the loot are skipped, so the rest of that chunk's
+    decoration diverges after a dungeon with a chest); springs are a single
+    still source; no animals; population writes without per-block relighting
+    and the touched chunks are relit afterwards (mushroom shade, lake grass
+    and freezing read a light estimate or the light from before population).
+    Big oaks roll their height each tree; mesa spires always use seed 0;
+    caves restore the biome's base top block. A population that reaches into
+    a chunk that does not exist generates it and queues any population that
+    enables rather than running it nested. Chunks saved before this
+    generator (chunk format 1) load as populated, so new land next to them
+    shows a seam.
+  reason: >
+    Structures, tile-entity contents, fluid flow and mob spawning are
+    separate systems. The session-dependent generator state makes vanilla's
+    output depend on what was generated earlier in the same run, which a
+    per-world generator cannot reproduce in general.
+  compatibility_effect: >
+    P1 for structures; P2 for the rest (local differences in rare features).
+    Like vanilla, population depends on the order chunks are generated in.
+  user_visible: true
+
+- id: DEV-017
+  subsystem: sky
+  vanilla_behavior: >
+    The overworld sky (RenderGlobal.renderSky/renderClouds, EntityRenderer
+    fog colour): sky and fog colours from the time of day, the biome
+    temperature at the camera and the render distance, a sunrise/sunset
+    glow, textured sun and eight-phase moon, 1500-attempt star field,
+    darkening fog in caves and toward the void, clouds at y=128 (fancy 3D
+    12-block cells or fast flat), all tinted by rain and thunder, lightning
+    flashes and blindness; underwater and in-lava fog colours; End and
+    Nether skies.
+  replica_behavior: >
+    SkyRenderer reproduces the overworld parts from recalled formulas
+    (HYPOTHESIS), including the render order (sky, then clouds before the
+    terrain below y=128 and after it above), far planes (sky 2x, terrain
+    sqrt(2)x, clouds 4x the render distance), fog 75%-100% of the render
+    distance (sky fog from 0) and eye-radial fog where NV_fog_distance
+    exists. Cloud drift uses a client tick counter that starts at 0 each
+    session. NOT DONE: weather tinting, lightning, blindness, underwater
+    and lava fog, other dimensions' skies, the neighbour-brightness rule
+    (slabs, stairs) for the cave fog darkening.
+  reason: >
+    Weather, status effects and dimensions do not exist yet; the sky is
+    built so they only add terms to the existing colours.
+  compatibility_effect: P2 visual differences until weather exists.
+  user_visible: true

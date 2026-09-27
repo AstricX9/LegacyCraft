@@ -1,11 +1,12 @@
 package net.minecraft.client.renderer.block.model;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.state.ActualState;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.Direction;
 import net.minecraft.util.ResourceLocation;
@@ -20,139 +21,154 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Resolves blockstate variants and inherited 1.8 model JSON into renderable quads. */
+/**
+ * Resolves (actual) block states to baked models: state → blockstate file and
+ * variant key ({@link StateMapper}) → the variant's model list, each entry
+ * baked with its x/y rotation and uvlock. Baked results are cached (lookups
+ * are synchronized: chunk meshes are built on worker threads while the main
+ * thread draws items); unknown
+ * variants fall back to a missing-model cube and are reported once.
+ */
 public final class BlockModelManager {
+    private record VariantSpec(ResourceLocation model, int x, int y, boolean uvlock, int weight) {}
+    private record BakeKey(ResourceLocation model, int x, int y, boolean uvlock) {}
+
     private final IResourceManager resources;
-    private final Map<Block, BakedModel> cache = new HashMap<>();
+    private final ModelBaker baker;
+    private final Map<ResourceLocation, Map<String, List<VariantSpec>>> blockstateFiles = new HashMap<>();
+    private final Map<BakeKey, BakedModel> baked = new HashMap<>();
+    private final Map<StateMapper.ModelLocation, WeightedModel> variants = new HashMap<>();
+    private final Map<ResourceLocation, WeightedModel> overrides = new HashMap<>();
+    private final Set<String> reported = new HashSet<>();
+    private final WeightedModel missing = WeightedModel.of(missingModel());
 
     public BlockModelManager(IResourceManager resources, BlockRegistry registry) {
         this.resources = resources;
+        this.baker = new ModelBaker(resources);
+        // Bake every block's default state up front so asset problems surface at startup.
         for (Block block : registry.values()) {
-            if (block.renderType() == Block.RenderType.MODEL) cache.put(block, bakeSafely(block));
+            if (block.renderType() == Block.RenderType.MODEL || block.modelOverride() != null)
+                variantsFor(ActualState.withoutWorld(block.defaultState()));
         }
     }
 
-    public BakedModel getModel(Block block) { return cache.get(block); }
+    /** The model drawn for a state at a position (random variants are keyed by position). */
+    public BakedModel getModel(ActualState state, int x, int y, int z) {
+        WeightedModel models = variantsFor(state);
+        return models == null ? null : models.select(x, y, z);
+    }
 
-    private BakedModel bakeSafely(Block block) {
-        try {
-            Variant variant = block.modelOverride() != null
-                ? new Variant(block.modelOverride(), 0, 0)
-                : readDefaultVariant(block.name());
-            return bakeModel(variant);
-        } catch (RuntimeException | IOException error) {
-            System.err.println("Could not bake " + block.name() + ": " + error.getMessage());
-            return missingModel();
+    /** A state's model without world context (inventory icons, tests). */
+    public BakedModel getModel(BlockState state) {
+        WeightedModel models = variantsFor(ActualState.withoutWorld(state));
+        return models == null ? null : models.first();
+    }
+
+    /** The model list for a state, or {@code null} when the block is not drawn from a model. */
+    public synchronized WeightedModel variantsFor(ActualState state) {
+        Block block = state.block();
+        if (block.modelOverride() != null) {
+            return overrides.computeIfAbsent(block.modelOverride(),
+                model -> bakeList(List.of(new VariantSpec(model, 0, 0, false, 1)), model.toString()));
         }
+        if (block.renderType() != Block.RenderType.MODEL) {
+            return block.renderType() == Block.RenderType.INVISIBLE ? null : missing;
+        }
+        return lookup(StateMapper.map(block, state.values()));
     }
 
-    private Variant readDefaultVariant(ResourceLocation blockName) throws IOException {
-        ResourceLocation stateFile = new ResourceLocation(blockName.namespace(),
-            "blockstates/" + blockName.path() + ".json");
-        JsonObject root = readJson(stateFile);
-        JsonObject variants = root.getAsJsonObject("variants");
-        if (variants == null || variants.entrySet().isEmpty())
-            throw new IOException("No variants in " + stateFile);
-        JsonElement selected = variants.has("normal") ? variants.get("normal")
-            : variants.entrySet().iterator().next().getValue();
-        if (selected.isJsonArray()) selected = selected.getAsJsonArray().get(0);
-        JsonObject variant = selected.getAsJsonObject();
-        ResourceLocation model = qualifyModel(blockName.namespace(), variant.get("model").getAsString());
-        return new Variant(model, intValue(variant, "x"), intValue(variant, "y"));
+    /** Whether the supplied blockstate files define this variant (used to verify the state tables). */
+    public synchronized boolean hasVariant(StateMapper.ModelLocation location) {
+        Map<String, List<VariantSpec>> file = blockstateFile(location.blockstate());
+        return file != null && file.containsKey(location.variant());
     }
 
-    private BakedModel bakeModel(Variant variant) throws IOException {
-        List<ModelLayer> layers = new ArrayList<>();
-        readModelChain(variant.model, layers, new HashSet<>());
-        Map<String, String> textures = new HashMap<>();
-        JsonArray elements = null;
-        String textureNamespace = variant.model.namespace();
-        for (int i = layers.size() - 1; i >= 0; i--) {
-            ModelLayer layer = layers.get(i);
-            textureNamespace = layer.location.namespace();
-            if (layer.json.has("textures")) {
-                for (var entry : layer.json.getAsJsonObject("textures").entrySet())
-                    textures.put(entry.getKey(), entry.getValue().getAsString());
+    /** Whether a lookup fell back to the missing model, or baked one of its entries as missing. */
+    synchronized boolean isMissing(WeightedModel models) {
+        if (models == missing) return true;
+        for (WeightedModel.Entry entry : models.entries()) if (entry.model() == missing.first()) return true;
+        return false;
+    }
+
+    public synchronized WeightedModel lookup(StateMapper.ModelLocation location) {
+        WeightedModel cached = variants.get(location);
+        if (cached != null) return cached;
+        Map<String, List<VariantSpec>> file = blockstateFile(location.blockstate());
+        List<VariantSpec> specs = file == null ? null : file.get(location.variant());
+        WeightedModel result;
+        if (specs == null) {
+            report("Missing blockstate variant " + location);
+            result = missing;
+        } else {
+            result = bakeList(specs, location.toString());
+        }
+        variants.put(location, result);
+        return result;
+    }
+
+    private WeightedModel bakeList(List<VariantSpec> specs, String source) {
+        List<WeightedModel.Entry> entries = new ArrayList<>();
+        for (VariantSpec spec : specs) {
+            BakeKey key = new BakeKey(spec.model(), spec.x(), spec.y(), spec.uvlock());
+            BakedModel model = baked.get(key);
+            if (model == null) {
+                try {
+                    model = baker.bake(spec.model(), spec.x(), spec.y(), spec.uvlock());
+                } catch (IOException | RuntimeException error) {
+                    report("Could not bake " + spec.model() + " for " + source + ": " + error.getMessage());
+                    model = missing.first();
+                }
+                baked.put(key, model);
             }
-            if (elements == null && layer.json.has("elements")) elements = layer.json.getAsJsonArray("elements");
+            entries.add(new WeightedModel.Entry(model, spec.weight()));
         }
-        if (elements == null) throw new IOException("No model elements for " + variant.model);
-        List<BakedQuad> quads = new ArrayList<>();
-        for (JsonElement elementValue : elements) {
-            JsonObject element = elementValue.getAsJsonObject();
-            float[] from = vector(element.getAsJsonArray("from"));
-            float[] to = vector(element.getAsJsonArray("to"));
-            for (var faceEntry : element.getAsJsonObject("faces").entrySet()) {
-                Direction face = Direction.fromName(faceEntry.getKey());
-                JsonObject faceJson = faceEntry.getValue().getAsJsonObject();
-                Direction cull = faceJson.has("cullface") ? Direction.fromName(faceJson.get("cullface").getAsString()) : null;
-                if (cull != null) cull = cull.rotateY(variant.y);
-                String textureReference = resolveTexture(faceJson.get("texture").getAsString(), textures, new HashSet<>());
-                ResourceLocation texture = textureLocation(textureNamespace, textureReference);
-                float[] uv = faceJson.has("uv") ? uv(faceJson.getAsJsonArray("uv")) : new float[]{0,0,16,16};
-                int tintIndex = faceJson.has("tintindex") ? faceJson.get("tintindex").getAsInt() : -1;
-                quads.add(new BakedQuad(from[0]/16f,from[1]/16f,from[2]/16f,
-                    to[0]/16f,to[1]/16f,to[2]/16f, face.rotateY(variant.y), cull,
-                    texture,tintIndex,uv[0]/16f,uv[1]/16f,uv[2]/16f,uv[3]/16f,
-                    variant.x,variant.y));
+        return new WeightedModel(entries);
+    }
+
+    private Map<String, List<VariantSpec>> blockstateFile(ResourceLocation blockstate) {
+        if (blockstateFiles.containsKey(blockstate)) return blockstateFiles.get(blockstate);
+        Map<String, List<VariantSpec>> parsed = null;
+        ResourceLocation file = new ResourceLocation(blockstate.namespace(), "blockstates/" + blockstate.path() + ".json");
+        try (var reader = new InputStreamReader(resources.open(file), StandardCharsets.UTF_8)) {
+            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            parsed = new HashMap<>();
+            for (var entry : root.getAsJsonObject("variants").entrySet()) {
+                List<VariantSpec> specs = new ArrayList<>();
+                JsonElement value = entry.getValue();
+                if (value.isJsonArray()) {
+                    for (JsonElement option : value.getAsJsonArray()) specs.add(spec(blockstate, option.getAsJsonObject()));
+                } else {
+                    specs.add(spec(blockstate, value.getAsJsonObject()));
+                }
+                parsed.put(entry.getKey(), List.copyOf(specs));
             }
+        } catch (IOException | RuntimeException error) {
+            report("Could not read blockstate " + file + ": " + error.getMessage());
         }
-        String particleRef = textures.containsKey("particle")
-            ? resolveTexture(textures.get("particle"), textures, new HashSet<>())
-            : quads.get(0).texture().path().replace("textures/", "").replace(".png", "");
-        return new BakedModel(quads, textureLocation(textureNamespace, particleRef));
+        blockstateFiles.put(blockstate, parsed);
+        return parsed;
     }
 
-    private void readModelChain(ResourceLocation model, List<ModelLayer> layers, Set<ResourceLocation> seen) throws IOException {
-        if (!seen.add(model)) throw new IOException("Model parent cycle at " + model);
-        JsonObject json = readJson(modelFile(model));
-        layers.add(new ModelLayer(model, json));
-        if (json.has("parent")) {
-            String parent = json.get("parent").getAsString();
-            if (!parent.startsWith("builtin/")) readModelChain(qualifyModel(model.namespace(), parent), layers, seen);
-        }
+    private static VariantSpec spec(ResourceLocation blockstate, JsonObject json) {
+        return new VariantSpec(ModelBaker.qualify(blockstate.namespace(), json.get("model").getAsString()),
+            json.has("x") ? json.get("x").getAsInt() : 0,
+            json.has("y") ? json.get("y").getAsInt() : 0,
+            json.has("uvlock") && json.get("uvlock").getAsBoolean(),
+            json.has("weight") ? json.get("weight").getAsInt() : 1);
     }
 
-    private String resolveTexture(String reference, Map<String,String> textures, Set<String> seen) throws IOException {
-        if (!reference.startsWith("#")) return reference;
-        String key = reference.substring(1);
-        if (!seen.add(key)) throw new IOException("Texture reference cycle at #" + key);
-        String value = textures.get(key);
-        if (value == null) throw new IOException("Unknown texture variable #" + key);
-        return resolveTexture(value, textures, seen);
+    private void report(String message) {
+        if (reported.add(message)) System.err.println(message);
     }
 
-    private JsonObject readJson(ResourceLocation location) throws IOException {
-        try (var reader = new InputStreamReader(resources.open(location), StandardCharsets.UTF_8)) {
-            return JsonParser.parseReader(reader).getAsJsonObject();
-        }
-    }
-    private static ResourceLocation qualifyModel(String namespace, String reference) {
-        return reference.indexOf(':') >= 0 ? new ResourceLocation(reference) : new ResourceLocation(namespace, reference);
-    }
-    private static ResourceLocation modelFile(ResourceLocation model) {
-        String path = model.path().startsWith("block/") ? model.path() : "block/" + model.path();
-        return new ResourceLocation(model.namespace(), "models/" + path + ".json");
-    }
-    private static ResourceLocation textureLocation(String namespace, String reference) {
-        ResourceLocation raw = reference.indexOf(':') >= 0 ? new ResourceLocation(reference) : new ResourceLocation(namespace, reference);
-        String path = raw.path();
-        if (!path.startsWith("textures/")) path = "textures/" + path;
-        if (!path.endsWith(".png")) path += ".png";
-        return new ResourceLocation(raw.namespace(), path);
-    }
-    private static int intValue(JsonObject object, String key) { return object.has(key) ? object.get(key).getAsInt() : 0; }
-    private static float[] vector(JsonArray values) { return new float[]{values.get(0).getAsFloat(),values.get(1).getAsFloat(),values.get(2).getAsFloat()}; }
-    private static float[] uv(JsonArray values) { return new float[]{values.get(0).getAsFloat(),values.get(1).getAsFloat(),values.get(2).getAsFloat(),values.get(3).getAsFloat()}; }
-
-    private BakedModel missingModel() {
+    private static BakedModel missingModel() {
         ResourceLocation stone = new ResourceLocation("minecraft:textures/blocks/stone.png");
         List<BakedQuad> quads = new ArrayList<>();
-        for (Direction face : Direction.values())
-            quads.add(new BakedQuad(0,0,0,1,1,1,face,face,stone,-1,0,0,1,1,0,0));
-        return new BakedModel(quads, stone);
+        float[] from = {0, 0, 0}, to = {16, 16, 16};
+        for (Direction face : Direction.values()) {
+            quads.add(new BakedQuad(ModelBaker.facePositions(face, from, to),
+                new float[]{0,0, 0,1, 1,1, 1,0}, face, face, stone, -1, true));
+        }
+        return new BakedModel(quads, stone, true);
     }
-
-    private record Variant(ResourceLocation model, int x, int y) {}
-    private record ModelLayer(ResourceLocation location, JsonObject json) {}
 }

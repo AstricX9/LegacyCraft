@@ -1,0 +1,11 @@
+{
+  "material": "lava",
+  "hardness": 100,
+  "opaque": false,
+  "solid": false,
+  "renderType": "fluid",
+  "cullSame": "material",
+  "lightLevel": 15,
+  "model": "legacycraft:block/lava",
+  "targetable": false
+}

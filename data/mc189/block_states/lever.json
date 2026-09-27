@@ -1,0 +1,4 @@
+{
+  "properties": {"facing": ["down_x", "east", "west", "south", "north", "up_z", "up_x", "down_z"], "powered": ["false", "true"]},
+  "meta": [{"property": "facing", "bits": 3}, {"property": "powered", "shift": 3, "bits": 1}]
+}

@@ -1,0 +1,12 @@
+{
+  "material": "water",
+  "hardness": 100,
+  "opaque": false,
+  "solid": false,
+  "translucent": true,
+  "renderType": "fluid",
+  "cullSame": "material",
+  "lightOpacity": 3,
+  "model": "legacycraft:block/water",
+  "targetable": false
+}

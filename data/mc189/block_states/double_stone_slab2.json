@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["red_sandstone"], "seamless": ["false", "true"]},
+  "meta": [{"property": "seamless", "shift": 3, "bits": 1}],
+  "model": {"mapper": "double_slab"}
+}

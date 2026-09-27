@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["dirt", "coarse_dirt", "podzol"], "snowy": ["false", "true"]},
+  "meta": [{"property": "variant", "bits": 2}],
+  "model": {"mapper": "dirt"}
+}

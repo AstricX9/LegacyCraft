@@ -1,0 +1,5 @@
+{
+  "properties": {"age": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"], "alt": ["false", "true"], "east": ["false", "true"], "flip": ["false", "true"], "north": ["false", "true"], "south": ["false", "true"], "upper": ["0", "1", "2"], "west": ["false", "true"]},
+  "meta": [{"property": "age", "bits": 4}],
+  "model": {"ignore": ["age"]}
+}

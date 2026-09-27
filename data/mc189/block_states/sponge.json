@@ -1,0 +1,4 @@
+{
+  "properties": {"wet": ["false", "true"]},
+  "meta": [{"property": "wet", "bits": 1}]
+}

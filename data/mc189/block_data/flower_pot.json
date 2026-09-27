@@ -1,0 +1,7 @@
+{
+  "class": "flower_pot",
+  "material": "circuits",
+  "hardness": 0.0,
+  "opaque": false,
+  "bounds": [5, 0, 5, 11, 6, 11]
+}

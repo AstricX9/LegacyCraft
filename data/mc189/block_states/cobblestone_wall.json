@@ -1,0 +1,5 @@
+{
+  "properties": {"variant": ["cobblestone", "mossy_cobblestone"], "east": ["false", "true"], "north": ["false", "true"], "south": ["false", "true"], "up": ["false", "true"], "west": ["false", "true"]},
+  "meta": [{"property": "variant", "bits": 1}],
+  "model": {"file": "{variant}_wall"}
+}

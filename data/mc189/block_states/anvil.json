@@ -1,0 +1,4 @@
+{
+  "properties": {"damage": ["0", "1", "2"], "facing": ["south", "west", "north", "east"]},
+  "meta": [{"property": "facing", "bits": 2}, {"property": "damage", "shift": 2, "bits": 2}]
+}

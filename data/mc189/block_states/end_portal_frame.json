@@ -1,0 +1,4 @@
+{
+  "properties": {"eye": ["false", "true"], "facing": ["south", "west", "north", "east"]},
+  "meta": [{"property": "facing", "bits": 2}, {"property": "eye", "shift": 2, "bits": 1}]
+}
