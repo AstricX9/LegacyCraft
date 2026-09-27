@@ -24,11 +24,29 @@ public class GuiIngame extends Gui {
     private final GuiContext mc;
     private int remainingHighlightTicks;
     private ItemStack highlightingItemStack;
+    private final GuiNewChat chat;
+    private int updateCounter;
 
-    public GuiIngame(GuiContext mc) { this.mc = mc; }
+    public GuiIngame(GuiContext mc) {
+        this.mc = mc;
+        this.chat = new GuiNewChat(mc);
+    }
+
+    public GuiNewChat getChatGUI() { return chat; }
+    /** HUD ticks so far; chat lines age against it. */
+    public int updateCounter() { return updateCounter; }
+
+    /** Draws the chat 48 pixels above the bottom of the screen, fully opaque while the chat screen is open. */
+    public void renderChat(int height, boolean chatOpen) {
+        glPushMatrix();
+        glTranslatef(0f, height - 48, 0f);
+        chat.drawChat(updateCounter, chatOpen);
+        glPopMatrix();
+    }
 
     /** One 20 Hz tick: restart the item-name fade when the held item changes, else count it down. */
     public void updateTick(InventoryPlayer inventory) {
+        updateCounter++;
         ItemStack held = inventory.getCurrentItem();
         if (held == null) {
             remainingHighlightTicks = 0;

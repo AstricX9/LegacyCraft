@@ -17,6 +17,16 @@ public final class Player {
     public float yaw = 25.0f;
     public float pitch = 8.0f;
     public boolean onGround;
+    /**
+     * Movement state the camera and model read: sneaking while the sneak key
+     * is held (eyes 0.08 lower, as 1.8.9's getEyeHeight); sprinting from
+     * pressing sprint while moving forward until forward is released, sneak
+     * is pressed or the player runs into a wall (double-tapping forward is
+     * not implemented).
+     */
+    public boolean sneaking, sprinting;
+    /** Whether the last move was stopped by a wall. */
+    public boolean collidedHorizontally;
     /** Set when the player falls out of the world; the client shows the death screen until {@link #respawn()}. */
     public boolean dead;
 
@@ -71,6 +81,9 @@ public final class Player {
             }
         }
         jumpWasDown = jump;
+        sneaking = sneak && !isFlying;
+        if (sprint && forward && !sneaking) sprinting = true;
+        if (!forward || sneaking || collidedHorizontally && !isFlying) sprinting = false;
         if (flyToggleTimer > 0) flyToggleTimer -= dt;
 
         double inputForward = (forward ? 1 : 0) - (back ? 1 : 0);
@@ -82,9 +95,9 @@ public final class Player {
         double dirZ = -Math.cos(angle) * inputForward + Math.sin(angle) * inputStrafe;
 
         if (isFlying || noClip) {
-            fly(dirX, dirZ, sprint && forward, jump, sneak, dt);
+            fly(dirX, dirZ, sprinting, jump, sneak, dt);
         } else {
-            double speed = sneak ? 2.0 : sprint && forward ? 5.6 : 4.3;
+            double speed = sneak ? 2.0 : sprinting ? 5.6 : 4.3;
             double dx = dirX * speed * dt, dz = dirZ * speed * dt;
             if (onGround && jump) {
                 velocityY = 8.2;
@@ -178,6 +191,7 @@ public final class Player {
         y = box.minY();
         z = (box.minZ() + box.maxZ()) / 2;
         onGround = landed || steppedUp;
+        collidedHorizontally = wantedX != dx || wantedZ != dz;
         if (wantedY != dy) velocityY = 0;
     }
 
@@ -223,7 +237,8 @@ public final class Player {
         velocityX = velocityZ = 0;
     }
 
-    public double eyeY() { return y + 1.62; }
+    public double eyeY() { return y + eyeHeight(); }
+    public double eyeHeight() { return sneaking ? 1.54 : 1.62; }
     public double dirX() { return Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }
     public double dirY() { return -Math.sin(Math.toRadians(pitch)); }
     public double dirZ() { return -Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }

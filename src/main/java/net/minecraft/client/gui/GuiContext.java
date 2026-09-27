@@ -73,6 +73,23 @@ public interface GuiContext {
     /** Whether the local player is in Creative mode (instant break, flight, the creative inventory). */
     boolean isCreative();
 
+    // ---- chat ------------------------------------------------------------------------------
+
+    /** The chat lines above the hotbar, or null outside a world. */
+    default GuiNewChat chatGui() { return null; }
+    /** Sends what was typed in chat: a "/" command runs on the integrated server, anything else is said as the player. */
+    default void sendChatMessage(String message) {}
+    /** Tab completions for the chat text before the cursor. */
+    default java.util.List<String> tabComplete(String beforeCursor) { return java.util.List.of(); }
+    /** Shows a line in chat, replacing the earlier line with the same non-zero id. */
+    default void printChatLine(String text, int id) {}
+
+    /**
+     * Draws the local player posed in a screen, feet at (x, y), {@code scale}
+     * GUI pixels per block, turned toward the mouse offsets given.
+     */
+    default void drawPlayerOnScreen(int x, int y, int scale, float lookX, float lookY) {}
+
     /** Throws a stack from the player (clicking outside an inventory, the drop key); it lands as an item entity. */
     void dropPlayerItem(ItemStack stack);
 

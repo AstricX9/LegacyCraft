@@ -34,6 +34,7 @@ it has real evidence; keep speculation in `unknowns.yml`.
 | Customized world screen | Four pages: "Basic Settings", "Ore Settings", "Advanced Settings (Expert Users Only!)", "Extra Advanced Settings (Expert Users Only!)", with Randomize/Defaults (confirmed by a "Warning!" prompt), Presets, Previous/Next Page; seven named presets (Water World ... Good Luck) | VERIFIED_VANILLA | `createWorld.customize.custom.*` keys and `textures/gui/presets/*.png` in the supplied assets |
 | Death screen | 1.8.9 has "Respawn", "Title screen", "Delete world" (hardcore), "Leave server" and a quit confirmation ("Are you sure you want to quit?"); there is no spectate option | VERIFIED_VANILLA | `deathScreen.*` keys in the supplied `en_US.lang` |
 | Default pack | The built-in pack's description is "The default look of Minecraft", pack_format 1, and it declares 75 languages | VERIFIED_VANILLA | supplied `assets/pack.mcmeta` |
+| Sunrise glow edge | Looking down toward a sunrise from high up, the orange glow stops in a hard horizontal line where the fogged far terrain begins; vanilla shows the same edge | VERIFIED_VANILLA | side-by-side screenshots, vanilla 1.8.8 client and LegacyCraft, time 0, same seed and position (2026-09-28) |
 
 ## Repo-local facts (about this codebase, not vanilla — tracked separately from vanilla facts)
 

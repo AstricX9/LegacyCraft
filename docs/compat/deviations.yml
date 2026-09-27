@@ -406,7 +406,7 @@
     Q and clicks outside an inventory throw items; death scatters the
     inventory. But: no drag-splitting or double-click; the crafting grid
     holds items but shows no result (no recipe data); builtin/entity items
-    draw nothing; no player model, hand or swing; dropped flat items are
+    draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
     flat double-sided quads; every name is white and the registry-name
     tooltip line is omitted; saved inventories use LegacyCraft item names
     as ids and dropped items are not saved with the world; spawn eggs,
@@ -414,8 +414,8 @@
     are static and only health/food/armor/xp rows exist (no damage,
     hunger or experience sources); no sounds or particles; no enchantments.
   reason: >
-    Recipes, tile-entity item rendering, entity persistence, the player
-    model, audio and enchantments are separate milestones.
+    Recipes, tile-entity item rendering, entity persistence, audio and
+    enchantments are separate milestones.
   compatibility_effect: >
     P1 for survival progression (no crafting); creative building and
     survival mining/collecting work.
@@ -482,3 +482,63 @@
     built so they only add terms to the existing colours.
   compatibility_effect: P2 visual differences until weather exists.
   user_visible: true
+
+- id: DEV-018
+  subsystem: chat_and_commands
+  vanilla_behavior: >
+    Chat (T) and command (/) input, the fading chat above the hotbar with
+    scrolling, sent-message history and server-side tab completion, chat
+    components (hover, click, links), and about 40 slash commands with
+    entity selectors, run on the integrated server with permission levels.
+  replica_behavior: >
+    GuiChat and GuiNewChat reproduce the input line, history, scrolling,
+    fade, chat options and F3+D (HYPOTHESIS layout and timings). Messages
+    are plain formatted strings (no hover/click/links). Commands: help (?),
+    time, gamerule, gamemode, difficulty, tp, seed, kill, say, me, weather,
+    setworldspawn, clear, with vanilla's lang messages, red errors, the
+    sendCommandFeedback rule, and cheats-off allowing only help, me and
+    seed. Selectors (@p/@a/@r/@e) only ever mean the local player. Tab
+    completion is local and cycles through matches after listing them.
+    NOT DONE: give, effect, xp, enchant, summon, spawnpoint, defaultgamemode,
+    tell, scoreboard, setblock/fill/clone and the rest; clear's item
+    filters; "gameMode.changed"/death messages for other players;
+    /weather changes only the saved weather state (no rain yet).
+    --username=<name> sets the player name (default "Player").
+  reason: >
+    The rest need items by vanilla name, entities, effects or scoreboards,
+    which do not exist yet.
+  compatibility_effect: P2 until the remaining commands have their systems.
+  user_visible: true
+
+- id: DEV-019
+  subsystem: player_rendering_and_camera
+  vanilla_behavior: >
+    First-person hand and held item (equip, swing, sway, eating/drinking/
+    blocking/bow poses, maps, in-block/water/fire overlays), the player
+    model in F5 views with skin, cape, armour and held item, a shadow, name
+    tags, and camera effects: view bobbing, sprint/flight/bow/water/death
+    field of view, hurt shake and death roll, sneaking eye height,
+    third-person camera with block collision, nausea/portal warp.
+  replica_behavior: >
+    FirstPersonRenderer, PlayerModel and PlayerAnimation reproduce the empty
+    hand (skin right arm), held blocks (their block model) and items
+    (extruded one pixel thick from their texture) with the item models'
+    "display" transforms, equip/swing/sway animations, standard item
+    lighting and the eye's light; the F5 back/front views with 4-block
+    collision-shortened distance; the model's walk, head, attack, sneak and
+    idle-arm poses and body turn; view bobbing, 1.15x sprint and 1.1x
+    flight FOV, 60/70 FOV in water, 0.08 lower eyes when sneaking, and the
+    0.1 first-person camera pull-back; the player in the survival inventory
+    and the creative Survival Inventory tab, turned toward the mouse
+    (HYPOTHESIS: recalled constants).
+    Always the default Steve skin. NOT DONE: item use poses (eating,
+    drinking, blocking, bow), maps, screen overlays (in-block, water,
+    fire), hurt shake and death roll (no damage yet), cape, armour layers,
+    shadow, name tags, the slim (Alex) model, enchantment glint, and
+    sprinting by double-tapping forward.
+  reason: >
+    Item use, damage, armour rendering and skins are separate systems not
+    built yet.
+  compatibility_effect: P2 visual until those systems exist.
+  user_visible: true
+

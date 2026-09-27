@@ -13,8 +13,8 @@ import net.minecraft.util.ResourceLocation;
  *
  * <p>No recipe data exists yet, so the crafting grid holds items but never
  * produces a result (DEV-015); whatever is left in the grid returns to the
- * inventory when the screen closes, as vanilla does. The player model beside
- * the armor slots is not drawn (DEV-015). Slot positions are HYPOTHESIS.
+ * inventory when the screen closes, as vanilla does. The player stands beside
+ * the armor slots, looking toward the mouse. Slot positions are HYPOTHESIS.
  */
 public class GuiInventory extends GuiContainer {
     static final ResourceLocation BACKGROUND = new ResourceLocation("minecraft:textures/gui/container/inventory.png");
@@ -76,6 +76,7 @@ public class GuiInventory extends GuiContainer {
         org.lwjgl.opengl.GL11.glColor4f(1, 1, 1, 1);
         mc.textures().bind(BACKGROUND);
         drawTexturedModalRect(guiLeft, guiTop, 0, 0, xSize, ySize);
+        mc.drawPlayerOnScreen(guiLeft + 51, guiTop + 75, 30, guiLeft + 51 - mouseX, guiTop + 75 - 50 - mouseY);
     }
 
     @Override

@@ -45,7 +45,11 @@ import static org.lwjgl.opengl.GL11.*;
  */
 public final class ItemRenderer {
     /** Resolved item model: flat layers, or a block rendered in 3D with an extra GUI rotation. */
-    private record ItemModel(List<ResourceLocation> layers, boolean block, boolean builtinEntity, float[] guiRotation) {}
+    private record ItemModel(List<ResourceLocation> layers, boolean block, boolean builtinEntity, float[] guiRotation,
+                             float[] firstPerson, float[] thirdPerson) {}
+
+    /** Where a held item is drawn, picking the item model's "display" transform. */
+    public enum Held { FIRST_PERSON, THIRD_PERSON }
 
     private static final float[] NO_ROTATION = {0, 0, 0};
     private final IResourceManager resources;
@@ -277,12 +281,13 @@ public final class ItemRenderer {
     private ItemModel resolve(Item item) {
         List<ResourceLocation> layers = new ArrayList<>();
         float[] rotation = null;
+        float[][] display = new float[2][];
         String location = item.model().toString();
         for (int depth = 0; depth < 8 && location != null; depth++) {
             ResourceLocation id = new ResourceLocation(location);
-            if (id.path().startsWith("builtin/generated")) return new ItemModel(layers, false, false, orDefault(rotation));
-            if (id.path().startsWith("builtin/entity")) return new ItemModel(layers, false, true, orDefault(rotation));
-            if (id.path().startsWith("block/")) return new ItemModel(layers, true, false, orDefault(rotation));
+            if (id.path().startsWith("builtin/generated")) return new ItemModel(layers, false, false, orDefault(rotation), display[0], display[1]);
+            if (id.path().startsWith("builtin/entity")) return new ItemModel(layers, false, true, orDefault(rotation), display[0], display[1]);
+            if (id.path().startsWith("block/")) return new ItemModel(layers, true, false, orDefault(rotation), display[0], display[1]);
             JsonObject json = read(new ResourceLocation(id.namespace(), "models/" + id.path() + ".json"));
             if (json == null) break;
             if (layers.isEmpty() && json.has("textures")) {
@@ -297,10 +302,174 @@ public final class ItemRenderer {
                     rotation = new float[]{values.get(0).getAsFloat(), values.get(1).getAsFloat(), values.get(2).getAsFloat()};
                 }
             }
+            if (json.has("display")) {
+                JsonObject views = json.getAsJsonObject("display");
+                if (display[0] == null && views.has("firstperson")) display[0] = displayTransform(views.getAsJsonObject("firstperson"));
+                if (display[1] == null && views.has("thirdperson")) display[1] = displayTransform(views.getAsJsonObject("thirdperson"));
+            }
             JsonElement parent = json.get("parent");
             location = parent == null ? null : parent.getAsString().contains(":") ? parent.getAsString() : "minecraft:" + parent.getAsString();
         }
-        return new ItemModel(layers, item.placedState() != null && layers.isEmpty(), false, orDefault(rotation));
+        return new ItemModel(layers, item.placedState() != null && layers.isEmpty(), false, orDefault(rotation), display[0], display[1]);
+    }
+
+    /**
+     * A model "display" entry as {rotation xyz, translation xyz, scale xyz}:
+     * translation in sixteenths of a block, clamped to 1.5 blocks, scale to
+     * 4 (1.8.9's ItemTransformVec3f, HYPOTHESIS).
+     */
+    private static float[] displayTransform(JsonObject entry) {
+        float[] result = {0, 0, 0, 0, 0, 0, 1, 1, 1};
+        String[] keys = {"rotation", "translation", "scale"};
+        for (int k = 0; k < 3; k++) {
+            if (!entry.has(keys[k])) continue;
+            JsonArray values = entry.getAsJsonArray(keys[k]);
+            for (int i = 0; i < 3; i++) {
+                float value = values.get(i).getAsFloat();
+                if (k == 1) value = Math.max(-1.5f, Math.min(1.5f, value / 16f));
+                if (k == 2) value = Math.max(-4f, Math.min(4f, value));
+                result[k * 3 + i] = value;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Draws an item as held (1.8.9 ItemRenderer.renderItem and RenderItem):
+     * the model is doubled in size, then its first- or
+     * third-person display transform (translate, turn about Y, X, Z, scale),
+     * then the half-size model centred on the origin. Block items are their
+     * block model; other items are their layer textures extruded one pixel
+     * thick with an edge wherever an opaque pixel meets a transparent one.
+     * Faces carry normals for {@link StandardLighting}; the colour carries
+     * the light at the holder.
+     */
+    public void renderHeld(Item item, Held view, float red, float green, float blue) {
+        if (item == null) return;
+        ItemModel model = models.computeIfAbsent(item, this::resolve);
+        BlockState state = item.placedState();
+        BakedModel blockModel = (model.block() || model.builtinEntity()) && state != null ? blockModels.getModel(state) : null;
+        boolean block = blockModel != null && !blockModel.quads().isEmpty();
+        if (!block && model.layers().isEmpty()) return;
+        float[] transform = view == Held.FIRST_PERSON ? model.firstPerson() : model.thirdPerson();
+        glPushMatrix();
+        // Held items are drawn at twice the size of their model's half-block frame, flat items included
+        // (HYPOTHESIS: matches 1.9's converted first-person scale 0.68 = 1.8's 0.4 x 1.7, and the
+        // user's comparison that flat items were too small at half this size).
+        glScalef(2f, 2f, 2f);
+        if (transform != null) {
+            glTranslatef(transform[3], transform[4], transform[5]);
+            glRotatef(transform[1], 0, 1, 0);
+            glRotatef(transform[0], 1, 0, 0);
+            glRotatef(transform[2], 0, 0, 1);
+            glScalef(transform[6], transform[7], transform[8]);
+        }
+        glScalef(0.5f, 0.5f, 0.5f);
+        glTranslatef(-0.5f, -0.5f, -0.5f);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        if (block) drawBlockQuads(blockModel, state, red, green, blue);
+        else {
+            for (int layer = 0; layer < model.layers().size(); layer++) {
+                ResourceLocation texture = model.layers().get(layer);
+                ItemMesh mesh = meshes.computeIfAbsent(texture, this::extrude);
+                if (mesh == null) continue;
+                textures.bind(texture);
+                int tint = layerTint(item, layer);
+                glColor4f((tint >> 16 & 255) / 255f * red, (tint >> 8 & 255) / 255f * green, (tint & 255) / 255f * blue, 1);
+                mesh.draw();
+            }
+        }
+        glColor4f(1, 1, 1, 1);
+        glPopMatrix();
+    }
+
+    private void drawBlockQuads(BakedModel model, BlockState state, float red, float green, float blue) {
+        atlas.bind();
+        int tint = blockTint(state);
+        glBegin(GL_QUADS);
+        for (BakedQuad quad : model.quads()) {
+            TextureAtlas.Tile tile = atlas.tile(quad.texture());
+            if (tile == null) continue;
+            Direction face = quad.face();
+            int color = quad.tintIndex() >= 0 ? tint : 0xFFFFFF;
+            glColor4f((color >> 16 & 255) / 255f * red, (color >> 8 & 255) / 255f * green, (color & 255) / 255f * blue, 1);
+            glNormal3f(face.xOffset, face.yOffset, face.zOffset);
+            for (int i = 0; i < 4; i++) {
+                glTexCoord2f(tile.u0() + (tile.u1() - tile.u0()) * quad.u(i), tile.v0() + (tile.v1() - tile.v0()) * quad.v(i));
+                glVertex3f(quad.x(i), quad.y(i), quad.z(i));
+            }
+        }
+        glEnd();
+    }
+
+    /** An extruded item layer: xyz, uv and normal per vertex, four vertices per quad. */
+    private record ItemMesh(float[] data) {
+        void draw() {
+            glBegin(GL_QUADS);
+            for (int i = 0; i < data.length; i += 8) {
+                glNormal3f(data[i + 5], data[i + 6], data[i + 7]);
+                glTexCoord2f(data[i + 3], data[i + 4]);
+                glVertex3f(data[i], data[i + 1], data[i + 2]);
+            }
+            glEnd();
+        }
+    }
+
+    private final Map<ResourceLocation, ItemMesh> meshes = new HashMap<>();
+
+    /**
+     * Builds the one-pixel-thick item from its texture (the first frame of an
+     * animated strip): the full picture front and back at z 7.5 and 8.5
+     * sixteenths, and a one-pixel edge face on every side of an opaque pixel
+     * that borders a transparent one or the edge (1.8.9 ItemModelGenerator,
+     * HYPOTHESIS: edges show the pixel's own colour).
+     */
+    private ItemMesh extrude(ResourceLocation texture) {
+        java.awt.image.BufferedImage image;
+        try (var stream = resources.open(texture)) {
+            image = javax.imageio.ImageIO.read(stream);
+        } catch (Exception unreadable) {
+            return null;
+        }
+        if (image == null) return null;
+        int width = image.getWidth(), height = Math.min(image.getHeight(), width);
+        float frame = height / (float) image.getHeight();
+        boolean[][] opaque = new boolean[width][height];
+        for (int px = 0; px < width; px++)
+            for (int py = 0; py < height; py++) opaque[px][py] = (image.getRGB(px, py) >>> 24) != 0;
+        List<Float> out = new ArrayList<>();
+        float back = 7.5f / 16f, front = 8.5f / 16f;
+        quad(out, 0, 0, 1, new float[][]{{0, 1, front, 0, 0}, {0, 0, front, 0, frame}, {1, 0, front, 1, frame}, {1, 1, front, 1, 0}});
+        quad(out, 0, 0, -1, new float[][]{{1, 1, back, 1, 0}, {1, 0, back, 1, frame}, {0, 0, back, 0, frame}, {0, 1, back, 0, 0}});
+        for (int px = 0; px < width; px++) {
+            for (int py = 0; py < height; py++) {
+                if (!opaque[px][py]) continue;
+                float x0 = px / (float) width, x1 = (px + 1) / (float) width;
+                float y1 = 1f - py / (float) height, y0 = 1f - (py + 1) / (float) height;
+                float u = (px + 0.5f) / width, v = (py + 0.5f) / height * frame;
+                if (px == 0 || !opaque[px - 1][py])
+                    quad(out, -1, 0, 0, new float[][]{{x0, y1, back, u, v}, {x0, y0, back, u, v}, {x0, y0, front, u, v}, {x0, y1, front, u, v}});
+                if (px == width - 1 || !opaque[px + 1][py])
+                    quad(out, 1, 0, 0, new float[][]{{x1, y1, front, u, v}, {x1, y0, front, u, v}, {x1, y0, back, u, v}, {x1, y1, back, u, v}});
+                if (py == 0 || !opaque[px][py - 1])
+                    quad(out, 0, 1, 0, new float[][]{{x0, y1, back, u, v}, {x0, y1, front, u, v}, {x1, y1, front, u, v}, {x1, y1, back, u, v}});
+                if (py == height - 1 || !opaque[px][py + 1])
+                    quad(out, 0, -1, 0, new float[][]{{x0, y0, front, u, v}, {x0, y0, back, u, v}, {x1, y0, back, u, v}, {x1, y0, front, u, v}});
+            }
+        }
+        float[] data = new float[out.size()];
+        for (int i = 0; i < data.length; i++) data[i] = out.get(i);
+        return new ItemMesh(data);
+    }
+
+    private static void quad(List<Float> out, float nx, float ny, float nz, float[][] corners) {
+        for (float[] c : corners) {
+            out.add(c[0]); out.add(c[1]); out.add(c[2]); out.add(c[3]); out.add(c[4]);
+            out.add(nx); out.add(ny); out.add(nz);
+        }
     }
 
     private static float[] orDefault(float[] rotation) { return rotation == null ? NO_ROTATION : rotation; }

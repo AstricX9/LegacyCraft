@@ -69,6 +69,37 @@ public final class I18n {
      * The translated, {@link String#format}-expanded text; the key itself when
      * untranslated, and the raw pattern when the arguments do not fit it.
      */
+    /**
+     * Chat-message translation: every {@code %s}/{@code %d} (or {@code %n$s})
+     * takes the next (or n-th) argument as text whatever its type, and
+     * {@code %%} is a percent sign, as chat components substitute; the key
+     * itself when untranslated.
+     */
+    public static String translateChat(String key, Object... args) {
+        String pattern = table.getOrDefault(key, key);
+        StringBuilder out = new StringBuilder();
+        int next = 0;
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c != '%' || i + 1 >= pattern.length()) { out.append(c); continue; }
+            int j = i + 1, index = -1;
+            int digits = j;
+            while (digits < pattern.length() && Character.isDigit(pattern.charAt(digits))) digits++;
+            if (digits > j && digits < pattern.length() && pattern.charAt(digits) == '$') {
+                index = Integer.parseInt(pattern.substring(j, digits)) - 1;
+                j = digits + 1;
+            }
+            if (j >= pattern.length()) { out.append(c); continue; }
+            char conversion = pattern.charAt(j);
+            if (conversion == '%') { out.append('%'); i = j; continue; }
+            if (!Character.isLetter(conversion)) { out.append(c); continue; }
+            int argument = index >= 0 ? index : next++;
+            out.append(argument < args.length ? String.valueOf(args[argument]) : "");
+            i = j;
+        }
+        return out.toString();
+    }
+
     public static String format(String key, Object... args) {
         String pattern = table.get(key);
         if (pattern == null) return key;

@@ -9,7 +9,12 @@ import net.minecraft.block.BlockUpdates;
 import net.minecraft.block.state.ActualState;
 import net.minecraft.client.audio.SoundRegistry;
 import net.minecraft.client.entity.Player;
+import net.minecraft.client.entity.PlayerAnimation;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.GuiChat;
+import net.minecraft.client.gui.GuiNewChat;
+import net.minecraft.command.CommandHandler;
+import net.minecraft.command.CommandSender;
 import net.minecraft.client.multiplayer.PlayerController;
 import net.minecraft.client.gui.GuiContext;
 import net.minecraft.client.gui.GuiContainerCreative;
@@ -26,6 +31,9 @@ import net.minecraft.client.gui.LoadingScreenRenderer;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.BiomeColors;
 import net.minecraft.client.renderer.DebugRenderer;
+import net.minecraft.client.renderer.FirstPersonRenderer;
+import net.minecraft.client.renderer.PlayerModel;
+import net.minecraft.client.renderer.StandardLighting;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.client.renderer.LightMap;
 import net.minecraft.client.renderer.SkyRenderer;
@@ -123,6 +131,9 @@ public final class Minecraft implements GuiContext {
     private FontRenderer fontRenderer;
     private GuiTextures guiTextures;
     private ItemRenderer itemRenderer;
+    private FirstPersonRenderer firstPersonRenderer;
+    private final PlayerModel playerModel = new PlayerModel();
+    private PlayerAnimation playerAnimation = new PlayerAnimation();
     private CreativeTabs creativeTabs;
     private GuiIngame ingameGui;
     private BlockDrops blockDrops;
@@ -166,6 +177,10 @@ public final class Minecraft implements GuiContext {
     /** --pos: x, y, z, vanilla yaw, pitch. */
     private double[] cliPos;
     private boolean cliThrowawayWorld;
+    /** The local player's name (offline; {@code --username=} sets it). */
+    private String playerName = "Player";
+    private final CommandHandler commands = new CommandHandler();
+    private final ChatSender chatSender = new ChatSender();
     private String cliWorld;
 
     /** Chunks generated around spawn behind the "Building terrain" screen before play starts. */
@@ -237,6 +252,7 @@ public final class Minecraft implements GuiContext {
         biomeRegistry = BiomeRegistry.load(resourceManager, blockRegistry);
         biomeColors = BiomeColors.load(resourceManager);
         itemRenderer = new ItemRenderer(resourceManager, guiTextures, atlas, modelManager, biomeColors);
+        firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer);
         creativeTabs = CreativeTabs.load(resourceManager, itemRegistry);
         blockItems = BlockDrops.itemsOf(itemRegistry.values());
         blockDrops = BlockDrops.load(resourceManager, blockItems);
@@ -349,7 +365,7 @@ public final class Minecraft implements GuiContext {
         switch (key) {
             case GLFW_KEY_A -> { if (renderer != null) renderer.markAllDirty(); }
             case GLFW_KEY_B -> gameSettings.showHitboxes = !gameSettings.showHitboxes;
-            case GLFW_KEY_D -> { /* chat is not implemented yet; clearing it is a no-op */ }
+            case GLFW_KEY_D -> { if (ingameGui != null) ingameGui.getChatGUI().clearChatMessages(); }
             case GLFW_KEY_F -> { gameSettings.changeRenderDistance((mods & GLFW_MOD_SHIFT) != 0 ? -1 : 1); saveOptions(); }
             case GLFW_KEY_G -> gameSettings.showChunkBorders = !gameSettings.showChunkBorders;
             case GLFW_KEY_H -> { gameSettings.advancedItemTooltips = !gameSettings.advancedItemTooltips; saveOptions(); }
@@ -449,6 +465,8 @@ public final class Minecraft implements GuiContext {
             server.tick();
             tickItemEntities();
             levelInfo.totalTime++;
+            playerAnimation.tick(player);
+            if (inventory != null) firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
             if (Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("doDaylightCycle", "true"))) levelInfo.worldTime++;
             tickSky();
         }
@@ -466,12 +484,17 @@ public final class Minecraft implements GuiContext {
             playerController.resetBlockRemoving();
             return;
         }
+        while (gameSettings.keyBindTogglePerspective.isPressed())
+            gameSettings.thirdPersonView = (gameSettings.thirdPersonView + 1) % 3;
         for (int i = 0; i < 9; i++) if (gameSettings.keyBindsHotbar[i].isPressed() && !isSpectator()) inventory.currentItem = i;
         if (gameSettings.keyBindInventory.isPressed())
             displayGuiScreen(isCreative() ? new GuiContainerCreative() : new GuiInventory());
         else {
             while (gameSettings.keyBindDrop.isPressed()) if (!isSpectator()) dropHeldItem(isKeyDown(GLFW_KEY_LEFT_CONTROL) || isKeyDown(GLFW_KEY_RIGHT_CONTROL));
-            interact();
+            // Opened from the tick, after the key's own character event has gone by, so "t" or "/" is not typed into the field.
+            if (gameSettings.keyBindChat.isPressed()) displayGuiScreen(new GuiChat());
+            else if (gameSettings.keyBindCommand.isPressed()) displayGuiScreen(new GuiChat("/"));
+            if (currentScreen == null) interact();
         }
     }
 
@@ -583,6 +606,7 @@ public final class Minecraft implements GuiContext {
         double spawnX = cliSpawnX != null ? cliSpawnX : levelInfo.spawnX + 0.5;
         double spawnZ = cliSpawnZ != null ? cliSpawnZ : levelInfo.spawnZ + 0.5;
         player = new Player(world, spawnX, spawnZ);
+        playerAnimation = new PlayerAnimation();
         if (levelInfo.player != null && cliSpawnX == null) {
             LevelInfo.PlayerPosition saved = levelInfo.player;
             // level.dat stores vanilla yaw (0 = south); the player model uses 0 = north.
@@ -841,12 +865,11 @@ public final class Minecraft implements GuiContext {
         glFogfv(GL_FOG_COLOR, new float[]{fog[0], fog[1], fog[2], 1.0f});
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
-        glRotatef(player.pitch, 1, 0, 0);
-        glRotatef(player.yaw, 0, 1, 0);
+        loadCamera();
         if (skyVisible) {
             glFogf(GL_FOG_START, 0f);
             glFogf(GL_FOG_END, renderDistance);
-            perspective(gameSettings.getFov(), width / (double) height, 0.05, renderDistance * 2.0);
+            perspective(worldFov(), width / (double) height, 0.05, renderDistance * 2.0);
             glMatrixMode(GL_MODELVIEW);
             sky.renderSky(levelInfo.worldTime, eyeY);
         }
@@ -854,7 +877,7 @@ public final class Minecraft implements GuiContext {
         glFogf(GL_FOG_START, renderDistance * 0.75f);
         glFogf(GL_FOG_END, renderDistance);
         if (eyeY < SkyRenderer.CLOUD_HEIGHT) renderClouds(renderDistance, skyVisible);
-        perspective(gameSettings.getFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
+        perspective(worldFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
         glMatrixMode(GL_MODELVIEW);
         glTranslated(-player.x, -eyeY, -player.z);
         glColor4f(1, 1, 1, 1);
@@ -864,6 +887,7 @@ public final class Minecraft implements GuiContext {
         renderer.render(player, renderDistance);
         if (gameSettings.showChunkBorders) DebugRenderer.renderChunkBorders(player.x, player.y, player.z);
         renderItemEntities(renderDistance);
+        if (gameSettings.thirdPersonView != 0 && !player.dead) renderPlayerModel();
         WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? renderer.raycast(player, reach()) : null;
         drawDestroyProgress();
         if (hit != null && !gameSettings.hideGUI) drawSelection(hit);
@@ -873,15 +897,196 @@ public final class Minecraft implements GuiContext {
             renderClouds(renderDistance, skyVisible);
             glPopMatrix();
         }
+        glClear(GL_DEPTH_BUFFER_BIT);
+        renderHand(renderDistance);
+    }
+
+    // ---- camera, hand and player model --------------------------------------------------------
+
+    /** The field of view for the world: the setting times the sprint/flight modifier, narrower with the eyes in water. */
+    private float worldFov() {
+        float fov = gameSettings.getFov() * playerAnimation.fov(partialTicks);
+        if (eyesInWater()) fov = fov * 60f / 70f;
+        return fov;
+    }
+
+    private boolean eyesInWater() {
+        int x = (int) Math.floor(player.x), y = (int) Math.floor(player.eyeY()), z = (int) Math.floor(player.z);
+        return y >= 0 && y < World.HEIGHT && world.get(x, y, z).material().equals("water");
+    }
+
+    /**
+     * The view transform without the world position (1.8.9
+     * setupCameraTransform/orientCamera, HYPOTHESIS): the view bob, then in
+     * first person the eye pulled back 0.1; behind the player 4 blocks back,
+     * in front 4 blocks ahead turned to face the player, both shortened
+     * when a block is in the way; then pitch and yaw.
+     */
+    private void loadCamera() {
+        if (gameSettings.viewBobbing) applyViewBobbing();
+        int view = gameSettings.thirdPersonView;
+        if (view == 0) {
+            glTranslatef(0f, 0f, -0.1f);
+        } else {
+            double distance = thirdPersonDistance(view == 2 ? 1 : -1);
+            if (view == 2) {
+                glRotatef(180f, 0f, 1f, 0f);
+                glTranslatef(0f, 0f, (float) distance);
+            } else {
+                glTranslatef(0f, 0f, (float) -distance);
+            }
+        }
+        glRotatef(player.pitch, 1, 0, 0);
+        glRotatef(player.yaw, 0, 1, 0);
+    }
+
+    /** How far the third-person camera can go (up to 4) along the view (+1) or against it (-1) before a block: eight rays 0.1 apart. */
+    private double thirdPersonDistance(int direction) {
+        double distance = 4.0;
+        double dx = player.dirX() * direction, dy = player.dirY() * direction, dz = player.dirZ() * direction;
+        double eyeX = player.x, eyeY = player.eyeY(), eyeZ = player.z;
+        for (int i = 0; i < 8; i++) {
+            double ox = ((i & 1) * 2 - 1) * 0.1, oy = ((i >> 1 & 1) * 2 - 1) * 0.1, oz = ((i >> 2 & 1) * 2 - 1) * 0.1;
+            WorldRenderer.Hit hit = WorldRenderer.raycast(world, eyeX + ox, eyeY + oy, eyeZ + oz, dx, dy, dz, distance);
+            if (hit == null) continue;
+            double hx = hit.x() + hit.hitX() - eyeX, hy = hit.y() + hit.hitY() - eyeY, hz = hit.z() + hit.hitZ() - eyeZ;
+            distance = Math.min(distance, Math.sqrt(hx * hx + hy * hy + hz * hz));
+        }
+        return distance;
+    }
+
+    /** Walking bob: side-to-side and up-down with each step, a roll and a nod, plus the fall/jump tilt. */
+    private void applyViewBobbing() {
+        PlayerAnimation animation = playerAnimation;
+        float step = animation.distanceWalked - animation.prevDistanceWalked;
+        float walked = -(animation.distanceWalked + step * partialTicks);
+        float strength = PlayerAnimation.lerp(animation.prevCameraYaw, animation.cameraYaw, partialTicks);
+        float tilt = PlayerAnimation.lerp(animation.prevCameraPitch, animation.cameraPitch, partialTicks);
+        float phase = walked * (float) Math.PI;
+        glTranslatef((float) Math.sin(phase) * strength * 0.5f, -Math.abs((float) Math.cos(phase) * strength), 0f);
+        glRotatef((float) Math.sin(phase) * strength * 3f, 0f, 0f, 1f);
+        glRotatef(Math.abs((float) Math.cos(phase - 0.2f) * strength) * 5f, 1f, 0f, 0f);
+        glRotatef(tilt, 1f, 0f, 0f);
+    }
+
+    /** The lightmap colour at the player's eyes (what the hand and the player model are lit by). */
+    private float[] eyeLight() {
+        int x = (int) Math.floor(player.x), y = (int) Math.floor(player.eyeY()), z = (int) Math.floor(player.z);
+        boolean inside = y >= 0 && y < World.HEIGHT;
+        int sky = inside ? world.getSkyLight(x, y, z) : y >= World.HEIGHT ? 15 : 0;
+        int block = inside ? world.getBlockLight(x, y, z) : 0;
+        return LightMap.color(sky, block);
+    }
+
+    /** The first-person hand: its own 70° projection (narrower in water), the view bob, over a cleared depth buffer. */
+    private void renderHand(int renderDistance) {
+        if (gameSettings.thirdPersonView != 0 || gameSettings.hideGUI || isSpectator() || player.dead) return;
+        glDisable(GL_FOG);
+        float fov = eyesInWater() ? 60f : 70f;
+        perspective(fov, width / (double) height, 0.05, renderDistance * 2.0);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        if (gameSettings.viewBobbing) applyViewBobbing();
+        firstPersonRenderer.render(player, playerAnimation, partialTicks, eyeLight());
+        glShadeModel(GL_SMOOTH);
+    }
+
+    /**
+     * The player seen in third person (RendererLivingEntity/RenderPlayer,
+     * HYPOTHESIS): turned to the body's yaw, flipped into model space,
+     * 0.9375 scale, posed, lit by the standard lights and the light at the
+     * eyes, with the held item in the right hand.
+     */
+    private void renderPlayerModel() {
+        PlayerAnimation animation = playerAnimation;
+        float body = animation.bodyYaw(partialTicks);
+        float amount = Math.min(1f, PlayerAnimation.lerp(animation.prevLimbSwingAmount, animation.limbSwingAmount, partialTicks));
+        float swing = animation.limbSwing - animation.limbSwingAmount * (1f - partialTicks);
+        StandardLighting.enable();
+        glPushMatrix();
+        glTranslated(player.x, player.y, player.z);
+        drawPlayer(body, PlayerAnimation.wrap(PlayerAnimation.vanillaYaw(player) - body), player.pitch, swing, amount,
+            animation.ticksExisted + partialTicks, animation.swingProgress(partialTicks), eyeLight());
+        glPopMatrix();
+        StandardLighting.disable();
+        glShadeModel(GL_SMOOTH);
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /**
+     * The posed player with its held item at the current origin (feet), as
+     * RendererLivingEntity draws it: turned to the body's yaw, flipped into
+     * model space and scaled 0.9375. Lighting is the caller's.
+     */
+    private void drawPlayer(float bodyYaw, float headYaw, float pitch, float limbSwing, float limbAmount, float age,
+                            float attackSwing, float[] light) {
+        ItemStack held = inventory == null ? null : inventory.getCurrentItem();
+        glPushMatrix();
+        glRotatef(180f - bodyYaw, 0f, 1f, 0f);
+        glScalef(-1f, -1f, 1f);
+        glScalef(0.9375f, 0.9375f, 0.9375f);
+        glTranslatef(0f, -1.5078125f, 0f);
+        playerModel.setPose(new PlayerModel.Pose(limbSwing, limbAmount, age, headYaw, pitch, attackSwing,
+            player.sneaking, held != null));
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        guiTextures.bind(FirstPersonRenderer.STEVE);
+        glColor4f(light[0], light[1], light[2], 1f);
+        playerModel.render(player.sneaking);
+        if (held != null) {
+            glPushMatrix();
+            playerModel.rightArm.transform();
+            glTranslatef(-0.0625f, 0.4375f, 0.0625f);
+            if (player.sneaking) glTranslatef(0f, 0.203125f, 0f);
+            itemRenderer.renderHeld(held.item(), ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
+            glPopMatrix();
+        }
+        glPopMatrix();
+    }
+
+    /**
+     * The player in an inventory screen (1.8.9 GuiInventory.drawEntityOnScreen,
+     * HYPOTHESIS): feet at (x, y), {@code scale} GUI pixels per block, lit by
+     * the standard lights, body and head turned toward the mouse
+     * ({@code lookX}/{@code lookY} are the feet-relative offsets vanilla
+     * passes: positive when the mouse is left of / above the reference point),
+     * still walking and swinging as in the world, fully bright.
+     */
+    @Override public void drawPlayerOnScreen(int x, int y, int scale, float lookX, float lookY) {
+        if (player == null) return;
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(true);
+        glPushMatrix();
+        glTranslatef(x, y, 50f);
+        glScalef(-scale, scale, scale);
+        glRotatef(180f, 0f, 0f, 1f);
+        glRotatef(135f, 0f, 1f, 0f);
+        StandardLighting.enable();
+        glRotatef(-135f, 0f, 1f, 0f);
+        float tilt = (float) Math.atan(lookY / 40f);
+        float turn = (float) Math.atan(lookX / 40f);
+        glRotatef(-tilt * 20f, 1f, 0f, 0f);
+        float body = turn * 20f, head = turn * 40f, pitch = -tilt * 20f;
+        PlayerAnimation animation = playerAnimation;
+        drawPlayer(body, head - body, pitch, animation.limbSwing, Math.min(1f, animation.limbSwingAmount),
+            animation.ticksExisted + 1f, animation.swingProgress(1f), new float[]{1f, 1f, 1f});
+        glPopMatrix();
+        StandardLighting.disable();
+        glColor4f(1, 1, 1, 1);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glDisable(GL_DEPTH_TEST);
     }
 
     /** Clouds with the terrain fog and a far plane four times the render distance (the modelview holds only the camera's rotation). */
     private void renderClouds(int renderDistance, boolean skyVisible) {
         if (!skyVisible || !gameSettings.clouds) return;
-        perspective(gameSettings.getFov(), width / (double) height, 0.05, renderDistance * 4.0);
+        perspective(worldFov(), width / (double) height, 0.05, renderDistance * 4.0);
         glMatrixMode(GL_MODELVIEW);
         sky.renderClouds(player.x, player.eyeY(), player.z, partialTicks, gameSettings.fancyGraphics);
-        perspective(gameSettings.getFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
+        perspective(worldFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
         glMatrixMode(GL_MODELVIEW);
         glDisable(GL_CULL_FACE);
     }
@@ -1020,6 +1225,7 @@ public final class Minecraft implements GuiContext {
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
+        ingameGui.renderChat(guiHeight, currentScreen instanceof GuiChat);
         glEnable(GL_DEPTH_TEST);
         glColor4f(1, 1, 1, 1);
     }
@@ -1092,6 +1298,8 @@ public final class Minecraft implements GuiContext {
             return;
         }
         WorldRenderer.Hit hit = renderer.raycast(player, reach());
+        // The arm swings on every attack click, every tick a block is being mined, and on each placement.
+        if (attackPressed) playerAnimation.swing();
         if (pickPressed && hit != null) {
             Item picked = itemForBlock(world.getState(hit.x(), hit.y(), hit.z()));
             if (picked != null) inventory.pickItem(picked, isCreative());
@@ -1101,6 +1309,7 @@ public final class Minecraft implements GuiContext {
             && playerController.clickBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit)))
             breakBlock(hit.x(), hit.y(), hit.z());
         if (gameSettings.keyBindAttack.isKeyDown() && hit != null && canBreak) {
+            playerAnimation.swing();
             if (playerController.onPlayerDamageBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit)))
                 breakBlock(hit.x(), hit.y(), hit.z());
         } else {
@@ -1108,7 +1317,7 @@ public final class Minecraft implements GuiContext {
         }
         if (usePressed || gameSettings.keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0) {
             rightClickDelayTimer = 4;
-            if (hit != null) placeHeldBlock(hit);
+            if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
         }
     }
 
@@ -1229,7 +1438,8 @@ public final class Minecraft implements GuiContext {
     }
 
     /** Places the held block against the targeted face (Survival and Creative; not Adventure). */
-    private void placeHeldBlock(WorldRenderer.Hit hit) {
+    /** Places the held block against the hit face; returns whether anything was placed. */
+    private boolean placeHeldBlock(WorldRenderer.Hit hit) {
         ItemStack held = inventory.getCurrentItem();
         if (held != null && held.item().placedBlock() != null
             && levelInfo.gameType != WorldSettings.GameType.ADVENTURE) {
@@ -1252,8 +1462,10 @@ public final class Minecraft implements GuiContext {
                 for (BlockPlacement.Placement placement : placements)
                     BlockUpdates.afterChange(world, placement.x(), placement.y(), placement.z());
                 if (!isCreative()) inventory.consumeCurrentItem();
+                return true;
             }
         }
+        return false;
     }
 
     /** The item that places this block variant (pick block), or null. */
@@ -1307,6 +1519,85 @@ public final class Minecraft implements GuiContext {
     }
 
     @Override public GuiScreen currentScreen() { return currentScreen; }
+
+    // ---- chat and commands ------------------------------------------------------------------
+
+    @Override public GuiNewChat chatGui() { return ingameGui == null ? null : ingameGui.getChatGUI(); }
+
+    @Override public void printChatLine(String text, int id) {
+        if (ingameGui != null) ingameGui.getChatGUI().printChatMessage(text, id, ingameGui.updateCounter(), false);
+    }
+
+    /**
+     * What the integrated server does with a chat line (1.8.9, HYPOTHESIS):
+     * refused in red while chat is Hidden; runs of spaces collapse; "/"
+     * runs a command as the player; anything else is said as
+     * {@code <name> message}.
+     */
+    @Override public void sendChatMessage(String message) {
+        if (world == null || player == null || ingameGui == null) return;
+        if (gameSettings.chatVisibility == 2) {
+            printChatLine(CommandHandler.RED + net.minecraft.client.gui.I18n.translateChat("chat.cannotSend"), 0);
+            return;
+        }
+        String text = message.trim().replaceAll("\\s+", " ");
+        if (text.startsWith("/")) commands.execute(chatSender, text);
+        else ingameGui.getChatGUI().printChatMessage(
+            net.minecraft.client.gui.I18n.translateChat("chat.type.text", playerName, text), 0, ingameGui.updateCounter(), true);
+    }
+
+    @Override public List<String> tabComplete(String beforeCursor) {
+        if (world == null || player == null) return List.of();
+        return commands.complete(chatSender, beforeCursor);
+    }
+
+    /** The local player as a command sender on the integrated server. */
+    private final class ChatSender implements CommandSender {
+        @Override public String name() { return playerName; }
+        @Override public void addChatMessage(String message, boolean playerChat) {
+            if (ingameGui != null) ingameGui.getChatGUI().printChatMessage(message, 0, ingameGui.updateCounter(), playerChat);
+        }
+        @Override public boolean commandsAllowed() { return levelInfo != null && levelInfo.allowCommands; }
+        @Override public LevelInfo level() { return levelInfo; }
+        @Override public double x() { return player.x; }
+        @Override public double y() { return player.y; }
+        @Override public double z() { return player.z; }
+        // The player model's yaw is vanilla's minus 180 (0 = north).
+        @Override public float yaw() { return wrapDegrees(player.yaw + 180f); }
+        @Override public float pitch() { return player.pitch; }
+        @Override public void teleport(double x, double y, double z, float yaw, float pitch) {
+            player.setPositionAndRotation(x, y, z, yaw - 180f, pitch);
+            player.velocityX = player.velocityY = player.velocityZ = 0;
+        }
+        @Override public WorldSettings.GameType gameType() { return levelInfo.gameType; }
+        @Override public void setGameType(WorldSettings.GameType type) {
+            levelInfo.gameType = type;
+            applyGameMode();
+        }
+        @Override public void setDifficulty(int difficulty) {
+            levelInfo.difficulty = difficulty;
+            gameSettings.difficulty = difficulty;
+        }
+        @Override public void kill() {
+            player.health = 0;
+            player.dead = true;
+        }
+        @Override public int clearInventory() {
+            int removed = 0;
+            for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) removed += count(inventory.getBySaveSlot(slot));
+            for (int slot = 100; slot < 100 + InventoryPlayer.ARMOR_SIZE; slot++) removed += count(inventory.getBySaveSlot(slot));
+            removed += count(inventory.getItemStack());
+            inventory.clear();
+            return removed;
+        }
+        private int count(ItemStack stack) { return stack == null ? 0 : stack.count(); }
+        private float wrapDegrees(float degrees) {
+            degrees %= 360f;
+            if (degrees >= 180f) degrees -= 360f;
+            if (degrees < -180f) degrees += 360f;
+            return degrees;
+        }
+    }
     @Override public ItemRenderer itemRenderer() { return itemRenderer; }
     @Override public CreativeTabs creativeTabs() { return creativeTabs; }
     @Override public InventoryPlayer playerInventory() { return inventory; }
@@ -1389,6 +1680,8 @@ public final class Minecraft implements GuiContext {
                 game.cliThrowawayWorld = true;
             } else if (arg.startsWith("--world=")) {
                 game.cliWorld = arg.substring(8);
+            } else if (arg.startsWith("--username=")) {
+                game.playerName = arg.substring(11);
             } else if (arg.startsWith("--gamedir=")) {
                 game.gameDirectory = Path.of(arg.substring(10));
             }

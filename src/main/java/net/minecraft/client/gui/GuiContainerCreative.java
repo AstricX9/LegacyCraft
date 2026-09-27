@@ -413,6 +413,8 @@ public class GuiContainerCreative extends GuiContainer {
             drawTexturedModalRect(left, top + (int) ((bottom - top - 17) * currentScroll), 232 + (needsScrollBars() ? 0 : 12), 0, 12, 15);
         }
         drawTab(current);
+        if (selectedTabIndex == CreativeTabs.INVENTORY)
+            mc.drawPlayerOnScreen(guiLeft + 43, guiTop + 45, 20, guiLeft + 43 - mouseX, guiTop + 45 - 30 - mouseY);
     }
 
     @Override

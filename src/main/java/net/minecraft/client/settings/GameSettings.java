@@ -158,6 +158,8 @@ public final class GameSettings {
 
     // Runtime-only state (never saved), matching vanilla's transient fields.
     public boolean hideGUI;
+    /** 0 first person, 1 behind the player, 2 in front (F5; not saved, as vanilla). */
+    public int thirdPersonView;
     public boolean showDebugInfo;
     public boolean showDebugProfilerChart;
     public boolean showLagometer;
