@@ -9,12 +9,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class BlockRegistryTest {
+/**
+ * The block registry loader: exactly the legacy 0-197 block table, with
+ * properties from the block definitions.
+ */
+final class BlockRegistryTest {
     @Test
     void registryIsExactlyTheLegacyBlockTable() throws IOException {
         BlockRegistry registry = BlockRegistry.load(new ClasspathResourceManager());

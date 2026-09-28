@@ -9,7 +9,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class LevelInfoPlayerTest {
+/** The player data in level.dat: inventory, abilities and game modes. */
+final class LevelInfoPlayerTest {
     @Test
     void inventoryAndAbilitiesRoundTrip() {
         LevelInfo info = LevelInfo.create("Test", new WorldSettings(1L, WorldSettings.GameType.CREATIVE, true, false,

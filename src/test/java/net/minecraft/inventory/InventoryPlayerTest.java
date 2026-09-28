@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class InventoryPlayerTest {
+/** The player inventory: hotbar scrolling, pick block, adding and consuming items, save slots and armour. */
+final class InventoryPlayerTest {
     private final Item stone = TestItems.item("stone"), dirt = TestItems.item("dirt");
 
     @Test

@@ -288,9 +288,8 @@ public final class WorldRenderer {
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         for (Section section : opaque) drawBuffer(section, section.opaqueBuffer, section.opaqueVertices);
-        // Water and glass stay two-sided so a water surface is visible from below.
-        glDisable(GL_CULL_FACE);
-        // Translucent faces last, far to near, re-sorted inside the nearest sections as the camera moves.
+        // Translucent faces last, still culled like vanilla's translucent layer (the fluid renderer
+        // adds the back-facing copies of water faces itself), far to near, re-sorted inside the nearest sections as the camera moves.
         translucent.sort(Comparator.comparingDouble(section -> -distanceSquared(section, eyeX, eyeY, eyeZ)));
         int resorts = 0;
         for (int i = translucent.size() - 1; i >= 0 && resorts < RESORTS_PER_FRAME; i--) {
@@ -299,6 +298,7 @@ public final class WorldRenderer {
             if (resort(section, eyeX, eyeY, eyeZ)) resorts++;
         }
         for (Section section : translucent) drawBuffer(section, section.translucentBuffer, section.translucentVertices);
+        glDisable(GL_CULL_FACE);
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_COLOR_ARRAY);
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -442,6 +442,15 @@ public final class WorldRenderer {
      * are skipped; small blocks can be aimed past).
      */
     public static Hit raycast(IBlockAccess world,double ox,double oy,double oz,double dx,double dy,double dz,double reach){
+        return raycast(world,ox,oy,oz,dx,dy,dz,reach,false);
+    }
+
+    /**
+     * As above; with {@code sources} the ray also stops at liquid sources
+     * (level 0) as full cubes, the way an empty bucket aims
+     * (BlockLiquid.canCollideCheck with hitIfLiquid).
+     */
+    public static Hit raycast(IBlockAccess world,double ox,double oy,double oz,double dx,double dy,double dz,double reach,boolean sources){
         int x=floor(ox),y=floor(oy),z=floor(oz);
         int stepX=dx>0?1:-1,stepY=dy>0?1:-1,stepZ=dz>0?1:-1;
         double deltaX=dx==0?Double.POSITIVE_INFINITY:Math.abs(1/dx);
@@ -454,6 +463,13 @@ public final class WorldRenderer {
         // A selection box may poke into the next cell (fence posts are inset, piston arms reach out), so test a little past reach.
         while(travelled<=reach+1){
             BlockState stored=world.getState(x,y,z);
+            if(sources&&stored.metadata()==0&&net.minecraft.block.Liquids.isLiquid(stored.block())){
+                AxisAlignedBB box=AxisAlignedBB.FULL.offset(x,y,z);
+                AxisAlignedBB.RayHit entry=box.rayEntry(ox,oy,oz,dx,dy,dz);
+                if(entry!=null&&entry.distance()<=reach)
+                    return new Hit(x,y,z,entry.face(),
+                        (float)(ox+dx*entry.distance()-x),(float)(oy+dy*entry.distance()-y),(float)(oz+dz*entry.distance()-z),box);
+            }
             if(!stored.block().isAir()&&stored.block().isTargetable()){
                 ActualState state=stored.block().actualState(world,x,y,z,stored);
                 AxisAlignedBB local=stored.block().selectionBox(state,world,x,y,z);

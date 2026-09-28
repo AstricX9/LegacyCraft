@@ -2,9 +2,10 @@ package net.minecraft.util;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ResourceLocationTest {
+/** Resource location namespaces. */
+final class ResourceLocationTest {
     @Test
     void defaultsToMinecraftNamespace() {
         ResourceLocation location = new ResourceLocation("textures/blocks/stone");

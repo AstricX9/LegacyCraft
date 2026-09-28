@@ -1,18 +1,16 @@
 package net.minecraft.item;
 
-import net.minecraft.block.BlockRegistry;
-import net.minecraft.client.resources.ClasspathResourceManager;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.testing.GameData;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ItemStackTest {
+/** Item stacks merging in an inventory and tools breaking from damage. */
+final class ItemStackTest {
     @Test
     void inventoryMergesStacksAndDamageBreaksTools() {
-        var resources = new ClasspathResourceManager();
-        var items = ItemRegistry.load(resources, BlockRegistry.load(resources));
+        var items = GameData.items();
         Item apple = items.get("minecraft:apple");
         Inventory inventory = new Inventory(2);
         inventory.set(0, new ItemStack(apple, 60));

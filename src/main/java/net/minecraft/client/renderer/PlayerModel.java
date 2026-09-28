@@ -67,11 +67,12 @@ public final class PlayerModel {
 
     /** What the pose depends on (ModelBiped.setRotationAngles and friends). */
     public record Pose(float limbSwing, float limbSwingAmount, float ageInTicks, float headYaw, float headPitch,
-                       float swingProgress, boolean sneaking, boolean holdingItem) {}
+                       float swingProgress, boolean sneaking, boolean holdingItem, boolean blocking) {}
 
     /**
      * Poses the parts: walking swings arms and legs in opposition, the head
-     * turns and tilts, holding an item lowers the right arm, an attack swings
+     * turns and tilts, holding an item lowers the right arm (blocking raises
+     * it across the body: ModelBiped heldItemRight 3), an attack swings
      * it (twisting the body), sneaking bends the body forward, and both arms
      * sway slightly with time.
      */
@@ -84,7 +85,12 @@ public final class PlayerModel {
         leftArm.angleX = (float) Math.cos(swing * 0.6662f) * 2f * amount * 0.5f;
         rightLeg.angleX = (float) Math.cos(swing * 0.6662f) * 1.4f * amount;
         leftLeg.angleX = (float) Math.cos(swing * 0.6662f + Math.PI) * 1.4f * amount;
-        if (pose.holdingItem()) rightArm.angleX = rightArm.angleX * 0.5f - (float) Math.PI / 10f;
+        if (pose.blocking()) {
+            rightArm.angleX = rightArm.angleX * 0.5f - (float) Math.PI / 10f * 3f;
+            rightArm.angleY = -0.5235988f;
+        } else if (pose.holdingItem()) {
+            rightArm.angleX = rightArm.angleX * 0.5f - (float) Math.PI / 10f;
+        }
 
         float attack = pose.swingProgress();
         body.angleY = (float) Math.sin(Math.sqrt(attack) * Math.PI * 2) * 0.2f;
@@ -131,7 +137,7 @@ public final class PlayerModel {
 
     /** The first-person arm: the right arm at rest (idle sway from time 0, i.e. tilted 0.1 radians out). */
     public void renderRightArmAtRest() {
-        setPose(new Pose(0, 0, 0, 0, 0, 0, false, false));
+        setPose(new Pose(0, 0, 0, 0, 0, 0, false, false, false));
         rightArm.render();
     }
 

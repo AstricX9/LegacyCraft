@@ -2,10 +2,10 @@ package net.minecraft.world.chunk;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ChunkSectionTest {
+/** Chunk sections store unsigned block IDs and track how many blocks they hold. */
+final class ChunkSectionTest {
     @Test
     void storesUnsignedRegistryIdsAndTracksOccupancy() {
         ChunkSection section = new ChunkSection();

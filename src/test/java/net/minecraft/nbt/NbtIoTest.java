@@ -9,7 +9,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class NbtIoTest {
+/** NBT reading and writing keeps every tag type exact. */
+final class NbtIoTest {
     @Test
     void everyTagTypeRoundTripsWithItsExactType(Path directory) throws Exception {
         NbtTag.Compound root = new NbtTag.Compound();

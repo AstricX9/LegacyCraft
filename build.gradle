@@ -21,11 +21,15 @@ dependencies {
     implementation "org.lwjgl:lwjgl:${lwjglVersion}"
     implementation "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
     implementation "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+    implementation "org.lwjgl:lwjgl-openal:${lwjglVersion}"
+    implementation "org.lwjgl:lwjgl-stb:${lwjglVersion}"
     implementation 'com.google.code.gson:gson:2.11.0'
 
     runtimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-glfw:${lwjglVersion}:natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}:natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-openal:${lwjglVersion}:natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-stb:${lwjglVersion}:natives-windows"
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
@@ -252,11 +256,29 @@ tasks.named('processResources') {
     dependsOn(tasks.named('generateGameData'))
 }
 
-test {
-    useJUnitPlatform()
+// Tests: see docs/TESTING.md. `gradlew test` runs the fast suite; `gradlew oracleTest`
+// runs the @Oracle comparisons against a real 1.8.9 world (-Dlegacycraft.vanillaWorld=<folder>).
+tasks.withType(Test).configureEach {
     maxHeapSize = '1500m'
-    // Let -Dlegacycraft.* reach the tests (the oracle world path, probe switches).
+    // Let -Dlegacycraft.* reach the tests (the vanilla world path).
     System.properties.each { key, value ->
         if (key.toString().startsWith('legacycraft.')) systemProperty(key.toString(), value)
     }
+}
+
+test {
+    useJUnitPlatform {
+        excludeTags 'oracle'
+    }
+}
+
+tasks.register('oracleTest', Test) {
+    description = 'Compares LegacyCraft with a real 1.8.9 world (the @Oracle tests).'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'oracle'
+    }
+    shouldRunAfter test
 }

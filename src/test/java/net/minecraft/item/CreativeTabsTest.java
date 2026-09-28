@@ -8,7 +8,8 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class CreativeTabsTest {
+/** The creative tabs: order, contents, names and search. */
+final class CreativeTabsTest {
     private final CreativeTabs tabs = TestItems.creativeTabs();
 
     @Test

@@ -2,18 +2,16 @@ package net.minecraft.world;
 
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.resources.ClasspathResourceManager;
-import net.minecraft.world.biome.BiomeRegistry;
+import net.minecraft.testing.GameData;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Sky and block light spreading, built high above the generated terrain where the sky is open. */
-class LightEngineTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
+final class LightEngineTest {
+    private final BlockRegistry blocks = GameData.blocks();
 
-    private World world() { return new World(blocks, biomes, 1L); }
+    private World world() { return GameData.newWorld(1L); }
     private void set(World world, int x, int y, int z, String block, int meta) {
         world.setState(x, y, z, BlockState.of(blocks.get(block), meta));
     }

@@ -3,15 +3,14 @@ package net.minecraft.block.state;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Spot checks of the legacy metadata layouts (data/mc189/block_states/, tagged HYPOTHESIS). */
-class BlockStateDefinitionTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
+final class BlockStateDefinitionTest {
+    private final BlockRegistry blocks = GameData.blocks();
 
     private BlockState state(String block, int meta) { return BlockState.of(blocks.get(block), meta); }
 

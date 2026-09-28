@@ -1,0 +1,4262 @@
+{
+ "target": "minecraft-java-1.8.9",
+ "tag": "HYPOTHESIS",
+ "note": "Crafting recipes of 1.8.9 (CraftingManager and the Recipes* helpers), written from memory in LegacyCraft item names. 'key' letters and shapeless ingredients name an item, or '#group' for any item of a group (vanilla's wildcard metadata). Shaped recipes may be placed anywhere in the grid and also match mirrored left to right. Special recipes (tool repair) are built in; armour dyeing, fireworks, banners, map and book copying are not yet (DEV-024).",
+ "groups": {
+  "planks": [
+   "oak_planks",
+   "spruce_planks",
+   "birch_planks",
+   "jungle_planks",
+   "acacia_planks",
+   "dark_oak_planks"
+  ],
+  "wool": [
+   "white_wool",
+   "orange_wool",
+   "magenta_wool",
+   "light_blue_wool",
+   "yellow_wool",
+   "lime_wool",
+   "pink_wool",
+   "gray_wool",
+   "silver_wool",
+   "cyan_wool",
+   "purple_wool",
+   "blue_wool",
+   "brown_wool",
+   "green_wool",
+   "red_wool",
+   "black_wool"
+  ],
+  "sand": [
+   "sand",
+   "red_sand"
+  ],
+  "sandstone": [
+   "sandstone",
+   "chiseled_sandstone",
+   "smooth_sandstone"
+  ],
+  "red_sandstone": [
+   "red_sandstone",
+   "chiseled_red_sandstone",
+   "smooth_red_sandstone"
+  ],
+  "quartz_block": [
+   "quartz_block",
+   "chiseled_quartz_block",
+   "quartz_column"
+  ],
+  "stonebrick": [
+   "stonebrick",
+   "mossy_stonebrick",
+   "cracked_stonebrick",
+   "chiseled_stonebrick"
+  ],
+  "coal": [
+   "coal",
+   "charcoal"
+  ],
+  "wooden_slab": [
+   "oak_slab",
+   "spruce_slab",
+   "birch_slab",
+   "jungle_slab",
+   "acacia_slab",
+   "dark_oak_slab"
+  ]
+ },
+ "recipes": [
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    " # ",
+    " # "
+   ],
+   "key": {
+    "X": "#planks",
+    "#": "stick"
+   },
+   "result": "wooden_pickaxe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#",
+    "#"
+   ],
+   "key": {
+    "X": "#planks",
+    "#": "stick"
+   },
+   "result": "wooden_shovel",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    "X#",
+    " #"
+   ],
+   "key": {
+    "X": "#planks",
+    "#": "stick"
+   },
+   "result": "wooden_axe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    " #",
+    " #"
+   ],
+   "key": {
+    "X": "#planks",
+    "#": "stick"
+   },
+   "result": "wooden_hoe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "#planks",
+    "#": "stick"
+   },
+   "result": "wooden_sword",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    " # ",
+    " # "
+   ],
+   "key": {
+    "X": "cobblestone",
+    "#": "stick"
+   },
+   "result": "stone_pickaxe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#",
+    "#"
+   ],
+   "key": {
+    "X": "cobblestone",
+    "#": "stick"
+   },
+   "result": "stone_shovel",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    "X#",
+    " #"
+   ],
+   "key": {
+    "X": "cobblestone",
+    "#": "stick"
+   },
+   "result": "stone_axe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    " #",
+    " #"
+   ],
+   "key": {
+    "X": "cobblestone",
+    "#": "stick"
+   },
+   "result": "stone_hoe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "cobblestone",
+    "#": "stick"
+   },
+   "result": "stone_sword",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    " # ",
+    " # "
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stick"
+   },
+   "result": "iron_pickaxe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#",
+    "#"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stick"
+   },
+   "result": "iron_shovel",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    "X#",
+    " #"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stick"
+   },
+   "result": "iron_axe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    " #",
+    " #"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stick"
+   },
+   "result": "iron_hoe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stick"
+   },
+   "result": "iron_sword",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    " # ",
+    " # "
+   ],
+   "key": {
+    "X": "diamond",
+    "#": "stick"
+   },
+   "result": "diamond_pickaxe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#",
+    "#"
+   ],
+   "key": {
+    "X": "diamond",
+    "#": "stick"
+   },
+   "result": "diamond_shovel",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    "X#",
+    " #"
+   ],
+   "key": {
+    "X": "diamond",
+    "#": "stick"
+   },
+   "result": "diamond_axe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    " #",
+    " #"
+   ],
+   "key": {
+    "X": "diamond",
+    "#": "stick"
+   },
+   "result": "diamond_hoe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "diamond",
+    "#": "stick"
+   },
+   "result": "diamond_sword",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    " # ",
+    " # "
+   ],
+   "key": {
+    "X": "gold_ingot",
+    "#": "stick"
+   },
+   "result": "golden_pickaxe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#",
+    "#"
+   ],
+   "key": {
+    "X": "gold_ingot",
+    "#": "stick"
+   },
+   "result": "golden_shovel",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    "X#",
+    " #"
+   ],
+   "key": {
+    "X": "gold_ingot",
+    "#": "stick"
+   },
+   "result": "golden_axe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XX",
+    " #",
+    " #"
+   ],
+   "key": {
+    "X": "gold_ingot",
+    "#": "stick"
+   },
+   "result": "golden_hoe",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "gold_ingot",
+    "#": "stick"
+   },
+   "result": "golden_sword",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " #",
+    "# "
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "shears",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " #X",
+    "# X",
+    " #X"
+   ],
+   "key": {
+    "#": "stick",
+    "X": "string"
+   },
+   "result": "bow",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#",
+    "Y"
+   ],
+   "key": {
+    "X": "flint",
+    "#": "stick",
+    "Y": "feather"
+   },
+   "result": "arrow",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "gold_ingot"
+   },
+   "result": "gold_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "gold_block"
+   },
+   "result": "gold_ingot",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "iron_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "iron_block"
+   },
+   "result": "iron_ingot",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "diamond"
+   },
+   "result": "diamond_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "diamond_block"
+   },
+   "result": "diamond",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "emerald"
+   },
+   "result": "emerald_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "emerald_block"
+   },
+   "result": "emerald",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "dye_blue"
+   },
+   "result": "lapis_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "lapis_block"
+   },
+   "result": "dye_blue",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "redstone"
+   },
+   "result": "redstone_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "redstone_block"
+   },
+   "result": "redstone",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "coal"
+   },
+   "result": "coal_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "coal_block"
+   },
+   "result": "coal",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "wheat"
+   },
+   "result": "hay_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "hay_block"
+   },
+   "result": "wheat",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "slime_ball"
+   },
+   "result": "slime",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "slime"
+   },
+   "result": "slime_ball",
+   "count": 9
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "gold_nugget"
+   },
+   "result": "gold_ingot",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "gold_ingot"
+   },
+   "result": "gold_nugget",
+   "count": 9
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "brown_mushroom",
+    "red_mushroom",
+    "bowl"
+   ],
+   "result": "mushroom_stew",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#X#"
+   ],
+   "key": {
+    "#": "wheat",
+    "X": "dye_brown"
+   },
+   "result": "cookie",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "MMM",
+    "MMM",
+    "MMM"
+   ],
+   "key": {
+    "M": "melon"
+   },
+   "result": "melon_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "M"
+   ],
+   "key": {
+    "M": "melon"
+   },
+   "result": "melon_seeds",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "M"
+   ],
+   "key": {
+    "M": "pumpkin"
+   },
+   "result": "pumpkin_seeds",
+   "count": 4
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "pumpkin",
+    "sugar",
+    "egg"
+   ],
+   "result": "pumpkin_pie",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "gold_ingot",
+    "X": "apple"
+   },
+   "result": "golden_apple",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "gold_nugget",
+    "X": "carrot"
+   },
+   "result": "golden_carrot",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "gold_nugget",
+    "X": "melon"
+   },
+   "result": "speckled_melon",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "spider_eye",
+    "brown_mushroom",
+    "sugar"
+   ],
+   "result": "fermented_spider_eye",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "blaze_rod"
+   ],
+   "result": "blaze_powder",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "blaze_powder",
+    "slime_ball"
+   ],
+   "result": "magma_cream",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " R ",
+    "CPM",
+    " B "
+   ],
+   "key": {
+    "R": "cooked_rabbit",
+    "C": "carrot",
+    "P": "baked_potato",
+    "M": "brown_mushroom",
+    "B": "bowl"
+   },
+   "result": "rabbit_stew",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " R ",
+    "CPM",
+    " B "
+   ],
+   "key": {
+    "R": "cooked_rabbit",
+    "C": "carrot",
+    "P": "baked_potato",
+    "M": "red_mushroom",
+    "B": "bowl"
+   },
+   "result": "rabbit_stew",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "wheat"
+   },
+   "result": "bread",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "AAA",
+    "BEB",
+    "CCC"
+   ],
+   "key": {
+    "A": "milk_bucket",
+    "B": "sugar",
+    "E": "egg",
+    "C": "wheat"
+   },
+   "result": "cake",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "reeds"
+   },
+   "result": "sugar",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "# #",
+    "###"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "chest",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "chest",
+    "tripwire_hook"
+   ],
+   "result": "trapped_chest",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#E#",
+    "###"
+   ],
+   "key": {
+    "#": "obsidian",
+    "E": "ender_eye"
+   },
+   "result": "ender_chest",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "# #",
+    "###"
+   ],
+   "key": {
+    "#": "cobblestone"
+   },
+   "result": "furnace",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "crafting_table",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "sand"
+   },
+   "result": "sandstone",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "red_sand"
+   },
+   "result": "red_sandstone",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "sandstone"
+   },
+   "result": "smooth_sandstone",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "red_sandstone"
+   },
+   "result": "smooth_red_sandstone",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#",
+    "#"
+   ],
+   "key": {
+    "#": "sandstone_slab"
+   },
+   "result": "chiseled_sandstone",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#",
+    "#"
+   ],
+   "key": {
+    "#": "red_sandstone_slab"
+   },
+   "result": "chiseled_red_sandstone",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "stone"
+   },
+   "result": "stonebrick",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#",
+    "#"
+   ],
+   "key": {
+    "#": "stone_brick_slab"
+   },
+   "result": "chiseled_stonebrick",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "stonebrick",
+    "vine"
+   ],
+   "result": "mossy_stonebrick",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "cobblestone",
+    "vine"
+   ],
+   "result": "mossy_cobblestone",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "iron_bars",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "glass"
+   },
+   "result": "glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " R ",
+    "RGR",
+    " R "
+   ],
+   "key": {
+    "R": "redstone",
+    "G": "glowstone"
+   },
+   "result": "redstone_lamp",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "GGG",
+    "GSG",
+    "OOO"
+   ],
+   "key": {
+    "G": "glass",
+    "S": "nether_star",
+    "O": "obsidian"
+   },
+   "result": "beacon",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "NN",
+    "NN"
+   ],
+   "key": {
+    "N": "netherbrick"
+   },
+   "result": "nether_brick",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "PP",
+    "PP"
+   ],
+   "key": {
+    "P": "prismarine_shard"
+   },
+   "result": "prismarine",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "PPP",
+    "PPP",
+    "PPP"
+   ],
+   "key": {
+    "P": "prismarine_shard"
+   },
+   "result": "prismarine_bricks",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "SSS",
+    "SIS",
+    "SSS"
+   ],
+   "key": {
+    "S": "prismarine_shard",
+    "I": "dye_black"
+   },
+   "result": "dark_prismarine",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "SCS",
+    "CCC",
+    "SCS"
+   ],
+   "key": {
+    "S": "prismarine_shard",
+    "C": "prismarine_crystals"
+   },
+   "result": "sea_lantern",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "diorite",
+    "quartz"
+   ],
+   "result": "granite",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "CQ",
+    "QC"
+   ],
+   "key": {
+    "C": "cobblestone",
+    "Q": "quartz"
+   },
+   "result": "diorite",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "diorite",
+    "cobblestone"
+   ],
+   "result": "andesite",
+   "count": 2
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "granite"
+   },
+   "result": "granite_smooth",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "diorite"
+   },
+   "result": "diorite_smooth",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "andesite"
+   },
+   "result": "andesite_smooth",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "DG",
+    "GD"
+   ],
+   "key": {
+    "D": "dirt",
+    "G": "gravel"
+   },
+   "result": "coarse_dirt",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "stone"
+   },
+   "result": "stone_pressure_plate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "wooden_pressure_plate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "gold_ingot"
+   },
+   "result": "light_weighted_pressure_plate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "heavy_weighted_pressure_plate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "stone"
+   },
+   "result": "stone_button",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "wooden_button",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "stick",
+    "#": "cobblestone"
+   },
+   "result": "lever",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "#coal",
+    "#": "stick"
+   },
+   "result": "torch",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X",
+    "#"
+   ],
+   "key": {
+    "X": "redstone",
+    "#": "stick"
+   },
+   "result": "redstone_torch",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    "###",
+    "# #"
+   ],
+   "key": {
+    "#": "stick"
+   },
+   "result": "ladder",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "oak_log"
+   },
+   "result": "oak_planks",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "W#W",
+    "W#W"
+   ],
+   "key": {
+    "W": "oak_planks",
+    "#": "stick"
+   },
+   "result": "oak_fence",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#W#",
+    "#W#"
+   ],
+   "key": {
+    "W": "oak_planks",
+    "#": "stick"
+   },
+   "result": "oak_fence_gate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "oak_planks"
+   },
+   "result": "oak_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "oak_planks"
+   },
+   "result": "oak_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "oak_planks"
+   },
+   "result": "oak_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "spruce_log"
+   },
+   "result": "spruce_planks",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "W#W",
+    "W#W"
+   ],
+   "key": {
+    "W": "spruce_planks",
+    "#": "stick"
+   },
+   "result": "spruce_fence",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#W#",
+    "#W#"
+   ],
+   "key": {
+    "W": "spruce_planks",
+    "#": "stick"
+   },
+   "result": "spruce_fence_gate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "spruce_planks"
+   },
+   "result": "spruce_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "spruce_planks"
+   },
+   "result": "spruce_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "spruce_planks"
+   },
+   "result": "spruce_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "birch_log"
+   },
+   "result": "birch_planks",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "W#W",
+    "W#W"
+   ],
+   "key": {
+    "W": "birch_planks",
+    "#": "stick"
+   },
+   "result": "birch_fence",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#W#",
+    "#W#"
+   ],
+   "key": {
+    "W": "birch_planks",
+    "#": "stick"
+   },
+   "result": "birch_fence_gate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "birch_planks"
+   },
+   "result": "birch_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "birch_planks"
+   },
+   "result": "birch_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "birch_planks"
+   },
+   "result": "birch_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "jungle_log"
+   },
+   "result": "jungle_planks",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "W#W",
+    "W#W"
+   ],
+   "key": {
+    "W": "jungle_planks",
+    "#": "stick"
+   },
+   "result": "jungle_fence",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#W#",
+    "#W#"
+   ],
+   "key": {
+    "W": "jungle_planks",
+    "#": "stick"
+   },
+   "result": "jungle_fence_gate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "jungle_planks"
+   },
+   "result": "jungle_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "jungle_planks"
+   },
+   "result": "jungle_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "jungle_planks"
+   },
+   "result": "jungle_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "acacia_log"
+   },
+   "result": "acacia_planks",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "W#W",
+    "W#W"
+   ],
+   "key": {
+    "W": "acacia_planks",
+    "#": "stick"
+   },
+   "result": "acacia_fence",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#W#",
+    "#W#"
+   ],
+   "key": {
+    "W": "acacia_planks",
+    "#": "stick"
+   },
+   "result": "acacia_fence_gate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "acacia_planks"
+   },
+   "result": "acacia_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "acacia_planks"
+   },
+   "result": "acacia_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "acacia_planks"
+   },
+   "result": "acacia_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#"
+   ],
+   "key": {
+    "#": "dark_oak_log"
+   },
+   "result": "dark_oak_planks",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "W#W",
+    "W#W"
+   ],
+   "key": {
+    "W": "dark_oak_planks",
+    "#": "stick"
+   },
+   "result": "dark_oak_fence",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#W#",
+    "#W#"
+   ],
+   "key": {
+    "W": "dark_oak_planks",
+    "#": "stick"
+   },
+   "result": "dark_oak_fence_gate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "dark_oak_planks"
+   },
+   "result": "dark_oak_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "dark_oak_planks"
+   },
+   "result": "dark_oak_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "dark_oak_planks"
+   },
+   "result": "dark_oak_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "nether_brick"
+   },
+   "result": "nether_brick_fence",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "cobblestone"
+   },
+   "result": "cobblestone_wall",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "mossy_cobblestone"
+   },
+   "result": "mossy_cobblestone_wall",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "iron_door",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "trapdoor",
+   "count": 2
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "iron_trapdoor",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###",
+    " X "
+   ],
+   "key": {
+    "#": "#planks",
+    "X": "stick"
+   },
+   "result": "sign",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "cobblestone"
+   },
+   "result": "stone_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "brick_block"
+   },
+   "result": "brick_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "#stonebrick"
+   },
+   "result": "stone_brick_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "nether_brick"
+   },
+   "result": "nether_brick_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "#sandstone"
+   },
+   "result": "sandstone_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "#red_sandstone"
+   },
+   "result": "red_sandstone_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#  ",
+    "## ",
+    "###"
+   ],
+   "key": {
+    "#": "#quartz_block"
+   },
+   "result": "quartz_stairs",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "stone"
+   },
+   "result": "stone_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "#sandstone"
+   },
+   "result": "sandstone_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "cobblestone"
+   },
+   "result": "cobblestone_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "brick_block"
+   },
+   "result": "brick_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "#stonebrick"
+   },
+   "result": "stone_brick_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "nether_brick"
+   },
+   "result": "nether_brick_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "#quartz_block"
+   },
+   "result": "quartz_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "#red_sandstone"
+   },
+   "result": "red_sandstone_slab",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "XXX",
+    "###"
+   ],
+   "key": {
+    "#": "#planks",
+    "X": "book"
+   },
+   "result": "bookshelf",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X#X",
+    "#X#",
+    "X#X"
+   ],
+   "key": {
+    "X": "gunpowder",
+    "#": "#sand"
+   },
+   "result": "tnt",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "snowball"
+   },
+   "result": "snow",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "snow"
+   },
+   "result": "snow_layer",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "clay_ball"
+   },
+   "result": "clay",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "brick"
+   },
+   "result": "brick_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "glowstone_dust"
+   },
+   "result": "glowstone",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "quartz"
+   },
+   "result": "quartz_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#",
+    "#"
+   ],
+   "key": {
+    "#": "quartz_slab"
+   },
+   "result": "chiseled_quartz_block",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#",
+    "#"
+   ],
+   "key": {
+    "#": "quartz_block"
+   },
+   "result": "quartz_column",
+   "count": 2
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "string"
+   },
+   "result": "white_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "A",
+    "B"
+   ],
+   "key": {
+    "A": "pumpkin",
+    "B": "torch"
+   },
+   "result": "lit_pumpkin",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#",
+    "#"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "stick",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    " # "
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "bowl",
+   "count": 4
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###"
+   ],
+   "key": {
+    "#": "reeds"
+   },
+   "result": "paper",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "paper",
+    "paper",
+    "paper",
+    "leather"
+   ],
+   "result": "book",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "book",
+    "dye_black",
+    "feather"
+   ],
+   "result": "writable_book",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##",
+    "##"
+   ],
+   "key": {
+    "#": "rabbit_hide"
+   },
+   "result": "leather",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    " # "
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "bucket",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "iron_ingot",
+    "flint"
+   ],
+   "result": "flint_and_steel",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " # ",
+    "#X#",
+    " # "
+   ],
+   "key": {
+    "#": "iron_ingot",
+    "X": "redstone"
+   },
+   "result": "compass",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " # ",
+    "#X#",
+    " # "
+   ],
+   "key": {
+    "#": "gold_ingot",
+    "X": "redstone"
+   },
+   "result": "clock",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "paper",
+    "X": "compass"
+   },
+   "result": "map",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "  #",
+    " #X",
+    "# X"
+   ],
+   "key": {
+    "#": "stick",
+    "X": "string"
+   },
+   "result": "fishing_rod",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# ",
+    " X"
+   ],
+   "key": {
+    "#": "fishing_rod",
+    "X": "carrot"
+   },
+   "result": "carrot_on_a_stick",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    " # "
+   ],
+   "key": {
+    "#": "glass"
+   },
+   "result": "glass_bottle",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    "# #",
+    "###"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "cauldron",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " B ",
+    "###"
+   ],
+   "key": {
+    "B": "blaze_rod",
+    "#": "cobblestone"
+   },
+   "result": "brewing_stand",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "ender_pearl",
+    "blaze_powder"
+   ],
+   "result": "ender_eye",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "gunpowder",
+    "blaze_powder",
+    "#coal"
+   ],
+   "result": "fire_charge",
+   "count": 3
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "stick",
+    "X": "#wool"
+   },
+   "result": "painting",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "stick",
+    "X": "leather"
+   },
+   "result": "item_frame",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    " # "
+   ],
+   "key": {
+    "#": "brick"
+   },
+   "result": "flower_pot",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "///",
+    " / ",
+    "/_/"
+   ],
+   "key": {
+    "/": "stick",
+    "_": "stone_slab"
+   },
+   "result": "armor_stand",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "~~ ",
+    "~O ",
+    "  ~"
+   ],
+   "key": {
+    "~": "string",
+    "O": "slime_ball"
+   },
+   "result": "lead",
+   "count": 2
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    "###"
+   ],
+   "key": {
+    "#": "iron_ingot"
+   },
+   "result": "minecart",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "A",
+    "B"
+   ],
+   "key": {
+    "A": "chest",
+    "B": "minecart"
+   },
+   "result": "chest_minecart",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "A",
+    "B"
+   ],
+   "key": {
+    "A": "furnace",
+    "B": "minecart"
+   },
+   "result": "furnace_minecart",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "A",
+    "B"
+   ],
+   "key": {
+    "A": "tnt",
+    "B": "minecart"
+   },
+   "result": "tnt_minecart",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "A",
+    "B"
+   ],
+   "key": {
+    "A": "hopper",
+    "B": "minecart"
+   },
+   "result": "hopper_minecart",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "# #",
+    "###"
+   ],
+   "key": {
+    "#": "#planks"
+   },
+   "result": "boat",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X#X",
+    "X X"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stick"
+   },
+   "result": "rail",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X#X",
+    "XRX"
+   ],
+   "key": {
+    "X": "gold_ingot",
+    "#": "stick",
+    "R": "redstone"
+   },
+   "result": "golden_rail",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X#X",
+    "XRX"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "stone_pressure_plate",
+    "R": "redstone"
+   },
+   "result": "detector_rail",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XSX",
+    "X#X",
+    "XSX"
+   ],
+   "key": {
+    "X": "iron_ingot",
+    "#": "redstone_torch",
+    "S": "stick"
+   },
+   "result": "activator_rail",
+   "count": 6
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "#R#"
+   ],
+   "key": {
+    "#": "cobblestone",
+    "X": "bow",
+    "R": "redstone"
+   },
+   "result": "dispenser",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "# #",
+    "#R#"
+   ],
+   "key": {
+    "#": "cobblestone",
+    "R": "redstone"
+   },
+   "result": "dropper",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "TTT",
+    "#X#",
+    "#R#"
+   ],
+   "key": {
+    "T": "#planks",
+    "#": "cobblestone",
+    "X": "iron_ingot",
+    "R": "redstone"
+   },
+   "result": "piston",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "S",
+    "P"
+   ],
+   "key": {
+    "S": "slime_ball",
+    "P": "piston"
+   },
+   "result": "sticky_piston",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "#X#",
+    "III"
+   ],
+   "key": {
+    "#": "redstone_torch",
+    "X": "redstone",
+    "I": "stone"
+   },
+   "result": "repeater",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " # ",
+    "#X#",
+    "III"
+   ],
+   "key": {
+    "#": "redstone_torch",
+    "X": "quartz",
+    "I": "stone"
+   },
+   "result": "comparator",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "GGG",
+    "QQQ",
+    "WWW"
+   ],
+   "key": {
+    "G": "glass",
+    "Q": "quartz",
+    "W": "#wooden_slab"
+   },
+   "result": "daylight_detector",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "I I",
+    "ICI",
+    " I "
+   ],
+   "key": {
+    "I": "iron_ingot",
+    "C": "chest"
+   },
+   "result": "hopper",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "I",
+    "S",
+    "#"
+   ],
+   "key": {
+    "I": "iron_ingot",
+    "S": "stick",
+    "#": "#planks"
+   },
+   "result": "tripwire_hook",
+   "count": 2
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "#planks",
+    "X": "diamond"
+   },
+   "result": "jukebox",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "#planks",
+    "X": "redstone"
+   },
+   "result": "noteblock",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    " B ",
+    "D#D",
+    "###"
+   ],
+   "key": {
+    "B": "book",
+    "D": "diamond",
+    "#": "obsidian"
+   },
+   "result": "enchanting_table",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "III",
+    " i ",
+    "iii"
+   ],
+   "key": {
+    "I": "iron_block",
+    "i": "iron_ingot"
+   },
+   "result": "anvil_intact",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "XXX"
+   ],
+   "key": {
+    "#": "#wool",
+    "X": "#planks"
+   },
+   "result": "bed",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X"
+   ],
+   "key": {
+    "X": "leather"
+   },
+   "result": "leather_helmet",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "XXX",
+    "XXX"
+   ],
+   "key": {
+    "X": "leather"
+   },
+   "result": "leather_chestplate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "leather"
+   },
+   "result": "leather_leggings",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "leather"
+   },
+   "result": "leather_boots",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X"
+   ],
+   "key": {
+    "X": "iron_ingot"
+   },
+   "result": "iron_helmet",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "XXX",
+    "XXX"
+   ],
+   "key": {
+    "X": "iron_ingot"
+   },
+   "result": "iron_chestplate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "iron_ingot"
+   },
+   "result": "iron_leggings",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "iron_ingot"
+   },
+   "result": "iron_boots",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X"
+   ],
+   "key": {
+    "X": "diamond"
+   },
+   "result": "diamond_helmet",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "XXX",
+    "XXX"
+   ],
+   "key": {
+    "X": "diamond"
+   },
+   "result": "diamond_chestplate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "diamond"
+   },
+   "result": "diamond_leggings",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "diamond"
+   },
+   "result": "diamond_boots",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X"
+   ],
+   "key": {
+    "X": "gold_ingot"
+   },
+   "result": "golden_helmet",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "XXX",
+    "XXX"
+   ],
+   "key": {
+    "X": "gold_ingot"
+   },
+   "result": "golden_chestplate",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "XXX",
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "gold_ingot"
+   },
+   "result": "golden_leggings",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "X X",
+    "X X"
+   ],
+   "key": {
+    "X": "gold_ingot"
+   },
+   "result": "golden_boots",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_white"
+   },
+   "result": "white_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_white"
+   },
+   "result": "white_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "white_stained_glass"
+   },
+   "result": "white_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "white_wool"
+   },
+   "result": "white_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_orange",
+    "white_wool"
+   ],
+   "result": "orange_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_orange"
+   },
+   "result": "orange_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_orange"
+   },
+   "result": "orange_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "orange_stained_glass"
+   },
+   "result": "orange_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "orange_wool"
+   },
+   "result": "orange_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_magenta",
+    "white_wool"
+   ],
+   "result": "magenta_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_magenta"
+   },
+   "result": "magenta_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_magenta"
+   },
+   "result": "magenta_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "magenta_stained_glass"
+   },
+   "result": "magenta_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "magenta_wool"
+   },
+   "result": "magenta_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_light_blue",
+    "white_wool"
+   ],
+   "result": "light_blue_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_light_blue"
+   },
+   "result": "light_blue_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_light_blue"
+   },
+   "result": "light_blue_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "light_blue_stained_glass"
+   },
+   "result": "light_blue_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "light_blue_wool"
+   },
+   "result": "light_blue_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_yellow",
+    "white_wool"
+   ],
+   "result": "yellow_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_yellow"
+   },
+   "result": "yellow_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_yellow"
+   },
+   "result": "yellow_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "yellow_stained_glass"
+   },
+   "result": "yellow_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "yellow_wool"
+   },
+   "result": "yellow_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_lime",
+    "white_wool"
+   ],
+   "result": "lime_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_lime"
+   },
+   "result": "lime_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_lime"
+   },
+   "result": "lime_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "lime_stained_glass"
+   },
+   "result": "lime_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "lime_wool"
+   },
+   "result": "lime_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_pink",
+    "white_wool"
+   ],
+   "result": "pink_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_pink"
+   },
+   "result": "pink_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_pink"
+   },
+   "result": "pink_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "pink_stained_glass"
+   },
+   "result": "pink_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "pink_wool"
+   },
+   "result": "pink_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_gray",
+    "white_wool"
+   ],
+   "result": "gray_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_gray"
+   },
+   "result": "gray_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_gray"
+   },
+   "result": "gray_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "gray_stained_glass"
+   },
+   "result": "gray_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "gray_wool"
+   },
+   "result": "gray_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_silver",
+    "white_wool"
+   ],
+   "result": "silver_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_silver"
+   },
+   "result": "silver_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_silver"
+   },
+   "result": "silver_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "silver_stained_glass"
+   },
+   "result": "silver_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "silver_wool"
+   },
+   "result": "silver_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_cyan",
+    "white_wool"
+   ],
+   "result": "cyan_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_cyan"
+   },
+   "result": "cyan_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_cyan"
+   },
+   "result": "cyan_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "cyan_stained_glass"
+   },
+   "result": "cyan_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "cyan_wool"
+   },
+   "result": "cyan_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_purple",
+    "white_wool"
+   ],
+   "result": "purple_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_purple"
+   },
+   "result": "purple_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_purple"
+   },
+   "result": "purple_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "purple_stained_glass"
+   },
+   "result": "purple_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "purple_wool"
+   },
+   "result": "purple_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_blue",
+    "white_wool"
+   ],
+   "result": "blue_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_blue"
+   },
+   "result": "blue_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_blue"
+   },
+   "result": "blue_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "blue_stained_glass"
+   },
+   "result": "blue_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "blue_wool"
+   },
+   "result": "blue_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_brown",
+    "white_wool"
+   ],
+   "result": "brown_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_brown"
+   },
+   "result": "brown_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_brown"
+   },
+   "result": "brown_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "brown_stained_glass"
+   },
+   "result": "brown_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "brown_wool"
+   },
+   "result": "brown_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_green",
+    "white_wool"
+   ],
+   "result": "green_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_green"
+   },
+   "result": "green_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_green"
+   },
+   "result": "green_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "green_stained_glass"
+   },
+   "result": "green_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "green_wool"
+   },
+   "result": "green_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_red",
+    "white_wool"
+   ],
+   "result": "red_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_red"
+   },
+   "result": "red_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_red"
+   },
+   "result": "red_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "red_stained_glass"
+   },
+   "result": "red_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "red_wool"
+   },
+   "result": "red_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_black",
+    "white_wool"
+   ],
+   "result": "black_wool",
+   "count": 1
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "hardened_clay",
+    "X": "dye_black"
+   },
+   "result": "black_stained_hardened_clay",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "#X#",
+    "###"
+   ],
+   "key": {
+    "#": "glass",
+    "X": "dye_black"
+   },
+   "result": "black_stained_glass",
+   "count": 8
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "###",
+    "###"
+   ],
+   "key": {
+    "#": "black_stained_glass"
+   },
+   "result": "black_stained_glass_pane",
+   "count": 16
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "##"
+   ],
+   "key": {
+    "#": "black_wool"
+   },
+   "result": "black_carpet",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "bone"
+   ],
+   "result": "dye_white",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dandelion"
+   ],
+   "result": "dye_yellow",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "poppy"
+   ],
+   "result": "dye_red",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "blue_orchid"
+   ],
+   "result": "dye_light_blue",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "allium"
+   ],
+   "result": "dye_magenta",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "houstonia"
+   ],
+   "result": "dye_silver",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "red_tulip"
+   ],
+   "result": "dye_red",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "orange_tulip"
+   ],
+   "result": "dye_orange",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "white_tulip"
+   ],
+   "result": "dye_silver",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "pink_tulip"
+   ],
+   "result": "dye_pink",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "oxeye_daisy"
+   ],
+   "result": "dye_silver",
+   "count": 1
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "sunflower"
+   ],
+   "result": "dye_yellow",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "syringa"
+   ],
+   "result": "dye_magenta",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "double_rose"
+   ],
+   "result": "dye_red",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "paeonia"
+   ],
+   "result": "dye_pink",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_red",
+    "dye_yellow"
+   ],
+   "result": "dye_orange",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_green",
+    "dye_white"
+   ],
+   "result": "dye_lime",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_black",
+    "dye_white"
+   ],
+   "result": "dye_gray",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_gray",
+    "dye_white"
+   ],
+   "result": "dye_silver",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_black",
+    "dye_white",
+    "dye_white"
+   ],
+   "result": "dye_silver",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_blue",
+    "dye_white"
+   ],
+   "result": "dye_light_blue",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_blue",
+    "dye_green"
+   ],
+   "result": "dye_cyan",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_red",
+    "dye_blue"
+   ],
+   "result": "dye_purple",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_purple",
+    "dye_pink"
+   ],
+   "result": "dye_magenta",
+   "count": 2
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_blue",
+    "dye_red",
+    "dye_pink"
+   ],
+   "result": "dye_magenta",
+   "count": 3
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_blue",
+    "dye_red",
+    "dye_red",
+    "dye_white"
+   ],
+   "result": "dye_magenta",
+   "count": 4
+  },
+  {
+   "type": "shapeless",
+   "ingredients": [
+    "dye_red",
+    "dye_white"
+   ],
+   "result": "dye_pink",
+   "count": 2
+  }
+ ]
+}

@@ -3,29 +3,24 @@ package net.minecraft.client.entity;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.renderer.WorldRenderer;
-import net.minecraft.client.resources.ClasspathResourceManager;
-import net.minecraft.world.biome.BiomeRegistry;
+import net.minecraft.testing.GameData;
 import net.minecraft.util.Direction;
 import net.minecraft.world.World;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Collision and targeting against per-state block shapes, on a stone floor high above the terrain. */
-class PlayerCollisionTest {
+final class PlayerCollisionTest {
     private static final int FLOOR = 200;
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
+    private final BlockRegistry blocks = GameData.blocks();
     private World world;
     private Player player;
 
     @BeforeEach
     void buildFloor() {
-        world = new World(blocks, biomes, 1L);
+        world = GameData.newWorld(1L);
         for (int x = -4; x <= 8; x++) for (int z = -4; z <= 4; z++) set(x, FLOOR, z, "minecraft:stone", 0);
         player = new Player(world);
         player.x = .5; player.y = FLOOR + 1; player.z = .5; player.onGround = true;

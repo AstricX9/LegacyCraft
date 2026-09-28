@@ -194,8 +194,8 @@
     neighbour flammability, repeaters locked by a powered side repeater, and
     biome-dependent grass/foliage/water colours (master context §56).
   replica_behavior: >
-    Tile-entity blocks draw the missing-model cube; fluids draw a still-
-    texture cube; flower pots always look empty; fire always uses the
+    Tile-entity blocks draw the missing-model cube; fluids use FluidMesher
+    (sloped corners, flow-oriented texture, DEV-022); flower pots always look empty; fire always uses the
     no-neighbours variant; repeater `locked` is always false; grass/foliage
     colours are the fixed `tintColor` constants (spruce/birch leaves, lily
     pads, stems and redstone dust use their fixed vanilla-style colours).
@@ -296,8 +296,7 @@
   replica_behavior: >
     All screens exist with vanilla layout and translated captions. Still
     missing behind them: no shader pipeline (Super Secret Settings is
-    disabled), no audio output (sound levels are saved but silent; button
-    clicks are silent), the snooper never sends anything, Achievements and
+    disabled), the snooper never sends anything, Achievements and
     Statistics are disabled in the pause menu, the font has no Unicode
     pages, and the profiler chart is not drawn. Broadcast Settings shows
     the same "Twitch Broadcasting Unavailable" screen vanilla shows when its
@@ -404,20 +403,20 @@
     Blocks break over time with 1.8.9's hardness/tool rules and drop item
     entities that fall, merge, despawn after 5 minutes and are picked up;
     Q and clicks outside an inventory throw items; death scatters the
-    inventory. But: no drag-splitting or double-click; the crafting grid
-    holds items but shows no result (no recipe data); builtin/entity items
+    inventory; the 2x2 and 3x3 grids craft (DEV-024). But: no drag-splitting
+    or double-click; builtin/entity items
     draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
     flat double-sided quads; every name is white and the registry-name
     tooltip line is omitted; saved inventories use LegacyCraft item names
     as ids and dropped items are not saved with the world; spawn eggs,
     banners and the enchanted golden apple are listed once each; hearts
     are static and only health/food/armor/xp rows exist (no damage,
-    hunger or experience sources); no sounds or particles; no enchantments.
+    hunger or experience sources); no enchantments.
   reason: >
-    Recipes, tile-entity item rendering, entity persistence, audio and
-    enchantments are separate milestones.
+    Tile-entity item rendering, entity persistence and enchantments are
+    separate milestones.
   compatibility_effect: >
-    P1 for survival progression (no crafting); creative building and
+    P2 now that crafting exists (no smelting yet); creative building and
     survival mining/collecting work.
   user_visible: true
 
@@ -474,9 +473,12 @@
     sqrt(2)x, clouds 4x the render distance), fog 75%-100% of the render
     distance (sky fog from 0) and eye-radial fog where NV_fog_distance
     exists. Cloud drift uses a client tick counter that starts at 0 each
-    session. NOT DONE: weather tinting, lightning, blindness, underwater
-    and lava fog, other dimensions' skies, the neighbour-brightness rule
-    (slabs, stairs) for the cave fog darkening.
+    session. With the camera in water or lava (surface height included)
+    the fog turns dark blue or red and exponential (density 0.1 / 2.0) and
+    the view narrows to 60/70 in water. NOT DONE: weather tinting,
+    lightning, blindness, Respiration/Water Breathing, other dimensions'
+    skies, the neighbour-brightness rule (slabs, stairs) for the cave fog
+    darkening.
   reason: >
     Weather, status effects and dimensions do not exist yet; the sky is
     built so they only add terms to the existing colours.
@@ -528,17 +530,170 @@
     collision-shortened distance; the model's walk, head, attack, sneak and
     idle-arm poses and body turn; view bobbing, 1.15x sprint and 1.1x
     flight FOV, 60/70 FOV in water, 0.08 lower eyes when sneaking, and the
-    0.1 first-person camera pull-back; the player in the survival inventory
+    0.1 first-person camera pull-back; the underwater overlay and the
+    first-person flames while the player burns (lava for 15 s, fire after
+    20 ticks, water puts it out; burning does no damage yet); the player in
+    the survival inventory
     and the creative Survival Inventory tab, turned toward the mouse
-    (HYPOTHESIS: recalled constants).
+    (HYPOTHESIS: recalled constants). Sword blocking: holding use with a
+    sword raises it (first person turned flat across the view, third person
+    arm raised 3/10 of a half turn and turned 30 degrees in), slows the input
+    to a fifth, stops sprinting and pauses mining and clicks until released
+    or the held stack changes; it reduces no damage yet (no damage system).
     Always the default Steve skin. NOT DONE: item use poses (eating,
-    drinking, blocking, bow), maps, screen overlays (in-block, water,
-    fire), hurt shake and death roll (no damage yet), cape, armour layers,
-    shadow, name tags, the slim (Alex) model, enchantment glint, and
-    sprinting by double-tapping forward.
+    drinking, bow), maps, the in-block screen overlay, hurt
+    shake and death roll (no damage yet), cape, armour layers,
+    shadow, name tags, the slim (Alex) model and enchantment glint.
   reason: >
     Item use, damage, armour rendering and skins are separate systems not
     built yet.
   compatibility_effect: P2 visual until those systems exist.
   user_visible: true
 
+- id: DEV-020
+  subsystem: particles
+  vanilla_behavior: >
+    EffectRenderer with about 40 particle types: block break and mining
+    flecks, sprinting dust, random display ticks (torches, furnaces, fire,
+    lava, drips, water motes, mycelium, redstone, portals, ender chests,
+    leaves in rain), entity and weather effects (bubbles, splashes, rain,
+    explosions, crits, potions, hearts, villagers, notes, enchanting), the
+    Particles option, a 16-block spawn range and 4000 per texture.
+  replica_behavior: >
+    ParticleManager reproduces the block flecks (64 per broken or popped
+    block, one per tick while mining), sprinting dust, and the display
+    ticks of torches, redstone torches, lit furnaces, fire, lava (pops and
+    drips), water (motes and drips) and mycelium, the bubbles and droplets
+    of a player or dropped item falling into water (items count as in water
+    only while 0.15-0.6 into a block, so a sinking item splashes again as it
+    passes each block), and flames on burning items (lava makes items hop,
+    burn and vanish on their second tick in it), with the Particles option,
+    range and cap (HYPOTHESIS: recalled textures, lifetimes and motion).
+    Particles draw after all terrain, so they show through water where
+    vanilla draws water over them. NOT DONE: entity, weather, explosion,
+    potion and portal particles, fall-landing dust and the per-block
+    particle gravity values. (Water currents now push items and
+    players, DEV-022.)
+  reason: >
+    The missing kinds belong to systems (entities, weather, damage, water
+    physics) that do not exist yet.
+  compatibility_effect: P2 visual.
+  user_visible: true
+
+- id: DEV-021
+  subsystem: player_movement
+  vanilla_behavior: >
+    EntityPlayerSP/EntityPlayer/EntityLivingBase movement at 20 ticks a
+    second: ground push 0.1 x 0.16277136 / f^3 with f = 0.91 x slipperiness,
+    air push 0.02 (+30% sprinting), 0.08 gravity with 0.98 drag, 0.42 jump
+    with a 0.2 sprint boost, sprint by key or double-tapped forward, sneak
+    at 0.3 input with edge safety, water and lava (0.02 push, 0.8/0.5 drag,
+    0.02 sink, +0.04 per tick holding jump, 0.3 hop onto ledges), ladders
+    and vines, creative flight, soul sand, cobwebs and slime; plus water
+    currents, fall damage, hunger exhaustion, Depth Strider, Speed/Slowness/
+    Jump Boost and the 1.8 step rule's second (low ceiling) path.
+  replica_behavior: >
+    Player ticks with the recalled rules above (HYPOTHESIS), giving 4.317 m/s
+    walking, 5.612 sprinting, 1.31 sneaking, about 7 sprint-jumping, a
+    1.2492-block jump (1.8 zeroes motion under 0.005), and 10.9 m/s flight
+    (PlayerMovementTest); the world is drawn between ticks; water currents
+    push a player who is not flying by 0.014 a tick (DEV-022). NOT DONE:
+    fall damage and hunger (no damage system),
+    potion and enchantment speed changes, and the low-ceiling step path.
+  reason: >
+    Damage, hunger, potions and water flow do not exist yet.
+  compatibility_effect: P2 until damage, hunger and water flow exist.
+  user_visible: true
+
+- id: DEV-022
+  subsystem: liquids, animated textures and burning
+  vanilla_behavior: >
+    Scheduled block ticks saved per chunk (TileTicks), BlockDynamicLiquid and
+    BlockStaticLiquid spreading (water every 5 ticks, lava every 30, 10 in
+    the Nether), lava random ticks that set fire to nearby flammable
+    blocks, the fizz sound, BlockFluidRenderer surfaces, water currents
+    pushing entities, buckets, animated block textures from .mcmeta, and a
+    burning player's fire timer.
+  replica_behavior: >
+    World keeps a pending-tick queue (due time, priority, order; one entry
+    per position and block; up to 1000 run per tick) and LiquidFlow
+    replays the recalled BlockDynamicLiquid rules (spread, falling, nearest
+    drop within 4, infinite water, lava hardening to obsidian, cobblestone
+    and stone, washing away non-solid blocks with drops); FluidMesher draws
+    the recalled BlockFluidRenderer surfaces; buckets scoop sources and pour
+    them; TextureAtlas animates every .mcmeta sprite once per client tick
+    (HYPOTHESIS throughout, LiquidFlowTest, FluidMesherTest,
+    TextureAtlasTest). Pending ticks are saved in one ticks.lct file per
+    world rather than per chunk. In Creative the player's fire never burns
+    down, only water puts it out (reported from vanilla 1.8.9 play; the
+    mechanism is UNKNOWN). NOT DONE: lava igniting blocks and fire
+    spreading or burning out, Nether lava speed, springs flowing at generation (DEV-016), and the liquid
+    tick skipping chunks whose neighbours are not loaded (only the tick's
+    own chunk is checked, so a flow reaching the edge can generate new
+    chunks).
+  reason: >
+    Fire behaviour and dimensions are separate systems not built
+    yet; one tick file keeps the chunk format unchanged.
+  compatibility_effect: >
+    P2: water and lava flow and look as recalled; lava cannot start fires
+    and fire never spreads or goes out.
+  user_visible: true
+
+- id: DEV-023
+  subsystem: sound
+  vanilla_behavior: >
+    paulscode SoundSystem through LWJGL 2's OpenAL, with every sound event of
+    sounds.json played by blocks, entities, weather, mobs, GUIs, records and
+    the MusicTicker; positional sounds fade linearly over 16 blocks (16 x
+    volume when louder); all sounds pause with the game.
+  replica_behavior: >
+    SoundSystem plays Ogg files straight through LWJGL 3 OpenAL and
+    stb_vorbis (music streamed), 28 channels plus 2 for music, linear fade
+    to the same range, category and master sliders applied live, and pause
+    and resume with the game. Sounds wired so far (HYPOTHESIS: recalled
+    volumes, pitches and timing): button clicks; block break, place and
+    mining-hit sounds from BlockSoundType (per-block sets recalled and
+    inferred from materials); footsteps (every 1/0.6 blocks walked, silent
+    sneaking or flying) and swimming; splashes of the player and items;
+    fizzing (lava meeting water, items hopping in lava, fire put out by
+    water); item pickup pops; tool breaking; fire, flowing water, lava and
+    portal ambience; cave ambience; and title, survival and creative music
+    (MusicTicker). NOT DONE: sounds of systems that don't exist yet (mobs,
+    damage and falls, doors, chests, buttons and levers, pistons, note
+    blocks, records, weather, explosions, eating, bows, XP), Nether and End
+    music, the "Unsupported sound" warnings, and sound events whose files
+    have capital letters (resource names are lower-cased).
+  reason: >
+    The sounds belong to systems that are still to come; the backend is
+    LWJGL 3 because LWJGL 2 and paulscode are not used.
+  compatibility_effect: P2 audio.
+  user_visible: true
+
+- id: DEV-024
+  subsystem: crafting
+  vanilla_behavior: >
+    CraftingManager's recipe list (shaped recipes placed anywhere in the
+    grid and mirrored, shapeless recipes, blocks given as ingredients
+    accepting every variant) plus special recipes: tool and armour repair,
+    armour dyeing, fireworks and firework stars, banners and banner
+    patterns, map cloning and extending, book cloning. The survival
+    inventory crafts in 2x2, a crafting table in 3x3; SlotCrafting uses one
+    of each ingredient and leaves container items; shift-click crafts
+    repeatedly.
+  replica_behavior: >
+    recipes.json lists 345 recalled recipes in LegacyCraft item names
+    (HYPOTHESIS; groups stand for vanilla's wildcard metadata) and
+    CraftingManager matches them the same way, sorted shaped before
+    shapeless and larger first, with tool/armour repair built in. Both grids
+    craft; right-clicking a crafting table opens the 3x3 screen (not while
+    sneaking with an item), which closes beyond 8 blocks or when the table
+    goes. Result slot clicks, shift-click, number keys and the drop key
+    follow the recalled Container rules, including the right-click half and
+    shift-click overflow losses. NOT DONE: armour dyeing, fireworks, banners,
+    map and book copying, the enchanted golden apple, smelting and
+    furnaces, achievements for crafting.
+  reason: >
+    Special recipes need item NBT (colours, patterns, map data) that items
+    don't carry yet; furnaces are a tile entity.
+  compatibility_effect: P2 until the special recipes and smelting exist.
+  user_visible: true

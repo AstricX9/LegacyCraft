@@ -14,8 +14,9 @@ import static org.lwjgl.opengl.GL11.*;
  * depth buffer is cleared, with a fixed 70° field of view, the view bob,
  * lights fixed to the world, the light at the player's eyes, a slight
  * sway as the hand trails the view, the attack swing, and the lower-and-
- * raise animation when the held item changes. An empty hand shows the
- * skin's right arm.
+ * raise animation when the held item changes. A blocking sword is turned
+ * flat across the view instead of swinging (doBlockTransformations). An
+ * empty hand shows the skin's right arm.
  */
 public final class FirstPersonRenderer {
     public static final ResourceLocation STEVE = new ResourceLocation("minecraft:textures/entity/steve.png");
@@ -52,6 +53,9 @@ public final class FirstPersonRenderer {
         }
     }
 
+    /** Drops the hand to the bottom at once, to rise again over the next ticks (resetEquippedProgress2: starting to use an item). */
+    public void resetEquippedProgress() { equippedProgress = 0f; }
+
     /** Resets to fully raised (entering a world, respawning). */
     public void reset(ItemStack held, int slot) {
         itemToRender = held;
@@ -85,7 +89,14 @@ public final class FirstPersonRenderer {
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
         glPushMatrix();
-        if (itemToRender != null) {
+        if (itemToRender != null && player.isBlocking()) {
+            transformFirstPersonItem(equip, 0f);
+            glTranslatef(-0.5f, 0.2f, 0f);
+            glRotatef(30f, 0, 1, 0);
+            glRotatef(-80f, 1, 0, 0);
+            glRotatef(60f, 0, 1, 0);
+            items.renderHeld(itemToRender.item(), ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+        } else if (itemToRender != null) {
             float root = (float) Math.sqrt(swing);
             glTranslatef(-0.4f * (float) Math.sin(root * Math.PI), 0.2f * (float) Math.sin(root * Math.PI * 2),
                 -0.2f * (float) Math.sin(swing * Math.PI));

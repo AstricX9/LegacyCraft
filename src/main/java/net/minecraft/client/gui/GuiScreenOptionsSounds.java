@@ -4,8 +4,8 @@ import net.minecraft.client.settings.GameSettings;
 
 /**
  * "Music & Sound Options": Master Volume full-width, then one slider per
- * sound category. Levels are saved; LegacyCraft has no audio output yet, so
- * they have no audible effect (DEV-010).
+ * sound category. Levels are saved and applied to playing sounds at once
+ * (the master slider scales everything).
  */
 public class GuiScreenOptionsSounds extends GuiScreen {
     private final GuiScreen parent;

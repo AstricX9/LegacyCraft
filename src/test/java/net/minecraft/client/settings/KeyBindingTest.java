@@ -10,7 +10,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.lwjgl.glfw.GLFW.*;
 
-class KeyBindingTest {
+/** Key bindings: GLFW to LWJGL 2 key codes, display names, press queues and the controls-screen order. */
+final class KeyBindingTest {
     @Test
     void mapsGlfwKeysToLwjgl2Codes() {
         assertEquals(17, KeyCodes.fromGlfwKey(GLFW_KEY_W));

@@ -19,6 +19,13 @@ public final class TestItems {
             new ResourceLocation("minecraft", "item/" + name), null, 0));
     }
 
+    /** A sword-like item: one per name, used by holding to block. */
+    public static Item sword(String name) {
+        return ITEMS.computeIfAbsent(name + "/sword", key -> new Item(ITEMS.size(),
+            new ResourceLocation("minecraft", name), 1, 250, Item.UseAction.BLOCK, 0, 0,
+            new ResourceLocation("minecraft", "item/" + name), null, 0));
+    }
+
     /** The creative tab data from the source tree (Gradle runs tests in the project directory). */
     public static CreativeTabs creativeTabs() {
         try (var reader = java.nio.file.Files.newBufferedReader(

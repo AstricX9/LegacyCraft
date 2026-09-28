@@ -33,7 +33,7 @@ import static org.lwjgl.glfw.GLFW.*;
  * buttons by their captions and checks where each click leads. Captions are
  * the raw translation keys because the language table is empty here.
  */
-class ScreenFlowTest {
+final class ScreenFlowTest {
     private Fake mc;
 
     @BeforeEach

@@ -2,6 +2,7 @@ package net.minecraft.client.renderer;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Liquids;
 import net.minecraft.block.state.ActualState;
 import net.minecraft.client.renderer.block.model.BakedModel;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -53,11 +54,13 @@ final class SectionMesher {
     private final TextureAtlas atlas;
     private final BlockModelManager models;
     private final BiomeColors biomeColors;
+    private final FluidMesher fluids;
 
     SectionMesher(TextureAtlas atlas, BlockModelManager models, BiomeColors biomeColors) {
         this.atlas = atlas;
         this.models = models;
         this.biomeColors = biomeColors;
+        fluids = new FluidMesher(atlas, biomeColors);
     }
 
     Mesh build(SectionSnapshot view, int sectionX, int sectionY, int sectionZ) {
@@ -73,6 +76,11 @@ final class SectionMesher {
                     BlockState state = view.getState(x, y, z);
                     Block block = state.block();
                     if (block.renderType() == Block.RenderType.INVISIBLE) continue;
+                    if (block.renderType() == Block.RenderType.FLUID && Liquids.isLiquid(block)) {
+                        fluids.build(TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque,
+                            view, state, x, y, z, startX, startY, startZ);
+                        continue;
+                    }
                     ActualState actual = block.actualState(view, x, y, z, state);
                     BakedModel model;
                     // Model lookup may fill caches lazily; workers take turns rather than risk a torn map.

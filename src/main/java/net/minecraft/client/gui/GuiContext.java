@@ -70,6 +70,17 @@ public interface GuiContext {
     CreativeTabs creativeTabs();
     /** The local player's inventory, or null on the title screen. */
     InventoryPlayer playerInventory();
+    /** The crafting recipes, or null when none are loaded (tests). */
+    default net.minecraft.item.crafting.CraftingManager crafting() { return null; }
+    /** An item by its LegacyCraft name ("bucket"), or null. */
+    default Item itemByName(String name) { return null; }
+    /**
+     * Whether a block-backed screen may stay open: the block at the position is
+     * still {@code block} and the player is within 8 blocks of its centre
+     * (Container.canInteractWith).
+     */
+    default boolean canInteractWith(int x, int y, int z, String block) { return true; }
+
     /** Whether the local player is in Creative mode (instant break, flight, the creative inventory). */
     boolean isCreative();
 

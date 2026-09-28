@@ -2,9 +2,13 @@ package net.minecraft.client.gui;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-class FontRendererTest {
+/**
+ * Font rendering text handling: stripping formatting codes and carrying colour
+ * and style across wrapped lines.
+ */
+final class FontRendererTest {
     @Test
     void stripsLegacyFormattingCodes() {
         assertEquals("Gold Bold", FontRenderer.stripFormattingCodes("§6Gold §lBold§r"));

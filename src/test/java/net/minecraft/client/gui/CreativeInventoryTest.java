@@ -18,7 +18,7 @@ import static org.lwjgl.glfw.GLFW.*;
  * Drives the creative inventory through the fake client. The fake screen is
  * 427x240 GUI pixels, so the 195x136 window's top-left is (116, 52).
  */
-class CreativeInventoryTest {
+final class CreativeInventoryTest {
     private static final int LEFT = 116, TOP = 52;
     private ScreenFlowTest.Fake mc;
     private GuiContainerCreative screen;
@@ -105,6 +105,20 @@ class CreativeInventoryTest {
         screen.keyPressed(GLFW_KEY_3, 0);
         assertSame(granite, mc.inventory.mainInventory[2].item());
         assertEquals(64, mc.inventory.mainInventory[2].count());
+    }
+
+    @Test
+    void draggingTheScrollbarFollowsThePointerUntilReleased() {
+        int barX = LEFT + 175 + 6, barTop = TOP + 18;
+        screen.mouseClicked(barX, barTop + 3, 0);
+        assertEquals(0f, screen.currentScroll(), "pressing the top of the bar stays at the top");
+        screen.followScrollbar(barTop + 112 / 2);
+        assertEquals(0.5f, screen.currentScroll(), 0.01f, "the thumb's middle sits under the pointer");
+        screen.followScrollbar(barTop + 300);
+        assertEquals(1f, screen.currentScroll(), "dragging past the end clamps");
+        screen.mouseReleased(barX + 50, barTop + 300, 0);
+        screen.followScrollbar(barTop);
+        assertEquals(1f, screen.currentScroll(), "released: the pointer no longer moves it");
     }
 
     @Test

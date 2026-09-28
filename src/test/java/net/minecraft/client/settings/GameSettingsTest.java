@@ -11,7 +11,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GameSettingsTest {
+/** Game options: ranges, captions, slider steps, cycling buttons and the options.txt file. */
+final class GameSettingsTest {
     @BeforeEach
     void english() {
         I18n.set(Map.ofEntries(

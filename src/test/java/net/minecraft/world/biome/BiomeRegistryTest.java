@@ -1,16 +1,15 @@
 package net.minecraft.world.biome;
 
 import net.minecraft.block.BlockRegistry;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class BiomeRegistryTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
+/** The biome registry: legacy IDs, climate and terrain values, surface blocks and flags. */
+final class BiomeRegistryTest {
+    private final BlockRegistry blocks = GameData.blocks();
+    private final BiomeRegistry biomes = GameData.biomes();
 
     @Test
     void loadsTheOverworldBiomesWithTheirLegacyIds() {

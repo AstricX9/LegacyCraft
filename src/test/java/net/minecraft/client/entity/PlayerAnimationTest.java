@@ -1,19 +1,14 @@
 package net.minecraft.client.entity;
 
+import net.minecraft.testing.GameData;
 import net.minecraft.world.World;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Tick maths behind the view bob, arm swing, body turn and FOV (HYPOTHESIS constants). */
-class PlayerAnimationTest {
-    private static final World WORLD;
-    static {
-        var resources = new net.minecraft.client.resources.ClasspathResourceManager();
-        var blocks = net.minecraft.block.BlockRegistry.load(resources);
-        WORLD = new World(blocks, net.minecraft.world.biome.BiomeRegistry.load(resources, blocks), 1L);
-    }
+final class PlayerAnimationTest {
+    private static final World WORLD = GameData.newWorld(1L);
 
     private static Player player() {
         Player player = new Player(WORLD);

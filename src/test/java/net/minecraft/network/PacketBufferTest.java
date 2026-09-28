@@ -3,9 +3,10 @@ package net.minecraft.network;
 import net.minecraft.util.ResourceLocation;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-class PacketBufferTest {
+/** Packet buffer encoding of VarInts, strings and identifiers. */
+final class PacketBufferTest {
     @Test
     void roundTripsVarIntsStringsAndIdentifiers() {
         byte[] encoded = PacketBuffer.writing().writeVarInt(2_097_151)

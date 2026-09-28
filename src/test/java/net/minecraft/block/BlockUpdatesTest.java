@@ -1,15 +1,18 @@
 package net.minecraft.block;
 
 import net.minecraft.block.state.TestBlockAccess;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.util.Direction;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class BlockUpdatesTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
+/**
+ * Blocks reacting to their neighbours: torches and doors popping off, plants
+ * needing soil, and vine support.
+ */
+final class BlockUpdatesTest {
+    private final BlockRegistry blocks = GameData.blocks();
 
     private String at(TestBlockAccess world, int x, int y, int z) { return world.getState(x, y, z).block().name().path(); }
 

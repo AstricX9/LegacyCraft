@@ -5,9 +5,10 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ClasspathResourceManagerTest {
+/** The bundled resource pack: namespaced lookups and listing resources. */
+final class ClasspathResourceManagerTest {
     @Test
     void resolvesNamespacedAssetsFromTheBundledPack() throws IOException {
         ClasspathResourceManager resources = new ClasspathResourceManager();

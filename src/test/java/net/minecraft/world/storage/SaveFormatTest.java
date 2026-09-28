@@ -13,7 +13,8 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class SaveFormatTest {
+/** Save folders: folder names, level.dat round trips, hardcore worlds and the world list. */
+final class SaveFormatTest {
     @Test
     void folderNamesFollowTheCreateWorldRules() {
         Set<String> taken = Set.of("New World", "New World-", "_CON_");

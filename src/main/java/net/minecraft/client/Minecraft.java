@@ -10,6 +10,7 @@ import net.minecraft.block.state.ActualState;
 import net.minecraft.client.audio.SoundRegistry;
 import net.minecraft.client.entity.Player;
 import net.minecraft.client.entity.PlayerAnimation;
+import net.minecraft.client.particle.ParticleManager;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.gui.GuiNewChat;
@@ -126,6 +127,13 @@ public final class Minecraft implements GuiContext {
     private BiomeColors biomeColors;
     private ItemRegistry itemRegistry;
     private SoundRegistry soundRegistry;
+    private net.minecraft.client.audio.SoundSystem soundSystem;
+    private net.minecraft.client.audio.SoundHandler soundHandler;
+    private net.minecraft.client.audio.MusicTicker musicTicker;
+    private boolean soundsPaused;
+    /** Cave ambience (World.playMoodSoundAndCheckLight): countdown, the LCG picking spots, chunks already tried. */
+    private int ambientCountdown = new Random().nextInt(12000), caveLcg = new Random().nextInt();
+    private final java.util.Set<Long> moodChunksTried = new java.util.HashSet<>();
     private BlockModelManager modelManager;
     private TextureAtlas atlas;
     private FontRenderer fontRenderer;
@@ -135,6 +143,7 @@ public final class Minecraft implements GuiContext {
     private final PlayerModel playerModel = new PlayerModel();
     private PlayerAnimation playerAnimation = new PlayerAnimation();
     private CreativeTabs creativeTabs;
+    private net.minecraft.item.crafting.CraftingManager crafting;
     private GuiIngame ingameGui;
     private BlockDrops blockDrops;
     private BlockDrops.Items blockItems;
@@ -153,6 +162,12 @@ public final class Minecraft implements GuiContext {
     private IntegratedServer server;
     private WorldRenderer renderer;
     private SkyRenderer sky;
+    private ParticleManager particles;
+    /**
+     * The local player's fire ticks (above 0 = burning; players start at
+     * -20, their fire resistance).
+     */
+    private int playerFire = -20;
     private LevelInfo levelInfo;
     /** Save folder of the running world, or null for a throwaway command-line world. */
     private String worldFolder;
@@ -206,6 +221,7 @@ public final class Minecraft implements GuiContext {
             if (fontRenderer != null) fontRenderer.destroy();
             if (atlas != null) atlas.destroy();
             if (guiTextures != null) guiTextures.destroy();
+            if (soundSystem != null) soundSystem.destroy();
             if (window != NULL) {
                 glfwFreeCallbacks(window);
                 glfwDestroyWindow(window);
@@ -243,6 +259,10 @@ public final class Minecraft implements GuiContext {
         blockRegistry = BlockRegistry.load(resourceManager);
         itemRegistry = ItemRegistry.load(resourceManager, blockRegistry);
         soundRegistry = SoundRegistry.load(resourceManager);
+        soundSystem = new net.minecraft.client.audio.SoundSystem(resourceManager);
+        soundSystem.init();
+        soundHandler = new net.minecraft.client.audio.SoundHandler(soundRegistry, gameSettings, soundSystem);
+        musicTicker = new net.minecraft.client.audio.MusicTicker(soundHandler, new Random());
         modelManager = new BlockModelManager(resourceManager, blockRegistry);
         atlas = new TextureAtlas(resourceManager);
         atlas.load();
@@ -254,6 +274,7 @@ public final class Minecraft implements GuiContext {
         itemRenderer = new ItemRenderer(resourceManager, guiTextures, atlas, modelManager, biomeColors);
         firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer);
         creativeTabs = CreativeTabs.load(resourceManager, itemRegistry);
+        crafting = net.minecraft.item.crafting.CraftingManager.load(resourceManager, itemRegistry);
         blockItems = BlockDrops.itemsOf(itemRegistry.values());
         blockDrops = BlockDrops.load(resourceManager, blockItems);
         ingameGui = new GuiIngame(this);
@@ -409,8 +430,7 @@ public final class Minecraft implements GuiContext {
 
     private void loop() {
         double previous = glfwGetTime();
-        double physicsAccumulator = 0, tickAccumulator = 0;
-        final double physicsStep = 1.0 / 120.0;
+        double tickAccumulator = 0;
         final double tickStep = 1.0 / IntegratedServer.TICKS_PER_SECOND;
         while (running && !glfwWindowShouldClose(window)) {
             long frameStart = System.nanoTime();
@@ -425,17 +445,9 @@ public final class Minecraft implements GuiContext {
                 runTick();
                 tickAccumulator -= tickStep;
             }
-            if (player != null && (currentScreen == null || !currentScreen.doesGuiPauseGame()) && preparing == null) {
-                physicsAccumulator += frame;
-                while (physicsAccumulator >= physicsStep) {
-                    player.update(gameSettings, physicsStep);
-                    physicsAccumulator -= physicsStep;
-                }
-            } else {
-                physicsAccumulator = 0;
-            }
             float partialTicks = (float) (tickAccumulator / tickStep);
             render(partialTicks);
+            updateSoundListener(partialTicks);
             if (screenshotRequested != null && (!quitAfterScreenshot || world != null && preparing == null)) {
                 saveScreenshot(screenshotRequested);
                 screenshotRequested = null;
@@ -459,13 +471,26 @@ public final class Minecraft implements GuiContext {
     /** One 20 Hz client tick: screen animation, the integrated server (unless paused), death, key presses. */
     private void runTick() {
         if (currentScreen != null) currentScreen.updateScreen();
+        boolean pausedNow = world != null && preparing == null && currentScreen != null && currentScreen.doesGuiPauseGame();
+        // Minecraft.runGameLoop: every sound pauses with the game and resumes with it.
+        if (pausedNow != soundsPaused) {
+            if (pausedNow) soundHandler.pauseAll(); else soundHandler.resumeAll();
+            soundsPaused = pausedNow;
+        }
+        if (!pausedNow) musicTicker.tick(musicType());
         if (world == null || preparing != null) return;
         boolean paused = currentScreen != null && currentScreen.doesGuiPauseGame();
         if (!paused) {
+            world.tick();
+            atlas.tickAnimations();
             server.tick();
             tickItemEntities();
             levelInfo.totalTime++;
+            if (preparing == null) player.tick(Player.Input.of(gameSettings));
             playerAnimation.tick(player);
+            tickPlayerLiquids();
+            tickParticles();
+            tickCaveAmbience();
             if (inventory != null) firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
             if (Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("doDaylightCycle", "true"))) levelInfo.worldTime++;
             tickSky();
@@ -479,6 +504,9 @@ public final class Minecraft implements GuiContext {
             return;
         }
         ingameGui.updateTick(inventory);
+        // EntityPlayer.onUpdate: using stops when the held stack is no longer the one in use.
+        if (player.isUsingItem() && (inventory.getCurrentItem() != player.itemInUse() || isSpectator()))
+            player.clearItemInUse();
         if (rightClickDelayTimer > 0) rightClickDelayTimer--;
         if (currentScreen != null) {
             playerController.resetBlockRemoving();
@@ -498,10 +526,87 @@ public final class Minecraft implements GuiContext {
         }
     }
 
+    /** The music the game wants now (Minecraft.getAmbientMusicType). */
+    private net.minecraft.client.audio.MusicTicker.Type musicType() {
+        if (player == null || world == null) return net.minecraft.client.audio.MusicTicker.Type.MENU;
+        return isCreative() && player.allowFlying ? net.minecraft.client.audio.MusicTicker.Type.CREATIVE
+            : net.minecraft.client.audio.MusicTicker.Type.GAME;
+    }
+
+    /** The listener follows the player's eyes and view each frame; menus without a world only refresh volumes. */
+    private void updateSoundListener(float partialTicks) {
+        if (soundHandler == null) return;
+        if (player == null || world == null) {
+            soundHandler.update();
+            return;
+        }
+        soundHandler.update(player.renderX(partialTicks), player.renderY(partialTicks) + player.eyeHeight(),
+            player.renderZ(partialTicks), player.dirX(), player.dirY(), player.dirZ());
+    }
+
+    /** A sound in the world (World.playSound on the client). */
+    private void playSound(String event, double x, double y, double z, float volume, float pitch) {
+        if (soundHandler != null) soundHandler.play(event, x, y, z, volume, pitch);
+    }
+
+    /** A block breaking (RenderGlobal.playAuxSFX 2001): its break sound at (volume + 1) / 2, frequency x 0.8. */
+    private void playBreakSound(int x, int y, int z, BlockState state) {
+        if (state.block().isAir()) return;
+        net.minecraft.block.BlockSoundType type = net.minecraft.block.BlockSoundType.of(state.block());
+        playSound(type.breakSound(), x + 0.5, y + 0.5, z + 0.5, (type.volume() + 1f) / 2f, type.frequency() * 0.8f);
+    }
+
+    /**
+     * Cave ambience (WorldClient.updateBlocks, World.playMoodSoundAndCheckLight;
+     * HYPOTHESIS): up to 10 not-yet-tried chunks within 7 of the player a
+     * tick; once the countdown has run out, each picks a spot with an LCG and,
+     * if it is air with no sky light and block light no more than a random
+     * 0-7, and the player is 2-8 blocks from it, plays the cave sound there
+     * and waits 6000-18000 ticks.
+     */
+    private void tickCaveAmbience() {
+        if (ambientCountdown > 0) ambientCountdown--;
+        int centerX = (int) Math.floor(player.x) >> 4, centerZ = (int) Math.floor(player.z) >> 4;
+        List<Long> active = new ArrayList<>();
+        for (int dx = -7; dx <= 7; dx++)
+            for (int dz = -7; dz <= 7; dz++) active.add(World.chunkKey(centerX + dx, centerZ + dz));
+        moodChunksTried.retainAll(active);
+        if (moodChunksTried.size() == active.size()) moodChunksTried.clear();
+        int tried = 0;
+        for (int i = 0; i < active.size(); i++) {
+            long key = active.get(i);
+            if (moodChunksTried.contains(key)) continue;
+            moodSound((centerX + i / 15 - 7) * 16, (centerZ + i % 15 - 7) * 16);
+            moodChunksTried.add(key);
+            if (++tried >= 10) return;
+        }
+    }
+
+    private void moodSound(int chunkBlockX, int chunkBlockZ) {
+        if (ambientCountdown != 0) return;
+        caveLcg = caveLcg * 3 + 1013904223;
+        int bits = caveLcg >> 2;
+        int x = chunkBlockX + (bits & 15), z = chunkBlockZ + (bits >> 8 & 15), y = bits >> 16 & 255;
+        if (world.generatedChunk(x >> 4, z >> 4) == null) return;
+        if (!world.get(x, y, z).isAir() || world.getSkyLight(x, y, z) > 0) return;
+        if (world.getBlockLight(x, y, z) > random.nextInt(8)) return;
+        double dx = player.x - (x + 0.5), dy = player.y - (y + 0.5), dz = player.z - (z + 0.5);
+        double distance = dx * dx + dy * dy + dz * dz;
+        if (distance > 64 || distance <= 4) return;
+        playSound("ambient.cave.cave", x + 0.5, y + 0.5, z + 0.5, 0.7f, 0.8f + random.nextFloat() * 0.2f);
+        ambientCountdown = random.nextInt(12000) + 6000;
+    }
+
     /** Merges nearby dropped stacks and lets the player pick up what it touches (server side of 1.8.9's EntityItem). */
     private void tickItemEntities() {
         List<EntityItem> items = new ArrayList<>();
         for (Entity entity : server.entities().values()) if (entity instanceof EntityItem item && !item.isRemoved()) items.add(item);
+        for (EntityItem item : items) {
+            for (EntityItem.Sound sound : item.takeSounds())
+                playSound(sound.event(), item.x(), item.y(), item.z(), sound.volume(), sound.pitch());
+            if (item.takeSplash() && particles != null)
+                particles.addWaterSplash(item.x(), item.y(), item.z(), (float) EntityItem.SIZE, item.motionX, item.motionY, item.motionZ);
+        }
         for (EntityItem item : items) {
             if (item.isRemoved() || item.age % 25 != 1) continue;
             for (EntityItem other : items) if (other != item && item.isNear(other)) item.tryMerge(other);
@@ -511,7 +616,12 @@ public final class Minecraft implements GuiContext {
         reach = new AxisAlignedBB(reach.minX() - 1, reach.minY() - 0.5, reach.minZ() - 1, reach.maxX() + 1, reach.maxY() + 0.5, reach.maxZ() + 1);
         for (EntityItem item : items) {
             if (item.isRemoved() || item.pickupDelay > 0 || !item.boundingBox().intersects(reach)) continue;
+            int before = item.stack().count();
             inventory.addItemStackToInventory(item.stack());
+            // EntityItem.onCollideWithPlayer: a pop when anything was picked up.
+            if (item.stack().count() < before)
+                playSound("random.pop", player.x, player.y, player.z, 0.2f,
+                    ((random.nextFloat() - random.nextFloat()) * 0.7f + 1f) * 2f);
             if (item.stack().isEmpty()) item.remove();
         }
     }
@@ -607,6 +717,7 @@ public final class Minecraft implements GuiContext {
         double spawnZ = cliSpawnZ != null ? cliSpawnZ : levelInfo.spawnZ + 0.5;
         player = new Player(world, spawnX, spawnZ);
         playerAnimation = new PlayerAnimation();
+        playerFire = -20;
         if (levelInfo.player != null && cliSpawnX == null) {
             LevelInfo.PlayerPosition saved = levelInfo.player;
             // level.dat stores vanilla yaw (0 = south); the player model uses 0 = north.
@@ -624,9 +735,23 @@ public final class Minecraft implements GuiContext {
             player.setPositionAndRotation(cliPos[0], cliPos[1], cliPos[2], (float) cliPos[3] - 180f, (float) cliPos[4]);
             if (player.allowFlying) player.isFlying = true;
         }
+        player.sounds = (event, volume, pitch) -> playSound(event, player.x, player.y, player.z, volume, pitch);
         server = new IntegratedServer(world);
         renderer = new WorldRenderer(world, atlas, modelManager, biomeColors);
         sky = new SkyRenderer(guiTextures);
+        particles = new ParticleManager(world, atlas, guiTextures, modelManager, biomeColors);
+        particles.sounds = this::playSound;
+        world.setEvents(new World.Events() {
+            @Override public void washedAway(int x, int y, int z, BlockState previous) { dropBlock(x, y, z, previous); }
+            @Override public void liquidsMixed(int x, int y, int z) {
+                // BlockLiquid.triggerMixEffects.
+                playSound("random.fizz", x + 0.5, y + 0.5, z + 0.5, 0.5f, 2.6f + (random.nextFloat() - random.nextFloat()) * 0.8f);
+                if (particles != null)
+                    for (int i = 0; i < 8; i++)
+                        particles.spawn(ParticleManager.Kind.LARGE_SMOKE, x + Math.random(), y + 1.2, z + Math.random(), 0, 0, 0, null);
+            }
+            @Override public void popped(int x, int y, int z, BlockState previous) { blockPopped(x, y, z, previous); }
+        });
         gameSettings.difficulty = levelInfo.difficulty;
         if (worldFolder != null) saveWorld();
         displayGuiScreen(null);
@@ -684,9 +809,12 @@ public final class Minecraft implements GuiContext {
     }
 
     private void closeSession() {
+        if (soundHandler != null) soundHandler.stopAll();
         if (server != null) server.close();
         if (renderer != null) renderer.destroy();
         if (sky != null) sky.destroy();
+        if (particles != null) particles.clear();
+        particles = null;
         server = null;
         renderer = null;
         sky = null;
@@ -794,12 +922,27 @@ public final class Minecraft implements GuiContext {
         }
         glViewport(0, 0, width, height);
         boolean inWorld = world != null && player != null && renderer != null && sky != null;
-        float[] fog = inWorld ? prepareSky() : null;
-        if (fog != null) glClearColor(fog[0], fog[1], fog[2], 0.0f);
-        else glClearColor(0.50f, 0.69f, 1.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // The player moves 20 times a second; the world is drawn from where they are between the last two ticks.
+        double tickX = inWorld ? player.x : 0, tickY = inWorld ? player.y : 0, tickZ = inWorld ? player.z : 0;
         if (inWorld) {
-            renderWorld(fog);
+            player.x = player.renderX(partialTicks);
+            player.y = player.renderY(partialTicks);
+            player.z = player.renderZ(partialTicks);
+        }
+        try {
+            float[] fog = inWorld ? prepareSky() : null;
+            if (fog != null) glClearColor(fog[0], fog[1], fog[2], 0.0f);
+            else glClearColor(0.50f, 0.69f, 1.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            if (inWorld) renderWorld(fog);
+        } finally {
+            if (inWorld) {
+                player.x = tickX;
+                player.y = tickY;
+                player.z = tickZ;
+            }
+        }
+        if (inWorld) {
             glClear(GL_DEPTH_BUFFER_BIT);
             if (!gameSettings.hideGUI) drawHud(resolution);
         }
@@ -829,6 +972,110 @@ public final class Minecraft implements GuiContext {
     /** Vanilla's far plane is the render distance times sqrt(2); the fog ends at the render distance. */
     private static final double SQRT_2 = Math.sqrt(2.0);
 
+    /**
+     * Once per unpaused tick: particles move and age, blocks around the
+     * player get their random display ticks (torch flames, drips, ...), and a
+     * sprinting player kicks up flecks of the block underfoot (1.8.9
+     * Entity.createRunningParticles, HYPOTHESIS).
+     */
+    private void tickParticles() {
+        if (particles == null || player == null) return;
+        particles.setView(gameSettings.particleSetting, player.x, player.eyeY(), player.z);
+        particles.tick();
+        particles.randomDisplayTicks(player.x, player.y, player.z);
+        double motionX = player.motionX, motionZ = player.motionZ;
+        if (player.sprinting && !player.inWater) {
+            int bx = (int) Math.floor(player.x), by = (int) Math.floor(player.y - 0.2), bz = (int) Math.floor(player.z);
+            if (by >= 0 && by < World.HEIGHT) {
+                BlockState below = world.getState(bx, by, bz);
+                if (!below.block().isAir())
+                    particles.spawn(ParticleManager.Kind.BLOCK_CRACK, player.x + (random.nextFloat() - 0.5) * Player.WIDTH,
+                        player.y + 0.1, player.z + (random.nextFloat() - 0.5) * Player.WIDTH, -motionX * 4.0, 1.5, -motionZ * 4.0, below);
+            }
+        }
+    }
+
+    /**
+     * The player and liquids, once per unpaused tick (1.8.9
+     * Entity.onEntityUpdate, HYPOTHESIS): entering water splashes (bubbles
+     * and droplets) and puts out fire; lava sets the player alight for 15
+     * seconds; fire blocks set them alight after 20 ticks inside; burning
+     * counts down. No damage exists yet, so burning only shows as the flames
+     * in first person.
+     */
+    private void tickPlayerLiquids() {
+        if (player == null || isSpectator()) return;
+        AxisAlignedBB box = player.boundingBox();
+        if (player.enteredWater && particles != null)
+            particles.addWaterSplash(player.x, player.y, player.z, (float) Player.WIDTH, player.motionX, player.motionY, player.motionZ);
+        if (player.inWater) {
+            // Entity.moveEntity: water puts the fire out with a fizz.
+            if (playerFire > 0)
+                playSound("random.fizz", player.x, player.y, player.z, 0.7f, 1.6f + (random.nextFloat() - random.nextFloat()) * 0.4f);
+            playerFire = 0;
+        }
+        // A Creative player keeps burning until water puts the fire out (reported from vanilla play).
+        if (playerFire > 0 && !isCreative()) playerFire--;
+        AxisAlignedBB lavaBox = new AxisAlignedBB(box.minX() + 0.1, box.minY() + 0.4, box.minZ() + 0.1,
+            box.maxX() - 0.1, box.maxY() - 0.4, box.maxZ() - 0.1);
+        if (world.isMaterialInBox(lavaBox, "lava")) playerFire = Math.max(playerFire, 15 * 20);
+        AxisAlignedBB inner = new AxisAlignedBB(box.minX() + 0.001, box.minY() + 0.001, box.minZ() + 0.001,
+            box.maxX() - 0.001, box.maxY() - 0.001, box.maxZ() - 0.001);
+        if (world.isMaterialInBox(inner, "fire") || world.isMaterialInBox(inner, "lava")) {
+            if (!player.inWater) {
+                playerFire++;
+                if (playerFire == 0) playerFire = 8 * 20;
+            }
+        } else if (playerFire <= 0) {
+            playerFire = -20;
+        }
+    }
+
+    /**
+     * The liquid the camera is in, or null (ActiveRenderInfo.getBlockAtEntityViewpoint):
+     * a liquid block counts only below its surface, which sits lower the
+     * further the liquid has flowed; above it, the block above decides.
+     */
+    private String cameraLiquid() {
+        double camX = player.x, camY = player.eyeY(), camZ = player.z;
+        int view = gameSettings.thirdPersonView;
+        if (view != 0) {
+            double distance = thirdPersonDistance(view == 2 ? 1 : -1) * (view == 2 ? 1 : -1);
+            camX += player.dirX() * distance;
+            camY += player.dirY() * distance;
+            camZ += player.dirZ() * distance;
+        }
+        int bx = (int) Math.floor(camX), by = (int) Math.floor(camY), bz = (int) Math.floor(camZ);
+        if (by < 0 || by >= World.HEIGHT || world.generatedChunk(bx >> 4, bz >> 4) == null) return null;
+        BlockState state = world.getState(bx, by, bz);
+        String material = state.block().material();
+        if (material.equals("water") || material.equals("lava")) {
+            if (camY >= by + 1 - liquidSurfaceDrop(state)) {
+                if (by + 1 >= World.HEIGHT) return null;
+                material = world.get(bx, by + 1, bz).material();
+            }
+        }
+        return material.equals("water") || material.equals("lava") ? material : null;
+    }
+
+    /** How far below the block's top a liquid's surface is: BlockLiquid.getLiquidHeightPercent minus a ninth. */
+    private static float liquidSurfaceDrop(BlockState state) {
+        String level = state.get("level");
+        int meta = level == null ? 0 : Integer.parseInt(level);
+        if (meta >= 8) meta = 0;
+        return (meta + 1) / 9f - 1f / 9f;
+    }
+
+    /** Whether the player's eyes are under water (Entity.isInsideOfMaterial), which shows the underwater overlay. */
+    private boolean eyesUnderWater() {
+        double eye = player.eyeY();
+        int bx = (int) Math.floor(player.x), by = (int) Math.floor(eye), bz = (int) Math.floor(player.z);
+        if (by < 0 || by >= World.HEIGHT || world.generatedChunk(bx >> 4, bz >> 4) == null) return false;
+        BlockState state = world.getState(bx, by, bz);
+        if (!state.block().material().equals("water")) return false;
+        return eye < by + 1 - liquidSurfaceDrop(state);
+    }
+
     /** Advances the clouds and the fog's cave darkening once per unpaused tick. */
     private void tickSky() {
         if (sky == null || player == null) return;
@@ -844,7 +1091,7 @@ public final class Minecraft implements GuiContext {
         int x = (int) Math.floor(player.x), y = (int) Math.floor(player.y), z = (int) Math.floor(player.z);
         float temperature = net.minecraft.world.gen.ChunkPopulator.temperature(world.biomeAt(x, z), x, y, z);
         float[] fog = sky.prepare(levelInfo.worldTime, partialTicks, temperature, player.dirX(), player.dirY(), player.dirZ(),
-            gameSettings.renderDistanceChunks, player.y, world.isFlat());
+            gameSettings.renderDistanceChunks, player.y, world.isFlat(), cameraLiquid());
         LightMap.update(SkyRenderer.sunBrightness(sky.angle()), gameSettings.gammaSetting);
         return fog;
     }
@@ -859,7 +1106,7 @@ public final class Minecraft implements GuiContext {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
-        glFogi(GL_FOG_MODE, GL_LINEAR);
+        String liquid = cameraLiquid();
         glHint(GL_FOG_HINT, GL_FASTEST);
         if (org.lwjgl.opengl.GL.getCapabilities().GL_NV_fog_distance) glFogi(0x855A, 0x855B); // eye-radial fog
         glFogfv(GL_FOG_COLOR, new float[]{fog[0], fog[1], fog[2], 1.0f});
@@ -867,15 +1114,13 @@ public final class Minecraft implements GuiContext {
         glLoadIdentity();
         loadCamera();
         if (skyVisible) {
-            glFogf(GL_FOG_START, 0f);
-            glFogf(GL_FOG_END, renderDistance);
+            setupFog(liquid, 0f, renderDistance);
             perspective(worldFov(), width / (double) height, 0.05, renderDistance * 2.0);
             glMatrixMode(GL_MODELVIEW);
             sky.renderSky(levelInfo.worldTime, eyeY);
         }
         glEnable(GL_FOG);
-        glFogf(GL_FOG_START, renderDistance * 0.75f);
-        glFogf(GL_FOG_END, renderDistance);
+        setupFog(liquid, renderDistance * 0.75f, renderDistance);
         if (eyeY < SkyRenderer.CLOUD_HEIGHT) renderClouds(renderDistance, skyVisible);
         perspective(worldFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
         glMatrixMode(GL_MODELVIEW);
@@ -891,6 +1136,7 @@ public final class Minecraft implements GuiContext {
         WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? renderer.raycast(player, reach()) : null;
         drawDestroyProgress();
         if (hit != null && !gameSettings.hideGUI) drawSelection(hit);
+        renderParticles();
         if (eyeY >= SkyRenderer.CLOUD_HEIGHT) {
             glPushMatrix();
             glTranslated(player.x, eyeY, player.z);
@@ -901,18 +1147,39 @@ public final class Minecraft implements GuiContext {
         renderHand(renderDistance);
     }
 
-    // ---- camera, hand and player model --------------------------------------------------------
-
-    /** The field of view for the world: the setting times the sprint/flight modifier, narrower with the eyes in water. */
-    private float worldFov() {
-        float fov = gameSettings.getFov() * playerAnimation.fov(partialTicks);
-        if (eyesInWater()) fov = fov * 60f / 70f;
-        return fov;
+    /** Particles face the camera: the player's view, turned round in the front third-person view. */
+    private void renderParticles() {
+        if (particles == null) return;
+        boolean front = gameSettings.thirdPersonView == 2;
+        float yaw = PlayerAnimation.vanillaYaw(player) + (front ? 180f : 0f);
+        float pitch = front ? -player.pitch : player.pitch;
+        glEnable(GL_FOG);
+        particles.render(partialTicks, yaw, pitch);
     }
 
-    private boolean eyesInWater() {
-        int x = (int) Math.floor(player.x), y = (int) Math.floor(player.eyeY()), z = (int) Math.floor(player.z);
-        return y >= 0 && y < World.HEIGHT && world.get(x, y, z).material().equals("water");
+    // ---- camera, hand and player model --------------------------------------------------------
+
+    /**
+     * Linear fog from {@code start} to {@code end}, or, with the camera in a
+     * liquid, exponential fog: density 0.1 in water, 2.0 in lava (1.8.9
+     * setupFog, HYPOTHESIS; no Respiration or Water Breathing yet).
+     */
+    private static void setupFog(String liquid, float start, float end) {
+        if (liquid == null) {
+            glFogi(GL_FOG_MODE, GL_LINEAR);
+            glFogf(GL_FOG_START, start);
+            glFogf(GL_FOG_END, end);
+        } else {
+            glFogi(GL_FOG_MODE, GL_EXP);
+            glFogf(GL_FOG_DENSITY, liquid.equals("water") ? 0.1f : 2.0f);
+        }
+    }
+
+    /** The field of view for the world: the setting times the sprint/flight modifier, narrower with the camera in water. */
+    private float worldFov() {
+        float fov = gameSettings.getFov() * playerAnimation.fov(partialTicks);
+        if ("water".equals(cameraLiquid())) fov = fov * 60f / 70f;
+        return fov;
     }
 
     /**
@@ -978,17 +1245,95 @@ public final class Minecraft implements GuiContext {
         return LightMap.color(sky, block);
     }
 
-    /** The first-person hand: its own 70° projection (narrower in water), the view bob, over a cleared depth buffer. */
+    /**
+     * The first-person hand: its own 70° projection (narrower in water), the
+     * view bob, over a cleared depth buffer; then the screen overlays, which
+     * F1 does not hide.
+     */
     private void renderHand(int renderDistance) {
-        if (gameSettings.thirdPersonView != 0 || gameSettings.hideGUI || isSpectator() || player.dead) return;
+        if (gameSettings.thirdPersonView != 0 || player.dead) return;
         glDisable(GL_FOG);
-        float fov = eyesInWater() ? 60f : 70f;
+        float fov = "water".equals(cameraLiquid()) ? 60f : 70f;
         perspective(fov, width / (double) height, 0.05, renderDistance * 2.0);
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
-        if (gameSettings.viewBobbing) applyViewBobbing();
-        firstPersonRenderer.render(player, playerAnimation, partialTicks, eyeLight());
-        glShadeModel(GL_SMOOTH);
+        if (!gameSettings.hideGUI && !isSpectator()) {
+            glPushMatrix();
+            if (gameSettings.viewBobbing) applyViewBobbing();
+            firstPersonRenderer.render(player, playerAnimation, partialTicks, eyeLight());
+            glPopMatrix();
+            glShadeModel(GL_SMOOTH);
+        }
+        renderOverlays();
+    }
+
+    /** The underwater tint and the flames of a burning player, over the view (ItemRenderer.renderOverlays). */
+    private void renderOverlays() {
+        if (isSpectator()) return;
+        glDisable(GL_ALPHA_TEST);
+        if (eyesUnderWater()) renderWaterOverlay();
+        if (playerFire > 0) renderFireOverlay();
+        glEnable(GL_ALPHA_TEST);
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /**
+     * misc/underwater.png tiled four times across the screen at half
+     * opacity, darkened like the light at the eyes and sliding as the player
+     * turns (1/64 of a tile per degree), HYPOTHESIS.
+     */
+    private void renderWaterOverlay() {
+        int x = (int) Math.floor(player.x), y = (int) Math.floor(player.eyeY()), z = (int) Math.floor(player.z);
+        boolean inside = y >= 0 && y < World.HEIGHT;
+        int skyLight = inside ? world.getSkyLight(x, y, z) : 15, blockLight = inside ? world.getBlockLight(x, y, z) : 0;
+        int light = Math.max(skyLight - SkyRenderer.skylightSubtracted(sky.angle()), blockLight);
+        float brightness = SkyRenderer.brightness(Math.max(0, light));
+        guiTextures.bind(new net.minecraft.util.ResourceLocation("minecraft:textures/misc/underwater.png"));
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glColor4f(brightness, brightness, brightness, 0.5f);
+        float u = -PlayerAnimation.vanillaYaw(player) / 64f, v = player.pitch / 64f;
+        glPushMatrix();
+        glLoadIdentity();
+        glBegin(GL_QUADS);
+        glTexCoord2f(4f + u, 4f + v); glVertex3f(-1f, -1f, -0.5f);
+        glTexCoord2f(0f + u, 4f + v); glVertex3f(1f, -1f, -0.5f);
+        glTexCoord2f(0f + u, 0f + v); glVertex3f(1f, 1f, -0.5f);
+        glTexCoord2f(4f + u, 0f + v); glVertex3f(-1f, 1f, -0.5f);
+        glEnd();
+        glPopMatrix();
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /** Two flame sprites rising from the bottom corners of the view, drawn over everything (renderFireInFirstPerson). */
+    private void renderFireOverlay() {
+        TextureAtlas.Tile tile = atlas.tile(new net.minecraft.util.ResourceLocation("minecraft:textures/blocks/fire_layer_1.png"));
+        if (tile == null) return;
+        glColor4f(1f, 1f, 1f, 0.9f);
+        glDepthFunc(GL_ALWAYS);
+        glDepthMask(false);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_TEXTURE_2D);
+        atlas.bind();
+        for (int i = 0; i < 2; i++) {
+            glPushMatrix();
+            glLoadIdentity();
+            glTranslatef(-(i * 2 - 1) * 0.24f, -0.3f, 0f);
+            glRotatef((i * 2 - 1) * 10f, 0f, 1f, 0f);
+            float x0 = -0.5f, x1 = 0.5f, y0 = -0.5f, y1 = 0.5f, z = -0.5f;
+            glBegin(GL_QUADS);
+            glTexCoord2f(tile.u1(), tile.v1()); glVertex3f(x0, y0, z);
+            glTexCoord2f(tile.u0(), tile.v1()); glVertex3f(x1, y0, z);
+            glTexCoord2f(tile.u0(), tile.v0()); glVertex3f(x1, y1, z);
+            glTexCoord2f(tile.u1(), tile.v0()); glVertex3f(x0, y1, z);
+            glEnd();
+            glPopMatrix();
+        }
+        glColor4f(1, 1, 1, 1);
+        glDepthMask(true);
+        glDepthFunc(GL_LEQUAL);
     }
 
     /**
@@ -1027,7 +1372,7 @@ public final class Minecraft implements GuiContext {
         glScalef(0.9375f, 0.9375f, 0.9375f);
         glTranslatef(0f, -1.5078125f, 0f);
         playerModel.setPose(new PlayerModel.Pose(limbSwing, limbAmount, age, headYaw, pitch, attackSwing,
-            player.sneaking, held != null));
+            player.sneaking, held != null, held != null && player.isBlocking()));
         glDisable(GL_CULL_FACE);
         glEnable(GL_TEXTURE_2D);
         glEnable(GL_ALPHA_TEST);
@@ -1138,8 +1483,52 @@ public final class Minecraft implements GuiContext {
                 glPopMatrix();
             }
             glPopMatrix();
+            if (item.isBurning()) renderEntityFire(x, y, z, (float) EntityItem.SIZE, (float) EntityItem.SIZE);
         }
         glEnable(GL_TEXTURE_2D);
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /**
+     * Flames on a burning entity (Render.renderEntityOnFire, HYPOTHESIS):
+     * alternating fire_layer_0/1 sprites stacked up its height, each 0.45
+     * higher, 10% narrower and a little nearer the camera, turned to face it.
+     */
+    private void renderEntityFire(double x, double y, double z, float entityWidth, float entityHeight) {
+        TextureAtlas.Tile[] layers = {
+            atlas.tile(new net.minecraft.util.ResourceLocation("minecraft:textures/blocks/fire_layer_0.png")),
+            atlas.tile(new net.minecraft.util.ResourceLocation("minecraft:textures/blocks/fire_layer_1.png"))};
+        if (layers[0] == null || layers[1] == null) return;
+        atlas.bind();
+        glEnable(GL_TEXTURE_2D);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        glPushMatrix();
+        glTranslated(x, y, z);
+        float scale = entityWidth * 1.4f;
+        glScalef(scale, scale, scale);
+        float half = 0.5f, remaining = entityHeight / scale, bottom = 0f, depth = 0f;
+        float cameraYaw = PlayerAnimation.vanillaYaw(player) + (gameSettings.thirdPersonView == 2 ? 180f : 0f);
+        glRotatef(-cameraYaw, 0f, 1f, 0f);
+        glTranslatef(0f, 0f, -0.3f + (int) remaining * 0.02f);
+        glColor4f(1f, 1f, 1f, 1f);
+        glBegin(GL_QUADS);
+        for (int i = 0; remaining > 0f; i++) {
+            TextureAtlas.Tile tile = layers[i % 2];
+            float u0 = tile.u0(), u1 = tile.u1();
+            if (i / 2 % 2 == 0) { float swap = u0; u0 = u1; u1 = swap; }
+            glTexCoord2f(u1, tile.v1()); glVertex3f(half, 0f - bottom, depth);
+            glTexCoord2f(u0, tile.v1()); glVertex3f(-half, 0f - bottom, depth);
+            glTexCoord2f(u0, tile.v0()); glVertex3f(-half, 1.4f - bottom, depth);
+            glTexCoord2f(u1, tile.v0()); glVertex3f(half, 1.4f - bottom, depth);
+            remaining -= 0.45f;
+            bottom -= 0.45f;
+            half *= 0.9f;
+            depth += 0.03f;
+        }
+        glEnd();
+        glPopMatrix();
         glColor4f(1, 1, 1, 1);
     }
 
@@ -1160,6 +1549,11 @@ public final class Minecraft implements GuiContext {
         glEnable(GL_TEXTURE_2D);
         glEnable(GL_BLEND);
         glBlendFunc(GL_DST_COLOR, GL_SRC_COLOR);
+        // The crack textures are see-through outside the cracks: without the alpha test those texels
+        // multiply the block by their (light) colour and leave a pale square over it.
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        glDisable(GL_CULL_FACE);
         glDepthMask(false);
         glColor4f(1, 1, 1, 0.5f);
         glBegin(GL_QUADS);
@@ -1246,7 +1640,7 @@ public final class Minecraft implements GuiContext {
         }
         int loaded = world.loadedChunkCount();
         return new GuiOverlayDebug.Snapshot(fps, chunkUpdates, renderer.renderedCount(), renderer.meshCount(), gameSettings.renderDistanceChunks,
-            0, server.entities().values().size(), 0, loaded,
+            0, server.entities().values().size(), particles == null ? 0 : particles.count(), loaded,
             player.x, player.y, player.z, player.yaw + 180f, player.pitch,
             biomeName, inWorld, inWorld ? world.getSkyLight(bx, by, bz) : 15, inWorld ? world.getBlockLight(bx, by, bz) : 0,
             GuiOverlayDebug.localDifficulty(levelInfo.difficulty, levelInfo.worldTime, 0L), levelInfo.worldTime,
@@ -1297,6 +1691,12 @@ public final class Minecraft implements GuiContext {
             playerController.resetBlockRemoving();
             return;
         }
+        if (player.isUsingItem()) {
+            // Minecraft.runTick: letting go of the use key stops blocking; meanwhile clicks do nothing
+            // and mining pauses where it was.
+            if (!gameSettings.keyBindUseItem.isKeyDown()) player.clearItemInUse();
+            return;
+        }
         WorldRenderer.Hit hit = renderer.raycast(player, reach());
         // The arm swings on every attack click, every tick a block is being mined, and on each placement.
         if (attackPressed) playerAnimation.swing();
@@ -1310,14 +1710,24 @@ public final class Minecraft implements GuiContext {
             breakBlock(hit.x(), hit.y(), hit.z());
         if (gameSettings.keyBindAttack.isKeyDown() && hit != null && canBreak) {
             playerAnimation.swing();
-            if (playerController.onPlayerDamageBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit)))
-                breakBlock(hit.x(), hit.y(), hit.z());
+            if (particles != null) particles.addBlockHitEffects(hit.x(), hit.y(), hit.z(), hit.face());
+            boolean broken = playerController.onPlayerDamageBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit));
+            if (playerController.takeHitSound()) {
+                // PlayerControllerMP: every fourth mining tick, the step sound at (volume + 1) / 8, frequency x 0.5.
+                net.minecraft.block.BlockSoundType type = net.minecraft.block.BlockSoundType.of(world.get(hit.x(), hit.y(), hit.z()));
+                playSound(type.stepSound(), hit.x() + 0.5, hit.y() + 0.5, hit.z() + 0.5, (type.volume() + 1f) / 8f, type.frequency() * 0.5f);
+            }
+            if (broken) breakBlock(hit.x(), hit.y(), hit.z());
         } else {
             playerController.resetBlockRemoving();
         }
         if (usePressed || gameSettings.keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0) {
             rightClickDelayTimer = 4;
-            if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
+            if (activateBlock(hit)) playerAnimation.swing();
+            else if (!useBucket()) {
+                if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
+                else useHeldItem();
+            }
         }
     }
 
@@ -1370,15 +1780,105 @@ public final class Minecraft implements GuiContext {
             }
             if (held != null) {
                 int wear = ToolValues.damageForBreak(held.item(), name, block.material(), block.hardness());
-                if (held.damage(wear)) inventory.mainInventory[inventory.currentItem] = null;
+                if (held.damage(wear)) {
+                    inventory.mainInventory[inventory.currentItem] = null;
+                    playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+                }
             }
         }
+        if (particles != null) particles.addBlockDestroyEffects(x, y, z, state);
+        playBreakSound(x, y, z, state);
         world.setState(x, y, z, replacement);
         BlockUpdates.afterChange(world, x, y, z, this::blockPopped);
     }
 
+    /**
+     * A held bucket (ItemBucket.onItemRightClick), aimed 5 blocks out: an
+     * empty one scoops up a water or lava source (Creative keeps the empty
+     * bucket), a full one pours a source against the face it points at,
+     * breaking a non-solid block there, and empties unless in Creative.
+     * Returns whether a bucket was held.
+     */
+    private boolean useBucket() {
+        ItemStack held = inventory.getCurrentItem();
+        if (held == null) return false;
+        String name = held.item().name().path();
+        boolean empty = name.equals("bucket");
+        if (!empty && !name.equals("water_bucket") && !name.equals("lava_bucket")) return false;
+        WorldRenderer.Hit hit = WorldRenderer.raycast(world, player.x, player.eyeY(), player.z,
+            player.dirX(), player.dirY(), player.dirZ(), 5.0, empty);
+        if (hit == null || levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return true;
+        if (empty) {
+            BlockState state = world.getState(hit.x(), hit.y(), hit.z());
+            String liquid = net.minecraft.block.Liquids.liquid(state.block());
+            if (liquid == null || state.metadata() != 0) return true;
+            world.setStateAndUpdate(hit.x(), hit.y(), hit.z(), BlockState.of(blockRegistry.air(), 0));
+            if (isCreative()) return true;
+            ItemStack full = new ItemStack(itemRegistry.get("minecraft:" + liquid + "_bucket"));
+            if (held.count() <= 1) {
+                inventory.mainInventory[inventory.currentItem] = full;
+            } else {
+                held.split(1);
+                if (!inventory.addItemStackToInventory(full)) dropPlayerItem(full);
+            }
+            return true;
+        }
+        int x = hit.x() + hit.face().xOffset, y = hit.y() + hit.face().yOffset, z = hit.z() + hit.face().zOffset;
+        if (!world.inBounds(x, y, z)) return true;
+        BlockState target = world.getState(x, y, z);
+        boolean nonSolid = !net.minecraft.block.Liquids.isSolid(target.block());
+        if (!target.block().isAir() && !nonSolid) return true;
+        if (nonSolid && !target.block().isAir() && !net.minecraft.block.Liquids.isLiquid(target.block())) {
+            if (particles != null) particles.addBlockDestroyEffects(x, y, z, target);
+            playBreakSound(x, y, z, target);
+            dropBlock(x, y, z, target);
+        }
+        Block liquid = blockRegistry.get(name.equals("water_bucket") ? "minecraft:flowing_water" : "minecraft:flowing_lava");
+        world.setStateAndUpdate(x, y, z, BlockState.of(liquid, 0));
+        if (!isCreative()) inventory.mainInventory[inventory.currentItem] = new ItemStack(itemRegistry.get("minecraft:bucket"));
+        return true;
+    }
+
+    /**
+     * Right-click on a block that opens something (Block.onBlockActivated):
+     * a crafting table opens the 3x3 grid, unless the player sneaks with
+     * something in hand (then the item is used or placed instead).
+     */
+    private boolean activateBlock(WorldRenderer.Hit hit) {
+        if (hit == null || player.sneaking && inventory.getCurrentItem() != null) return false;
+        if (world.get(hit.x(), hit.y(), hit.z()).name().path().equals("crafting_table")) {
+            displayGuiScreen(new net.minecraft.client.gui.GuiCrafting(hit.x(), hit.y(), hit.z()));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Right-click with an item that is used by holding (ItemSword.onItemRightClick):
+     * a sword goes up to block for as long as the key is held (72000 ticks
+     * at most) and the hand dips and rises again (resetEquippedProgress2).
+     * Returns whether anything started.
+     */
+    private boolean useHeldItem() {
+        ItemStack held = inventory.getCurrentItem();
+        if (held == null || held.item().useAction() != Item.UseAction.BLOCK) return false;
+        player.setItemInUse(held, 72000);
+        firstPersonRenderer.resetEquippedProgress();
+        return true;
+    }
+
+    /** Drops a block's items where it stood (Block.dropBlockAsItem), if tile drops are on. */
+    private void dropBlock(int x, int y, int z, BlockState previous) {
+        if (!dropsEnabled()) return;
+        Block block = previous.block();
+        for (ItemStack drop : blockDrops.drops(block.name().path(), block.material(), previous.metadata(), null, random))
+            spawnItem(EntityItem.fromBlock(world, x, y, z, drop, random));
+    }
+
     /** A block broke because its support went: it drops as if broken by hand (not in Creative for the other half of a pair). */
     private void blockPopped(int x, int y, int z, BlockState previous) {
+        if (particles != null) particles.addBlockDestroyEffects(x, y, z, previous);
+        playBreakSound(x, y, z, previous);
         if (!dropsEnabled()) return;
         Block block = previous.block();
         int meta = previous.metadata();
@@ -1461,6 +1961,11 @@ public final class Minecraft implements GuiContext {
                     world.setState(placement.x(), placement.y(), placement.z(), placement.state());
                 for (BlockPlacement.Placement placement : placements)
                     BlockUpdates.afterChange(world, placement.x(), placement.y(), placement.z());
+                // ItemBlock.onItemUse: the placed block's place sound at (volume + 1) / 2, frequency x 0.8.
+                BlockPlacement.Placement first = placements.get(0);
+                net.minecraft.block.BlockSoundType type = net.minecraft.block.BlockSoundType.of(first.state().block());
+                playSound(type.placeSound(), first.x() + 0.5, first.y() + 0.5, first.z() + 0.5,
+                    (type.volume() + 1f) / 2f, type.frequency() * 0.8f);
                 if (!isCreative()) inventory.consumeCurrentItem();
                 return true;
             }
@@ -1567,7 +2072,6 @@ public final class Minecraft implements GuiContext {
         @Override public float pitch() { return player.pitch; }
         @Override public void teleport(double x, double y, double z, float yaw, float pitch) {
             player.setPositionAndRotation(x, y, z, yaw - 180f, pitch);
-            player.velocityX = player.velocityY = player.velocityZ = 0;
         }
         @Override public WorldSettings.GameType gameType() { return levelInfo.gameType; }
         @Override public void setGameType(WorldSettings.GameType type) {
@@ -1600,6 +2104,15 @@ public final class Minecraft implements GuiContext {
     }
     @Override public ItemRenderer itemRenderer() { return itemRenderer; }
     @Override public CreativeTabs creativeTabs() { return creativeTabs; }
+    @Override public net.minecraft.item.crafting.CraftingManager crafting() { return crafting; }
+    @Override public Item itemByName(String name) {
+        return itemRegistry == null ? null : itemRegistry.get(new net.minecraft.util.ResourceLocation("minecraft", name));
+    }
+    @Override public boolean canInteractWith(int x, int y, int z, String block) {
+        if (world == null || player == null || player.dead || !world.get(x, y, z).name().path().equals(block)) return false;
+        double dx = player.x - (x + 0.5), dy = player.y - (y + 0.5), dz = player.z - (z + 0.5);
+        return dx * dx + dy * dy + dz * dz <= 64.0;
+    }
     @Override public InventoryPlayer playerInventory() { return inventory; }
     @Override public boolean isCreative() { return levelInfo != null && levelInfo.gameType == WorldSettings.GameType.CREATIVE; }
     @Override public FontRenderer font() { return fontRenderer; }
@@ -1617,7 +2130,7 @@ public final class Minecraft implements GuiContext {
     @Override public boolean isKeyDown(int glfwKey) { return glfwGetKey(window, glfwKey) == GLFW_PRESS; }
 
     /** No audio output exists yet, so the button click is silent (DEV-010). */
-    @Override public void playClickSound() {}
+    @Override public void playClickSound() { if (soundHandler != null) soundHandler.playUi("gui.button.press", 1f); }
 
     @Override public String getClipboard() {
         String text = glfwGetClipboardString(window);

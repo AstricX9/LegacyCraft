@@ -187,6 +187,15 @@ public class GuiContainerCreative extends GuiContainer {
         return mouseX >= left && mouseY >= top && mouseX < left + 14 && mouseY < top + 112;
     }
 
+    /**
+     * Once a frame: while the button that pressed the scrollbar is held, the
+     * thumb's middle follows the pointer (GuiContainerCreative.drawScreen), so
+     * dragging works even when the pointer leaves the bar.
+     */
+    void followScrollbar(int mouseY) {
+        if (isScrolling) dragScrollbar(mouseY);
+    }
+
     private void dragScrollbar(int mouseY) {
         int top = guiTop + 18, bottom = top + 112;
         currentScroll = (mouseY - top - 7.5f) / ((bottom - top) - 15.0f);
@@ -228,11 +237,6 @@ public class GuiContainerCreative extends GuiContainer {
         super.mouseClicked(mouseX, mouseY, button);
     }
 
-    @Override
-    public void mouseDragged(int mouseX, int mouseY, int button, long time) {
-        super.mouseDragged(mouseX, mouseY, button, time);
-        if (isScrolling) dragScrollbar(mouseY);
-    }
 
     @Override
     public void mouseReleased(int mouseX, int mouseY, int button) {
@@ -377,6 +381,7 @@ public class GuiContainerCreative extends GuiContainer {
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        followScrollbar(mouseY);
         super.drawScreen(mouseX, mouseY, partialTicks);
         for (CreativeTabs.Tab tab : tabs().tabs()) {
             if (isOverTab(tab, mouseX - guiLeft, mouseY - guiTop)) {

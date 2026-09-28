@@ -4,6 +4,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.BlockUpdates;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeRegistry;
 import net.minecraft.world.biome.BiomeSource;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 
 /** Infinite horizontal world backed by lazily generated 16x16x16 chunk sections. */
 public final class World implements IBlockWorld {
@@ -44,6 +46,43 @@ public final class World implements IBlockWorld {
         default void chunkChanged(int chunkX, int chunkZ) {}
     }
     private final LightEngine light;
+
+    /**
+     * What world-side block logic asks the game to do: drop what liquid washed
+     * away, show lava hardening, drop a block that lost its support.
+     */
+    public interface Events {
+        /** Liquid flowed over a block (BlockDynamicLiquid dropBlockAsItem). */
+        default void washedAway(int x, int y, int z, BlockState previous) {}
+        /** Lava met water here (BlockLiquid.triggerMixEffects: fizz and large smoke). */
+        default void liquidsMixed(int x, int y, int z) {}
+        /** A block broke because a gameplay change took its support. */
+        default void popped(int x, int y, int z, BlockState previous) {}
+    }
+    private Events events = new Events() {};
+
+    /**
+     * A pending block tick (NextTickListEntry): due at a world tick, ordered
+     * by due time, then priority, then scheduling order; one per position and
+     * block at a time.
+     */
+    public record ScheduledTick(int x, int y, int z, Block block, long due, int priority, long order)
+        implements Comparable<ScheduledTick> {
+        @Override public int compareTo(ScheduledTick other) {
+            if (due != other.due) return Long.compare(due, other.due);
+            if (priority != other.priority) return Integer.compare(priority, other.priority);
+            return Long.compare(order, other.order);
+        }
+        TickKey key() { return new TickKey(x, y, z, block.registryId()); }
+    }
+    /** Most scheduled ticks run per world tick (WorldServer.tickUpdates). */
+    public static final int MAX_TICKS_PER_TICK = 1000;
+    private final TreeSet<ScheduledTick> scheduled = new TreeSet<>();
+    private record TickKey(int x, int y, int z, int block) {}
+    private final Set<TickKey> scheduledKeys = new java.util.HashSet<>();
+    private long tickTime, nextTickOrder;
+    private final Random tickRandom = new Random();
+    private final LiquidFlow liquids;
 
     private final Block air, grass, bedrock;
     private final GenBlocks genBlocks;
@@ -84,6 +123,7 @@ public final class World implements IBlockWorld {
         generator = flat == null ? new ChunkGenerator(genBlocks, biomeRegistry, biomes.layers(), seed) : null;
         populator = new ChunkPopulator(genBlocks, seed);
         light = new LightEngine(this, registry);
+        liquids = new LiquidFlow(this, registry);
     }
 
     @Override
@@ -124,7 +164,72 @@ public final class World implements IBlockWorld {
         Block now = state.block();
         if (old.lightOpacity() != now.lightOpacity() || old.lightLevel() != now.lightLevel()) light.blockChanged(x, y, z);
         for (Listener listener : listeners) listener.blockChanged(x, y, z);
+        // Block.onBlockAdded: only liquids react so far.
+        if (old != now) liquids.added(x, y, z, state);
     }
+
+    @Override
+    public void neighbourChanged(int x, int y, int z, BlockState state) {
+        liquids.neighbourChanged(x, y, z, state);
+    }
+
+    /** Lets the six neighbours react to a change here (notifyNeighborsOfStateChange). */
+    public void notifyNeighbours(int x, int y, int z) {
+        BlockUpdates.afterChange(this, x, y, z, events::popped);
+    }
+
+    public void setEvents(Events events) { this.events = events == null ? new Events() {} : events; }
+    public Events events() { return events; }
+
+    /**
+     * Asks for {@code block} at the position to tick after {@code delay}
+     * world ticks, unless that position already waits for the same block
+     * (World.scheduleUpdate).
+     */
+    public void scheduleUpdate(int x, int y, int z, Block block, int delay) { scheduleUpdate(x, y, z, block, delay, 0); }
+
+    public void scheduleUpdate(int x, int y, int z, Block block, int delay, int priority) {
+        if (!inBounds(x, y, z)) return;
+        ScheduledTick tick = new ScheduledTick(x, y, z, block, tickTime + delay, priority, nextTickOrder++);
+        if (scheduledKeys.add(tick.key())) scheduled.add(tick);
+    }
+
+    public boolean isScheduled(int x, int y, int z, Block block) {
+        return scheduledKeys.contains(new TickKey(x, y, z, block.registryId()));
+    }
+
+    /** Pending ticks in due order, with their due time relative to now (for saving). */
+    public List<ScheduledTick> scheduledTicks() {
+        List<ScheduledTick> result = new ArrayList<>();
+        for (ScheduledTick tick : scheduled)
+            result.add(new ScheduledTick(tick.x(), tick.y(), tick.z(), tick.block(), tick.due() - tickTime, tick.priority(), tick.order()));
+        return result;
+    }
+
+    /** World ticks run so far this session (the clock scheduled ticks are due on). */
+    public long tickTime() { return tickTime; }
+
+    /**
+     * One world tick: the clock advances, then up to 1000 due scheduled ticks
+     * run, oldest first, each only if its block is still there and its chunk
+     * is generated. Ticks they schedule wait for a later tick.
+     */
+    public void tick() {
+        tickTime++;
+        List<ScheduledTick> due = new ArrayList<>();
+        while (!scheduled.isEmpty() && due.size() < MAX_TICKS_PER_TICK && scheduled.first().due() <= tickTime) {
+            ScheduledTick tick = scheduled.pollFirst();
+            scheduledKeys.remove(tick.key());
+            due.add(tick);
+        }
+        for (ScheduledTick tick : due) {
+            if (generatedChunk(floorDiv(tick.x(), Chunk.SIZE), floorDiv(tick.z(), Chunk.SIZE)) == null) continue;
+            BlockState state = getState(tick.x(), tick.y(), tick.z());
+            if (state.block() != tick.block() || state.block().isAir()) continue;
+            if (liquids.isFlowing(state.block())) liquids.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
+        }
+    }
+
 
     /** Sky light (0-15) at a position; the sky above the world is fully lit. */
     public int getSkyLight(int x, int y, int z) {
@@ -164,7 +269,7 @@ public final class World implements IBlockWorld {
     public void setStateAndUpdate(int x, int y, int z, BlockState state) {
         if (!inBounds(x, y, z)) return;
         setState(x, y, z, state);
-        BlockUpdates.afterChange(this, x, y, z);
+        BlockUpdates.afterChange(this, x, y, z, events::popped);
     }
 
     public Chunk getChunk(int chunkX, int chunkZ) {
@@ -189,6 +294,58 @@ public final class World implements IBlockWorld {
         nextGenerationIndex = Math.max(nextGenerationIndex, chunk.generationIndex() + 1);
         light.lightChunk(chunk);
     }
+
+    /**
+     * Whether any generated block of the material ("water", "lava", "fire",
+     * ...) lies in the cells the box covers, counted the way 1.8.9's
+     * isMaterialInBB/handleMaterialAcceleration count them: from
+     * floor(min) up to but not including floor(max + 1) on each axis, so
+     * boxes that callers shrink until they are inside-out reach only some
+     * rows (HYPOTHESIS; this quirk decides when small entities are "in"
+     * water or lava).
+     */
+    public boolean isMaterialInBox(AxisAlignedBB box, String material) {
+        int minX = floorInt(box.minX()), maxX = floorInt(box.maxX() + 1.0);
+        int minY = floorInt(box.minY()), maxY = floorInt(box.maxY() + 1.0);
+        int minZ = floorInt(box.minZ()), maxZ = floorInt(box.maxZ() + 1.0);
+        for (int x = minX; x < maxX; x++)
+            for (int y = Math.max(0, minY); y < Math.min(HEIGHT, maxY); y++)
+                for (int z = minZ; z < maxZ; z++) {
+                    if (generatedChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE)) == null) continue;
+                    if (get(x, y, z).material().equals(material)) return true;
+                }
+        return false;
+    }
+
+    /**
+     * World.handleMaterialAcceleration: whether the box touches the liquid (as
+     * {@link #isMaterialInBox}) and the sum of the flow vectors of the liquid
+     * blocks it touches, or null when it touches none. Entities pushed by
+     * water add the normalised sum times 0.014 to their motion each tick.
+     */
+    public double[] liquidCurrent(AxisAlignedBB box, String material) {
+        int minX = floorInt(box.minX()), maxX = floorInt(box.maxX() + 1.0);
+        int minY = floorInt(box.minY()), maxY = floorInt(box.maxY() + 1.0);
+        int minZ = floorInt(box.minZ()), maxZ = floorInt(box.maxZ() + 1.0);
+        boolean inside = false;
+        double[] sum = new double[3];
+        for (int x = minX; x < maxX; x++)
+            for (int y = Math.max(0, minY); y < Math.min(HEIGHT, maxY); y++)
+                for (int z = minZ; z < maxZ; z++) {
+                    if (generatedChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE)) == null) continue;
+                    BlockState state = getState(x, y, z);
+                    if (!state.block().material().equals(material)) continue;
+                    if (maxY < y + 1 - net.minecraft.block.Liquids.heightPercent(state.metadata())) continue;
+                    inside = true;
+                    double[] flow = net.minecraft.block.Liquids.flowVector(this, x, y, z, material);
+                    sum[0] += flow[0];
+                    sum[1] += flow[1];
+                    sum[2] += flow[2];
+                }
+        return inside ? sum : null;
+    }
+
+    private static int floorInt(double value) { return (int) Math.floor(value); }
 
     public int surfaceHeight(int x, int z) {
         Chunk chunk = getChunk(floorDiv(x, Chunk.SIZE), floorDiv(z, Chunk.SIZE));

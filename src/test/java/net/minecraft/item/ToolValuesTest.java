@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ToolValuesTest {
+/** Tool rules: tool types, harvest levels, break times and wear. */
+final class ToolValuesTest {
     private final Item woodPick = TestItems.item("wooden_pickaxe", 1, 59), stonePick = TestItems.item("stone_pickaxe", 1, 131);
     private final Item ironPick = TestItems.item("iron_pickaxe", 1, 250), diamondPick = TestItems.item("diamond_pickaxe", 1, 1561);
     private final Item goldPick = TestItems.item("golden_pickaxe", 1, 32), ironAxe = TestItems.item("iron_axe", 1, 250);

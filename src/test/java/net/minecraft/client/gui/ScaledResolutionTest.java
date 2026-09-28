@@ -2,9 +2,10 @@ package net.minecraft.client.gui;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ScaledResolutionTest {
+/** GUI scale selection: the automatic scale, a configured scale, and the even scale of Unicode mode. */
+final class ScaledResolutionTest {
     @Test
     void automaticScaleHonorsMinimumLogicalResolution() {
         ScaledResolution resolution = new ScaledResolution(1280, 720, 0, false);

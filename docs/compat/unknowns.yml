@@ -458,3 +458,58 @@
     fast graphics; compare sky, fog, star and cloud pixels.
   owner: unassigned
   status: open
+
+- question: >
+    Liquids: BlockDynamicLiquid.updateTick order and constants (level steps
+    1/2, tick rates 5/30, the lava 4x slow-down on 3 of 4 rising updates,
+    the 4-block drop search, infinite water over solid or source), the
+    lava/water hardening cases, what liquids flow into (Material.
+    blocksMovement plus doors, signs, ladders, sugar cane, portals), the
+    BlockFluidRenderer corner-height weights, texture rotation and face
+    lighting, the flow vector used for currents (0.014 a tick), and why a
+    Creative player's fire never burns down.
+  why_it_matters: LiquidFlow, FluidMesher and Liquids are HYPOTHESIS.
+  current_hypothesis: As coded in world/LiquidFlow, block/Liquids and client/renderer/FluidMesher.
+  evidence: >
+    Self-consistency only (LiquidFlowTest, FluidMesherTest); the Creative
+    fire behaviour is the user's observation of vanilla.
+  vanilla_test_needed: >
+    Pour water and lava on a flat superflat floor in vanilla 1.8.9 and
+    LegacyCraft; compare the spread shape, levels (F3 targeted block data),
+    timing in ticks, and screenshots of the slopes and flow texture; time a
+    Creative player's fire after leaving lava.
+  owner: unassigned
+  status: open
+
+- question: >
+    Sound details: each block's Block.SoundType in 1.8.9 (BlockSoundType is
+    recalled and partly inferred from the material), the footstep, swim,
+    splash, fizz and ambience volumes and pitches, paulscode's channel count
+    (28 assumed) and what it does when every channel is busy (new sounds are
+    dropped here), whether music pauses in the pause menu, the cave
+    ambience's chunk radius (7 assumed) and the MusicTicker delays.
+  why_it_matters: BlockSoundType, SoundHandler, MusicTicker and the sound calls in Player/Minecraft are HYPOTHESIS.
+  current_hypothesis: As coded.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Walk, mine, place and swim on each block type in vanilla 1.8.9 and
+    LegacyCraft with sound subtitles or a recording; compare events, timing
+    and loudness. Note how long music waits between tracks.
+  owner: unassigned
+  status: open
+
+- question: >
+    The 1.8.9 recipe list: every pattern, count and ingredient (which blocks
+    accept all variants, e.g. whether granite makes stone pressure plates,
+    repeaters or comparators), the recipe order after CraftingManager's
+    sort, and the crafting result slot quirks (right-click taking half and
+    losing the rest; shift-click losing what doesn't fit).
+  why_it_matters: recipes.json and CraftingGrid are HYPOTHESIS.
+  current_hypothesis: As written in recipes.json and CraftingGrid.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Try each recipe in vanilla 1.8.9 (or compare against a recipe list
+    exported from the game), including stone variants and mixed planks,
+    and right-click / shift-click the result with a nearly full inventory.
+  owner: unassigned
+  status: open

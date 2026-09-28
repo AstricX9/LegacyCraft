@@ -3,18 +3,19 @@ package net.minecraft.client.renderer.block.model;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.util.Direction;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ModelBakerTest {
-    private final ClasspathResourceManager resources = new ClasspathResourceManager();
-    private final BlockRegistry blocks = BlockRegistry.load(resources);
+/** Model baking: variant x/y rotations, log axes, element rotation and weighted variants (VERIFIED_FORMAT against the supplied 1.8.9 models). */
+final class ModelBakerTest {
+    private final ClasspathResourceManager resources = GameData.resources();
+    private final BlockRegistry blocks = GameData.blocks();
     private final BlockModelManager models = new BlockModelManager(resources, blocks);
 
     private BakedModel model(String block, int meta) { return models.getModel(BlockState.of(blocks.get(block), meta)); }

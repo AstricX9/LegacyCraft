@@ -1,19 +1,17 @@
 package net.minecraft.server;
 
-import net.minecraft.block.BlockRegistry;
-import net.minecraft.client.resources.ClasspathResourceManager;
-import net.minecraft.world.biome.BiomeRegistry;
 import net.minecraft.entity.Entity;
+import net.minecraft.testing.GameData;
 import net.minecraft.world.World;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
-class IntegratedServerTest {
+/** The integrated server ticks entities and removes dead ones. */
+final class IntegratedServerTest {
     @Test
     void ticksAndRemovesEntitiesAuthoritatively() {
-        World world = new World(BlockRegistry.load(new ClasspathResourceManager()), BiomeRegistry.load(new ClasspathResourceManager(), BlockRegistry.load(new ClasspathResourceManager())), 1L);
+        World world = GameData.newWorld(1L);
         IntegratedServer server = new IntegratedServer(world);
         Entity entity = new Entity(world, 0, 70, 0) {
             @Override public void tick() { remove(); }

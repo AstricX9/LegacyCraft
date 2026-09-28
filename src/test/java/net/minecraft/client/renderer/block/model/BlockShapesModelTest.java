@@ -6,14 +6,14 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.state.ActualState;
 import net.minecraft.block.state.TestBlockAccess;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.util.AxisAlignedBB;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Where a block's hit box is simply the shape it is drawn with (slabs,
@@ -21,9 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * independent evidence for the box: the selection box must equal the
  * bounds of the baked model for every state.
  */
-class BlockShapesModelTest {
-    private final ClasspathResourceManager resources = new ClasspathResourceManager();
-    private final BlockRegistry blocks = BlockRegistry.load(resources);
+final class BlockShapesModelTest {
+    private final ClasspathResourceManager resources = GameData.resources();
+    private final BlockRegistry blocks = GameData.blocks();
     private final BlockModelManager models = new BlockModelManager(resources, blocks);
 
     @Test

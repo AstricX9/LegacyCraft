@@ -2,7 +2,7 @@ package net.minecraft.world.gen;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.BiomeRegistry;
 import net.minecraft.world.chunk.Chunk;
@@ -16,10 +16,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Self-consistency and sanity checks for the vanilla-shaped generator:
@@ -27,11 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * bedrock floor, carved caves, and population actually placing features.
  * Fidelity to real 1.8.9 worlds is the oracle tests' job (unknowns.yml).
  */
-class TerrainGenerationTest {
+final class TerrainGenerationTest {
     private static final long SEED = 20260926L;
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
-    private final GenBlocks gen = new GenBlocks(blocks);
+    private final BlockRegistry blocks = GameData.blocks();
+    private final BiomeRegistry biomes = GameData.biomes();
+    private final GenBlocks gen = GameData.genBlocks();
 
     private ChunkGenerator generator() { return new ChunkGenerator(gen, biomes, new BiomeLayers(SEED), SEED); }
 
@@ -101,7 +98,7 @@ class TerrainGenerationTest {
 
     @Test
     void populationPlacesOresAndMarksChunks() {
-        World world = new World(blocks, biomes, SEED);
+        World world = GameData.newWorld(SEED);
         for (int cx = -2; cx <= 2; cx++) for (int cz = -2; cz <= 2; cz++) world.getChunk(cx, cz);
         Chunk centre = world.getChunk(0, 0);
         assertTrue(centre.isPopulated());
@@ -120,7 +117,7 @@ class TerrainGenerationTest {
     @Test
     void populatedFlagSurvivesSaving() throws Exception {
         Path directory = Files.createTempDirectory("lc-populated");
-        World world = new World(blocks, biomes, SEED);
+        World world = GameData.newWorld(SEED);
         for (int cx = 0; cx <= 1; cx++) for (int cz = 0; cz <= 1; cz++) world.getChunk(cx, cz);
         WorldStorage.save(directory, world);
         World restored = WorldStorage.load(directory, blocks, biomes);

@@ -3,12 +3,12 @@ package net.minecraft.world.storage.anvil;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.resources.ClasspathResourceManager;
 import net.minecraft.nbt.NbtTag;
+import net.minecraft.testing.GameData;
+import net.minecraft.testing.Oracle;
+import net.minecraft.testing.VanillaWorld;
 import net.minecraft.world.World;
-import net.minecraft.world.biome.BiomeRegistry;
 import net.minecraft.world.chunk.Chunk;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Checks our block rules against a world the real 1.8.9 server built
@@ -30,10 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * cocoa on a jungle log. A violation means our metadata layout or our
  * support rule is wrong, not that vanilla is.
  */
-class VanillaStateRulesTest {
-    private static final Path WORLD = Path.of(System.getProperty("legacycraft.vanillaWorld", "C:/Server/world"));
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
+@Oracle
+final class VanillaStateRulesTest {
+    private static final Path WORLD = VanillaWorld.PATH;
+    private final BlockRegistry blocks = GameData.blocks();
 
     private static String describe(World world, BlockState state, int x, int y, int z) {
         StringBuilder text = new StringBuilder(state.block().name().path() + state.values() + " at " + x + "," + y + "," + z
@@ -47,7 +47,7 @@ class VanillaStateRulesTest {
 
     @Test
     void everyBlockVanillaPlacedSatisfiesOurRules() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(WORLD.resolve("region")), "no vanilla 1.8.9 world at " + WORLD);
+        VanillaWorld.assumePresent();
         Map<String, Integer> violations = new TreeMap<>(), census = new TreeMap<>();
         Map<String, String> examples = new LinkedHashMap<>();
         long checked = 0;
@@ -58,7 +58,7 @@ class VanillaStateRulesTest {
         // One region at a time so a big world does not have to fit in memory at once.
         for (Path file : regionFiles) {
         RegionFile region = RegionFile.open(file);
-        World world = new World(blocks, biomes, 0L);
+        World world = GameData.newWorld(0L);
         boolean[][] populated = new boolean[RegionFile.CHUNKS][RegionFile.CHUNKS];
         int loaded = 0;
         for (int cx = 0; cx < RegionFile.CHUNKS; cx++) {

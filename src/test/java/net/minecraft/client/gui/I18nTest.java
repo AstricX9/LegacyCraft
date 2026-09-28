@@ -9,7 +9,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class I18nTest {
+/** Lang file parsing and argument formatting. */
+final class I18nTest {
     @Test
     void parsesLangFilesAndFormatsArguments() throws Exception {
         Map<String, String> table = new HashMap<>();

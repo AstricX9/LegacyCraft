@@ -5,7 +5,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.lwjgl.glfw.GLFW.*;
 
-class GuiTextFieldTest {
+/** Text field editing: the length limit, refused characters, deletion, selection and the clipboard. */
+final class GuiTextFieldTest {
     private static GuiTextField field() {
         GuiTextField field = new GuiTextField(0, new FontRenderer(null), 0, 0, 200, 20);
         field.setFocused(true);

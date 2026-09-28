@@ -5,12 +5,10 @@ import net.minecraft.block.BlockState;
 import net.minecraft.client.resources.ClasspathResourceManager;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class ItemRegistryTest {
+/** The item registry loader: indexed per-item definitions and variant items' placed metadata. */
+final class ItemRegistryTest {
     @Test
     void loadsIndexedPerItemDefinitions() {
         var resources = new ClasspathResourceManager();

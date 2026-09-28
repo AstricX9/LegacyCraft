@@ -1,11 +1,11 @@
 package net.minecraft.client.renderer;
 
-import net.minecraft.block.BlockRegistry;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.world.biome.BiomeRegistry;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The colour-map lookup is checked against the grass and foliage colours 1.8
@@ -13,10 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * "Grass colour" / "Foliage colour"): the supplied colour maps plus this
  * lookup must reproduce them exactly.
  */
-class BiomeColorsTest {
-    private final ClasspathResourceManager resources = new ClasspathResourceManager();
-    private final BlockRegistry blocks = BlockRegistry.load(resources);
-    private final BiomeRegistry biomes = BiomeRegistry.load(resources, blocks);
+final class BiomeColorsTest {
+    private final ClasspathResourceManager resources = GameData.resources();
+    private final BiomeRegistry biomes = GameData.biomes();
     private final BiomeColors colors = BiomeColors.load(resources);
 
     private void assertGrass(int expected, String biome) {

@@ -1,14 +1,14 @@
 package net.minecraft.block.state;
 
 import net.minecraft.block.BlockRegistry;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Neighbour-derived properties computed by each block class's actualState. */
-class ActualStateTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
+final class ActualStateTest {
+    private final BlockRegistry blocks = GameData.blocks();
 
     private TestBlockAccess world() { return new TestBlockAccess(blocks); }
 

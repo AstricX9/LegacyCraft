@@ -1,17 +1,21 @@
 package net.minecraft.block;
 
 import net.minecraft.block.state.TestBlockAccess;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.util.Direction;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class BlockPlacementTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
+/**
+ * The state a held block takes when placed: log axes, stair facing and
+ * flipping, slab merging, wall torches, player-facing blocks, two-block doors
+ * and plants, and refused placements.
+ */
+final class BlockPlacementTest {
+    private final BlockRegistry blocks = GameData.blocks();
 
     /** Clicks a face of the stone block at the origin while looking in {@code facing}. */
     private List<BlockPlacement.Placement> click(TestBlockAccess world, String block, int meta,

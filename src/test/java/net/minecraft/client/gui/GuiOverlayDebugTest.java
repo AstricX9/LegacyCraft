@@ -8,7 +8,11 @@ import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GuiOverlayDebugTest {
+/**
+ * The F3 screen text: the left-column formats, facing, the targeted block,
+ * reduced debug info and local difficulty.
+ */
+final class GuiOverlayDebugTest {
     private static GuiOverlayDebug.Snapshot snapshot(double x, double y, double z, float yaw, GuiOverlayDebug.Target target, boolean reduced) {
         return new GuiOverlayDebug.Snapshot(60, 3, 81, 81, 4, 0, 0, 0, 289,
             x, y, z, yaw, 12.5f, "Plains", true, 15, 3, 1.5f, 30000L, target, reduced,

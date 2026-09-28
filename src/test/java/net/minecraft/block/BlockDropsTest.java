@@ -14,7 +14,11 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class BlockDropsTest {
+/**
+ * What breaking a block drops: tool requirements, ores, self-drops, snow
+ * layers, leaves and shears, crops and double plants.
+ */
+final class BlockDropsTest {
     private BlockDrops drops;
     private final Item woodPick = TestItems.item("wooden_pickaxe", 1, 59);
     private final Item ironPick = TestItems.item("iron_pickaxe", 1, 250);

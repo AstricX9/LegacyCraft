@@ -112,6 +112,16 @@ public final class SkyRenderer {
      */
     public static float[] fogColor(float angle, float[] sky, double lookX, double lookY, double lookZ,
                                    int renderDistanceChunks, float lightFactor, double feetY, boolean flat) {
+        return fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, lightFactor, feetY, flat, null);
+    }
+
+    /**
+     * As above, with the camera inside a liquid ({@code "water"} or
+     * {@code "lava"}): the fog becomes dark blue (0.02, 0.02, 0.2) or red
+     * (0.6, 0.1, 0) before the darkening and void fade apply.
+     */
+    public static float[] fogColor(float angle, float[] sky, double lookX, double lookY, double lookZ,
+                                   int renderDistanceChunks, float lightFactor, double feetY, boolean flat, String liquid) {
         float[] fog = baseFogColor(angle);
         if (renderDistanceChunks >= 4) {
             double side = Math.sin(angle * Math.PI * 2) > 0 ? -1 : 1;
@@ -123,7 +133,10 @@ public final class SkyRenderer {
             }
         }
         float toSky = 1f - (float) Math.pow(0.25f + 0.75f * renderDistanceChunks / 32f, 0.25);
-        for (int c = 0; c < 3; c++) fog[c] = (fog[c] + (sky[c] - fog[c]) * toSky) * lightFactor;
+        for (int c = 0; c < 3; c++) fog[c] = fog[c] + (sky[c] - fog[c]) * toSky;
+        if ("water".equals(liquid)) fog = new float[]{0.02f, 0.02f, 0.2f};
+        else if ("lava".equals(liquid)) fog = new float[]{0.6f, 0.1f, 0.0f};
+        for (int c = 0; c < 3; c++) fog[c] *= lightFactor;
         double voidFactor = feetY * (flat ? 1.0 : 0.03125);
         if (voidFactor < 1.0) {
             if (voidFactor < 0) voidFactor = 0;
@@ -156,13 +169,13 @@ public final class SkyRenderer {
 
     /** Computes this frame's sky and fog colours; returns the fog colour, which is also the clear colour. */
     public float[] prepare(long worldTime, float partialTicks, float temperature, double lookX, double lookY, double lookZ,
-                           int renderDistanceChunks, double feetY, boolean flat) {
+                           int renderDistanceChunks, double feetY, boolean flat, String liquid) {
         angle = celestialAngle(worldTime, partialTicks);
         sunrise = sunriseColor(angle);
         float[] sky = skyColor(angle, temperature);
         skyR = sky[0]; skyG = sky[1]; skyB = sky[2];
         float light = previousFogLight + (fogLight - previousFogLight) * partialTicks;
-        float[] fog = fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, light, feetY, flat);
+        float[] fog = fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, light, feetY, flat, liquid);
         fogR = fog[0]; fogG = fog[1]; fogB = fog[2];
         return fog;
     }
@@ -177,7 +190,10 @@ public final class SkyRenderer {
     public void renderSky(long worldTime, double eyeY) {
         if (skyList < 0) buildLists();
         glDisable(GL_TEXTURE_2D);
-        glDisable(GL_CULL_FACE);
+        // Culled as in vanilla: the sky and void planes are one-sided, so the
+        // dark void plane is hidden when the eye is below it (under y=63).
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
         glDepthMask(false);
         glEnable(GL_FOG);
         glColor3f(skyR, skyG, skyB);
@@ -235,7 +251,9 @@ public final class SkyRenderer {
         float stars = starBrightness(angle);
         if (stars > 0f) {
             glColor4f(stars, stars, stars, stars);
+            glDisable(GL_CULL_FACE);
             glCallList(starList);
+            glEnable(GL_CULL_FACE);
         }
         glColor4f(1f, 1f, 1f, 1f);
         glDisable(GL_BLEND);
@@ -253,6 +271,7 @@ public final class SkyRenderer {
             glCallList(voidList);
             glPopMatrix();
             float top = -1f, bottom = -(float) (belowHorizon + 65.0);
+            glDisable(GL_CULL_FACE);
             glBegin(GL_QUADS);
             glVertex3f(-1, bottom, 1); glVertex3f(1, bottom, 1); glVertex3f(1, top, 1); glVertex3f(-1, top, 1);
             glVertex3f(-1, top, -1); glVertex3f(1, top, -1); glVertex3f(1, bottom, -1); glVertex3f(-1, bottom, -1);
@@ -260,12 +279,14 @@ public final class SkyRenderer {
             glVertex3f(-1, bottom, -1); glVertex3f(-1, bottom, 1); glVertex3f(-1, top, 1); glVertex3f(-1, top, -1);
             glVertex3f(-1, bottom, -1); glVertex3f(-1, bottom, 1); glVertex3f(1, bottom, 1); glVertex3f(1, bottom, -1);
             glEnd();
+            glEnable(GL_CULL_FACE);
         }
         glColor3f(skyR * 0.2f + 0.04f, skyG * 0.2f + 0.04f, skyB * 0.6f + 0.1f);
         glPushMatrix();
         glTranslatef(0f, -(float) (belowHorizon - 16.0), 0f);
         glCallList(voidList);
         glPopMatrix();
+        glDisable(GL_CULL_FACE);
         glEnable(GL_TEXTURE_2D);
         glDepthMask(true);
         glColor4f(1f, 1f, 1f, 1f);

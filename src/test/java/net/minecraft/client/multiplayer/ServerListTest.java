@@ -6,7 +6,8 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ServerListTest {
+/** The multiplayer server list saved in servers.dat. */
+final class ServerListTest {
     @Test
     void serversDatRoundTripsNamesAddressesAndPackPolicy(Path directory) {
         Path file = directory.resolve("servers.dat");

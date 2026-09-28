@@ -1,5 +1,6 @@
 package net.minecraft.client.gui;
 
+import net.minecraft.inventory.CraftingGrid;
 import net.minecraft.inventory.InventoryPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
@@ -11,15 +12,14 @@ import net.minecraft.util.ResourceLocation;
  * grid and its result slot, 27 main slots and the hotbar. In Creative mode the
  * inventory key opens {@link GuiContainerCreative} instead.
  *
- * <p>No recipe data exists yet, so the crafting grid holds items but never
- * produces a result (DEV-015); whatever is left in the grid returns to the
- * inventory when the screen closes, as vanilla does. The player stands beside
- * the armor slots, looking toward the mouse. Slot positions are HYPOTHESIS.
+ * <p>The 2x2 grid crafts every recipe that fits in it ({@link CraftingGrid});
+ * whatever is left in the grid returns to the inventory when the screen
+ * closes, as vanilla does. The player stands beside the armor slots, looking
+ * toward the mouse. Slot positions are HYPOTHESIS.
  */
 public class GuiInventory extends GuiContainer {
     static final ResourceLocation BACKGROUND = new ResourceLocation("minecraft:textures/gui/container/inventory.png");
-    private final ItemStack[] craftMatrix = new ItemStack[4];
-    private final ItemStack[] craftResult = new ItemStack[1];
+    private CraftingGrid grid;
 
     public GuiInventory() {
         xSize = 176;
@@ -29,15 +29,12 @@ public class GuiInventory extends GuiContainer {
     @Override
     protected void buildSlots() {
         InventoryPlayer inventory = inventory();
-        slots.add(new SlotPos(new Slot() {
-            @Override public ItemStack get() { return craftResult[0]; }
-            @Override public void set(ItemStack stack) { craftResult[0] = stack; }
-            @Override public boolean accepts(ItemStack stack) { return false; }
-            @Override public int limit() { return 64; }
-        }, 144, 36, Kind.OTHER));
+        // Kept across resizes (initGui runs again) so the grid's contents survive.
+        if (grid == null) grid = new CraftingGrid(2, 2, mc.crafting(), mc::itemByName);
+        slots.add(new SlotPos(grid.resultSlot(), 144, 36, Kind.OTHER));
         for (int row = 0; row < 2; row++)
             for (int column = 0; column < 2; column++)
-                slots.add(new SlotPos(Slot.of(craftMatrix, column + row * 2), 88 + column * 18, 26 + row * 18, Kind.OTHER));
+                slots.add(new SlotPos(grid.cell(column + row * 2), 88 + column * 18, 26 + row * 18, Kind.OTHER));
         for (int i = 0; i < 4; i++)
             slots.add(new SlotPos(Slot.armor(inventory, 3 - i), 8, 8 + i * 18, Kind.ARMOR));
         for (int row = 0; row < 3; row++)
@@ -69,7 +66,7 @@ public class GuiInventory extends GuiContainer {
             if (slots[i] == null) slots[i] = stack.split(stack.count());
     }
 
-    public ItemStack[] craftMatrix() { return craftMatrix; }
+    public ItemStack[] craftMatrix() { return grid.cells(); }
 
     @Override
     protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY) {
@@ -87,12 +84,7 @@ public class GuiInventory extends GuiContainer {
     @Override
     public void onGuiClosed() {
         super.onGuiClosed();
-        for (int i = 0; i < craftMatrix.length; i++) {
-            if (craftMatrix[i] != null) {
-                inventory().addItemStackToInventory(craftMatrix[i]);
-                craftMatrix[i] = null;
-            }
-        }
+        if (grid != null) grid.returnAll(inventory(), mc::dropPlayerItem);
     }
 
     @Override

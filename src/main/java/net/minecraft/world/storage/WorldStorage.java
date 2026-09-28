@@ -27,6 +27,9 @@ public final class WorldStorage {
     /** 2 added the per-chunk "populated" flag; format 1 chunks load as populated (they were finished worlds). */
     private static final int FORMAT = 2;
     private static final String INDEX_FILE = "level.lci";
+    private static final int TICKS_MAGIC = 0x4c435454; // LCTT
+    /** Pending block ticks (vanilla keeps them per chunk as TileTicks); optional, so older saves load. */
+    private static final String TICKS_FILE = "ticks.lct";
 
     private WorldStorage() {}
     public static boolean exists(Path directory) { return Files.isRegularFile(directory.resolve(INDEX_FILE)); }
@@ -52,6 +55,42 @@ public final class WorldStorage {
             }
         }
         moveAtomically(temporary, target);
+        writeTicks(directory, world);
+    }
+
+    private static void writeTicks(Path directory, World world) throws IOException {
+        Path target = directory.resolve(TICKS_FILE);
+        Path temporary = directory.resolve(TICKS_FILE + ".tmp");
+        List<World.ScheduledTick> ticks = world.scheduledTicks();
+        try (var output = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary)))) {
+            output.writeInt(TICKS_MAGIC);
+            output.writeInt(ticks.size());
+            for (World.ScheduledTick tick : ticks) {
+                output.writeInt(tick.x());
+                output.writeInt(tick.y());
+                output.writeInt(tick.z());
+                output.writeInt(tick.block().registryId());
+                output.writeInt((int) Math.max(0, Math.min(Integer.MAX_VALUE, tick.due())));
+                output.writeInt(tick.priority());
+            }
+        }
+        moveAtomically(temporary, target);
+    }
+
+    private static void readTicks(Path directory, World world, BlockRegistry blocks) throws IOException {
+        Path source = directory.resolve(TICKS_FILE);
+        if (!Files.isRegularFile(source)) return;
+        try (var input = new DataInputStream(new BufferedInputStream(Files.newInputStream(source)))) {
+            require(input.readInt() == TICKS_MAGIC, "Invalid pending tick file");
+            int count = input.readInt();
+            require(count >= 0, "Negative pending tick count");
+            for (int i = 0; i < count; i++) {
+                int x = input.readInt(), y = input.readInt(), z = input.readInt(), id = input.readInt();
+                int delay = input.readInt(), priority = input.readInt();
+                require(id >= 0 && id < blocks.size(), "Unknown block ID " + id + " in " + source);
+                world.scheduleUpdate(x, y, z, blocks.byId(id), delay, priority);
+            }
+        }
     }
 
     public static World load(Path directory, BlockRegistry blocks, BiomeRegistry biomes) throws IOException {
@@ -73,6 +112,7 @@ public final class WorldStorage {
                 long generationIndex = input.readLong();
                 world.restoreChunk(readChunk(directory.resolve("chunks"), x, z, generationIndex, blocks.size()));
             }
+            readTicks(directory, world, blocks);
             return world;
         }
     }

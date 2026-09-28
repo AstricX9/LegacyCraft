@@ -1,14 +1,15 @@
 package net.minecraft.world.storage.anvil;
 
 import net.minecraft.block.BlockRegistry;
-import net.minecraft.client.resources.ClasspathResourceManager;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtTag;
+import net.minecraft.testing.GameData;
+import net.minecraft.testing.Oracle;
+import net.minecraft.testing.VanillaWorld;
 import net.minecraft.world.biome.BiomeRegistry;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.gen.ChunkGenerator;
 import net.minecraft.world.gen.ChunkPrimer;
-import net.minecraft.world.gen.GenBlocks;
 import net.minecraft.world.gen.TerrainGenerator;
 import net.minecraft.world.gen.layer.BiomeLayers;
 import org.junit.jupiter.api.Assumptions;
@@ -21,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Differential check of the terrain density pipeline against the world a real
@@ -32,8 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * lakes, which cut into vanilla's surface, leave a residue of columns lower
  * in vanilla than in ours. The second runs the whole terrain stage.
  */
-class VanillaTerrainTest {
-    private static final Path WORLD = Path.of(System.getProperty("legacycraft.vanillaWorld", "C:/Server/world"));
+@Oracle
+final class VanillaTerrainTest {
+    private static final Path WORLD = VanillaWorld.PATH;
 
     /** Blocks that sit on top of the ground rather than being it. */
     private static final Set<Integer> NOT_TERRAIN = Set.of(
@@ -42,11 +44,11 @@ class VanillaTerrainTest {
 
     @Test
     void ourDensityFieldPutsTheGroundWhereVanillaDid() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(WORLD.resolve("region")), "no vanilla world at " + WORLD);
+        VanillaWorld.assumePresent();
         NbtTag.Compound level = NbtIo.readCompressed(WORLD.resolve("level.dat")).getCompound("Data");
         long seed = level.getLong("RandomSeed");
-        BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-        BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
+        BlockRegistry blocks = GameData.blocks();
+        BiomeRegistry biomes = GameData.biomes();
         TerrainGenerator terrain = new TerrainGenerator(seed, new BiomeLayers(seed), biomes);
 
         long columns = 0, matches = 0, weLower = 0, weHigher = 0;
@@ -121,12 +123,12 @@ class VanillaTerrainTest {
      */
     @Test
     void ourTerrainStageMatchesVanillaChunks() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(WORLD.resolve("region")), "no vanilla world at " + WORLD);
+        VanillaWorld.assumePresent();
         NbtTag.Compound level = NbtIo.readCompressed(WORLD.resolve("level.dat")).getCompound("Data");
         long seed = level.getLong("RandomSeed");
-        BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-        BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
-        ChunkGenerator generator = new ChunkGenerator(new GenBlocks(blocks), biomes, new BiomeLayers(seed), seed);
+        BlockRegistry blocks = GameData.blocks();
+        BiomeRegistry biomes = GameData.biomes();
+        ChunkGenerator generator = new ChunkGenerator(GameData.genBlocks(), biomes, new BiomeLayers(seed), seed);
 
         long columns = 0, heightMatches = 0, weHigher = 0, weLower = 0;
         long bedrockCells = 0, bedrockMatches = 0;

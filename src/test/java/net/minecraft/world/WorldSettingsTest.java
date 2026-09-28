@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class WorldSettingsTest {
+/** Create World settings: the seed rule, the world type button and game type IDs. */
+final class WorldSettingsTest {
     @Test
     void seedTextFollowsTheCreateWorldRule() {
         assertEquals(99L, WorldSettings.parseSeed("", 99L));

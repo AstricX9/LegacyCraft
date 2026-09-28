@@ -4,7 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class PlayerControllerTest {
+/**
+ * Block breaking progress: survival mining over ticks, restarting on a new
+ * block, and creative's instant breaks.
+ */
+final class PlayerControllerTest {
     @Test
     void survivalBreaksAfterEnoughTicksOnTheSameBlock() {
         PlayerController controller = new PlayerController();
@@ -41,5 +45,20 @@ class PlayerControllerTest {
         int ticks = 0;
         while (!controller.onPlayerDamageBlock(0, 63, 0, true, 0f)) ticks++;
         assertEquals(PlayerController.HIT_DELAY, ticks);
+    }
+
+    /** PlayerControllerMP.stepSoundTickCounter: the hit sound on the first mining tick and every fourth after. */
+    @Test
+    void miningMakesAHitSoundEveryFourthTick() {
+        PlayerController controller = new PlayerController();
+        controller.clickBlock(0, 64, 0, false, 0.01f);
+        StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < 9; i++) {
+            controller.onPlayerDamageBlock(0, 64, 0, false, 0.01f);
+            pattern.append(controller.takeHitSound() ? 'x' : '.');
+        }
+        assertEquals("x...x...x", pattern.toString());
+        assertTrue(controller.clickBlock(0, 64, 0, true, 0f));
+        assertFalse(controller.takeHitSound(), "creative breaks silently apart from the break sound");
     }
 }

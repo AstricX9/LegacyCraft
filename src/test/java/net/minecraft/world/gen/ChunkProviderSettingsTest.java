@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ChunkProviderSettingsTest {
+/** Customized world settings: defaults and the JSON round trip. */
+final class ChunkProviderSettingsTest {
     @Test
     void defaultsMatchTheDefaultGenerator() {
         ChunkProviderSettings settings = new ChunkProviderSettings();

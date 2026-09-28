@@ -5,6 +5,7 @@ import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.state.BlockStateDefinition;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -15,8 +16,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies data/mc189/block_states against the supplied 1.8.9 blockstate
@@ -24,9 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * combined with every value of its neighbour-derived properties — must name a
  * variant those files define, and that variant must bake.
  */
-class BlockStateModelMappingTest {
-    private final ClasspathResourceManager resources = new ClasspathResourceManager();
-    private final BlockRegistry blocks = BlockRegistry.load(resources);
+final class BlockStateModelMappingTest {
+    private final ClasspathResourceManager resources = GameData.resources();
+    private final BlockRegistry blocks = GameData.blocks();
     private final BlockModelManager models = new BlockModelManager(resources, blocks);
 
     @Test

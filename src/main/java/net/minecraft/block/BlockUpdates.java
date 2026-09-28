@@ -44,6 +44,8 @@ public final class BlockUpdates {
                     if (popped != null && reacted.block().isAir()) popped.popped(nx, ny, nz, state);
                     changed.add(new int[]{nx, ny, nz});
                     budget--;
+                } else {
+                    world.neighbourChanged(nx, ny, nz, state);
                 }
             }
         }

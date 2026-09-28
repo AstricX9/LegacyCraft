@@ -5,13 +5,14 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.state.ActualState;
 import net.minecraft.block.state.TestBlockAccess;
 import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.util.Direction;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 import java.util.TreeSet;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Checks stair corner shapes by geometry rather than by name: the resolved
@@ -20,9 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * This pins the meaning of inner/outer left/right (for both halves) to the
  * shipped assets instead of to anyone's memory of the code.
  */
-class StairShapeGeometryTest {
-    private final ClasspathResourceManager resources = new ClasspathResourceManager();
-    private final BlockRegistry blocks = BlockRegistry.load(resources);
+final class StairShapeGeometryTest {
+    private final ClasspathResourceManager resources = GameData.resources();
+    private final BlockRegistry blocks = GameData.blocks();
     private final BlockModelManager models = new BlockModelManager(resources, blocks);
 
     @Test

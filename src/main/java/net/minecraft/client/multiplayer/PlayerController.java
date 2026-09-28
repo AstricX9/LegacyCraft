@@ -19,6 +19,9 @@ public final class PlayerController {
     private float curBlockDamage;
     private boolean isHittingBlock;
     private int blockHitDelay;
+    /** Ticks spent mining the current block; every fourth one plays the block's step sound (stepSoundTickCounter). */
+    private int stepSoundTicks;
+    private boolean hitSoundDue;
 
     /** The attack button was pressed on a block this tick. Returns whether to break it now. */
     public boolean clickBlock(int x, int y, int z, boolean creative, float progressPerTick) {
@@ -33,6 +36,7 @@ public final class PlayerController {
                 return true;
             }
             isHittingBlock = true;
+            stepSoundTicks = 0;
             curX = x; curY = y; curZ = z;
         }
         return false;
@@ -50,7 +54,10 @@ public final class PlayerController {
         }
         if (isHittingBlock && isCurrent(x, y, z)) {
             curBlockDamage += progressPerTick;
+            if (stepSoundTicks % 4 == 0) hitSoundDue = true;
+            stepSoundTicks++;
             if (curBlockDamage >= 1.0f) {
+                stepSoundTicks = 0;
                 isHittingBlock = false;
                 curBlockDamage = 0;
                 blockHitDelay = HIT_DELAY;
@@ -59,6 +66,13 @@ public final class PlayerController {
             return false;
         }
         return clickBlock(x, y, z, false, progressPerTick);
+    }
+
+    /** Whether this tick's mining should make the hit sound (cleared by the call). */
+    public boolean takeHitSound() {
+        boolean due = hitSoundDue;
+        hitSoundDue = false;
+        return due;
     }
 
     /** The button was released or the crosshair left all blocks. */

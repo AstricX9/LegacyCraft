@@ -2,13 +2,13 @@ package net.minecraft.client.renderer;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-/** The time-of-day maths behind the sky (HYPOTHESIS formulas; these pin their shape, not vanilla's pixels). */
-class SkyRendererTest {
+/**
+ * The time-of-day maths behind the sky (HYPOTHESIS formulas; these pin their
+ * shape, not vanilla's pixels).
+ */
+final class SkyRendererTest {
     @Test
     void noonMidnightAndTheEasedDay() {
         assertEquals(0f, SkyRenderer.celestialAngle(6000, 0f), 1e-6f);
@@ -73,5 +73,13 @@ class SkyRendererTest {
         float[] low = SkyRenderer.fogColor(0f, sky, 0, 0, 1, 12, 1f, 8, false);
         assertTrue(low[2] < high[2] * 0.1f);
         assertTrue(high[2] > 0.9f);
+    }
+
+    @Test
+    void liquidsReplaceTheFogColour() {
+        float[] sky = SkyRenderer.skyColor(0f, 0.8f);
+        assertArrayEquals(new float[]{0.02f, 0.02f, 0.2f}, SkyRenderer.fogColor(0f, sky, 0, 0, 1, 12, 1f, 70, false, "water"), 1e-6f);
+        // The camera's darkness still applies: half light halves the red lava fog.
+        assertArrayEquals(new float[]{0.3f, 0.05f, 0f}, SkyRenderer.fogColor(0f, sky, 0, 0, 1, 12, 0.5f, 70, false, "lava"), 1e-6f);
     }
 }

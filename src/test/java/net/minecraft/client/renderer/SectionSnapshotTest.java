@@ -2,22 +2,19 @@ package net.minecraft.client.renderer;
 
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.resources.ClasspathResourceManager;
+import net.minecraft.testing.GameData;
 import net.minecraft.world.World;
-import net.minecraft.world.biome.BiomeRegistry;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** The mesher's copy of the world must read exactly like the world across the section and its border. */
-class SectionSnapshotTest {
-    private final BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-    private final BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
+final class SectionSnapshotTest {
+    private final BlockRegistry blocks = GameData.blocks();
 
     @Test
     void snapshotMatchesTheWorldInsideItsBorder() {
-        World world = new World(blocks, biomes, 20260927L);
+        World world = GameData.newWorld(20260927L);
         for (int cx = -2; cx <= 2; cx++) for (int cz = -2; cz <= 2; cz++) world.getChunk(cx, cz);
         world.setState(15, 70, 0, BlockState.of(blocks.get("minecraft:glowstone"), 0));
         for (int sectionY : new int[]{0, 4, 15}) {

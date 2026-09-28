@@ -8,7 +8,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class SlotClicksTest {
+/**
+ * Inventory slot clicks: pick up, place, split, merge, swap, armour slots,
+ * number keys, shift-click and creative middle-click.
+ */
+final class SlotClicksTest {
     private final Item stone = TestItems.item("stone"), dirt = TestItems.item("dirt");
     private final Item helmet = TestItems.item("iron_helmet", 1, 165);
     private InventoryPlayer inventory;

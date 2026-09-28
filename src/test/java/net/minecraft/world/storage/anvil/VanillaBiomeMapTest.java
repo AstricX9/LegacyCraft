@@ -2,6 +2,8 @@ package net.minecraft.world.storage.anvil;
 
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtTag;
+import net.minecraft.testing.Oracle;
+import net.minecraft.testing.VanillaWorld;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.gen.layer.BiomeLayers;
 import org.junit.jupiter.api.Assumptions;
@@ -15,20 +17,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Differential check of the biome layer chain against a world the real 1.8.9
  * server generated (master context §82): our chain is seeded with that world's
  * seed and must reproduce the biome byte vanilla stored for every column.
  */
-class VanillaBiomeMapTest {
-    private static final Path WORLD = Path.of(System.getProperty("legacycraft.vanillaWorld", "C:/Server/world"));
+@Oracle
+final class VanillaBiomeMapTest {
+    private static final Path WORLD = VanillaWorld.PATH;
 
     @Test
     void ourBiomeLayersReproduceTheBiomesVanillaStored() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(WORLD.resolve("region")),
-            "No vanilla 1.8.9 world at " + WORLD + " — skipping the biome comparison");
+        VanillaWorld.assumePresent();
         NbtTag.Compound level = NbtIo.readCompressed(WORLD.resolve("level.dat")).getCompound("Data");
         Assumptions.assumeTrue("default".equals(level.getString("generatorName")),
             "world type is " + level.getString("generatorName") + ", not default");

@@ -2,27 +2,26 @@ package net.minecraft.world.storage;
 
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.resources.ClasspathResourceManager;
-import net.minecraft.world.biome.BiomeRegistry;
+import net.minecraft.testing.GameData;
 import net.minecraft.world.World;
+import net.minecraft.world.biome.BiomeRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class WorldStorageTest {
+/** Saving and loading chunks, and refusing unknown block IDs. */
+final class WorldStorageTest {
     @TempDir Path directory;
 
     @Test
     void persistsChunkDataAndGenerationIndexes() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-        BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
-        World original = new World(blocks, biomes, 42L);
+        BlockRegistry blocks = GameData.blocks();
+        BiomeRegistry biomes = GameData.biomes();
+        World original = GameData.newWorld(42L);
         original.set(34, 90, -18, blocks.get("minecraft:brick_block"));
         var state = BlockState.of(blocks.byId(blocks.size() - 1), 15);
         original.setState(35, 90, -18, state);
@@ -39,9 +38,9 @@ class WorldStorageTest {
 
     @Test
     void rejectsPackedStatesWithUnknownBlockIds() throws Exception {
-        BlockRegistry blocks = BlockRegistry.load(new ClasspathResourceManager());
-        BiomeRegistry biomes = BiomeRegistry.load(new ClasspathResourceManager(), blocks);
-        World world = new World(blocks, biomes, 42L);
+        BlockRegistry blocks = GameData.blocks();
+        BiomeRegistry biomes = GameData.biomes();
+        World world = GameData.newWorld(42L);
         world.getChunk(0, 0).set(0, 90, 0,
             (blocks.size() << BlockState.METADATA_BITS) | 15);
         WorldStorage.save(directory, world);

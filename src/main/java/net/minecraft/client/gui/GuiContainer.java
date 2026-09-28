@@ -1,6 +1,7 @@
 package net.minecraft.client.gui;
 
 import net.minecraft.client.settings.KeyCodes;
+import net.minecraft.inventory.CraftingGrid;
 import net.minecraft.inventory.InventoryPlayer;
 import net.minecraft.inventory.Slot;
 import net.minecraft.inventory.SlotClicks;
@@ -143,6 +144,11 @@ public abstract class GuiContainer extends GuiScreen {
     }
 
     protected void handleSlotClick(SlotPos pos, int button, boolean shift) {
+        if (pos.slot() instanceof CraftingGrid.ResultSlot result && button != 2) {
+            if (shift) result.grid().shiftClick(inventory(), craftsBackwards(), mc::dropPlayerItem);
+            else result.grid().click(inventory(), button, mc::dropPlayerItem);
+            return;
+        }
         if (button == 2) {
             if (mc.isCreative()) SlotClicks.cloneStack(pos.slot(), inventory());
             return;
@@ -153,6 +159,9 @@ public abstract class GuiContainer extends GuiScreen {
         }
         SlotClicks.click(pos.slot(), inventory(), button);
     }
+
+    /** Whether shift-crafting fills the hotbar from its last slot first (the crafting table does). */
+    protected boolean craftsBackwards() { return false; }
 
     protected void shiftClick(SlotPos pos) {
         SlotClicks.shiftClickPlayerSlot(inventory(), pos.slot(), pos.kind() == Kind.HOTBAR, pos.kind() == Kind.ARMOR);
@@ -171,6 +180,10 @@ public abstract class GuiContainer extends GuiScreen {
 
     /** The drop key over a slot throws one item from it, or the whole stack with Ctrl. */
     protected void dropFromSlot(SlotPos pos, boolean wholeStack) {
+        if (pos.slot() instanceof CraftingGrid.ResultSlot result) {
+            result.grid().throwResult(inventory(), wholeStack, mc::dropPlayerItem);
+            return;
+        }
         ItemStack stack = pos.slot().get();
         if (stack == null) return;
         ItemStack thrown = wholeStack ? stack.split(stack.count()) : stack.split(1);
@@ -201,7 +214,10 @@ public abstract class GuiContainer extends GuiScreen {
         }
     }
 
-    protected void numberKey(SlotPos pos, int hotbarIndex) { SlotClicks.swapWithHotbar(pos.slot(), inventory(), hotbarIndex); }
+    protected void numberKey(SlotPos pos, int hotbarIndex) {
+        if (pos.slot() instanceof CraftingGrid.ResultSlot result) result.grid().toHotbar(inventory(), hotbarIndex, mc::dropPlayerItem);
+        else SlotClicks.swapWithHotbar(pos.slot(), inventory(), hotbarIndex);
+    }
 
     private int lastMouseX, lastMouseY;
     protected int mouseXForKeys() { return lastMouseX; }

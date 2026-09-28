@@ -10,12 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Command parsing and effects against a fake player (messages use a stand-in lang table). */
-class CommandHandlerTest {
+final class CommandHandlerTest {
     private final CommandHandler handler = new CommandHandler();
     private final Sender sender = new Sender();
 
