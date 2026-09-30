@@ -1,0 +1,20 @@
+{
+  "id": 2,
+  "translation_key": "enchantment.protect.fall",
+  "weight": 5,
+  "max_level": 4,
+  "supported_items": "armor_feet",
+  "min_cost": {
+    "base": 5,
+    "per_level_above_first": 6
+  },
+  "max_cost": {
+    "base": 15,
+    "per_level_above_first": 6
+  },
+  "incompatible": [],
+  "protection": {
+    "against": "fall",
+    "multiplier": 2.5
+  }
+}

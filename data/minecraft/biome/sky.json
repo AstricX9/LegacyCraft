@@ -1,0 +1,10 @@
+{
+  "id": 9,
+  "temperature": 0.5,
+  "rainfall": 0.5,
+  "depth": 0.1,
+  "scale": 0.2,
+  "topBlock": "minecraft:end_stone",
+  "fillerBlock": "minecraft:end_stone",
+  "rain": false
+}

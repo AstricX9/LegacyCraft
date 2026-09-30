@@ -1,0 +1,17 @@
+{
+  "id": 7,
+  "translation_key": "enchantment.thorns",
+  "weight": 1,
+  "max_level": 3,
+  "supported_items": "armor_torso",
+  "min_cost": {
+    "base": 10,
+    "per_level_above_first": 20
+  },
+  "max_cost": {
+    "base": 61,
+    "per_level_above_first": 10
+  },
+  "incompatible": [],
+  "anvil_also_accepts": "armor"
+}

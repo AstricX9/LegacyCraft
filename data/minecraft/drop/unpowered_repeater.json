@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:unpowered_repeater",
+  "drops": [
+    {
+      "item": "minecraft:repeater"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "class": "stairs",
+  "opaque": false,
+  "lightOpacity": 15,
+  "useNeighborBrightness": true,
+  "items": {
+    "stone_brick_stairs": 0
+  }
+}

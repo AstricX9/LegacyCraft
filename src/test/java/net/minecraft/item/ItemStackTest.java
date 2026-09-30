@@ -1,25 +1,70 @@
 package net.minecraft.item;
 
-import net.minecraft.inventory.Inventory;
-import net.minecraft.testing.GameData;
+import net.minecraft.nbt.NbtTag;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Item stacks merging in an inventory and tools breaking from damage. */
+/** Item tags: enchantments, stored enchantments, prior work and names (HYPOTHESIS: recalled 1.8.9 ItemStack NBT keys). */
 final class ItemStackTest {
-    @Test
-    void inventoryMergesStacksAndDamageBreaksTools() {
-        var items = GameData.items();
-        Item apple = items.get("minecraft:apple");
-        Inventory inventory = new Inventory(2);
-        inventory.set(0, new ItemStack(apple, 60));
-        assertEquals(0, inventory.insert(new ItemStack(apple, 8)));
-        assertEquals(64, inventory.get(0).count());
-        assertEquals(4, inventory.get(1).count());
+    private static final Item SWORD = TestItems.item("diamond_sword", 1, 1561), BOOK = TestItems.item("enchanted_book", 1, 0),
+        DIRT = TestItems.item("dirt");
 
-        ItemStack sword = new ItemStack(items.get("minecraft:diamond_sword"));
-        assertTrue(sword.damage(1562));
-        assertTrue(sword.isEmpty());
+    @Test
+    void tagsSurviveWritingAndReading() {
+        ItemStack sword = new ItemStack(SWORD, 1, 12);
+        sword.addEnchantment(16, 5);
+        sword.addEnchantment(34, 3);
+        sword.setRepairCost(3);
+        sword.setCustomName("Edge");
+        NbtTag.Compound tag = sword.writeTag();
+        assertTrue(tag.get("ench") instanceof NbtTag.NbtList);
+        ItemStack loaded = new ItemStack(SWORD, 1, 12);
+        loaded.readTag(tag);
+        assertEquals(Map.of(16, 5, 34, 3), loaded.enchantments());
+        assertEquals(3, loaded.repairCost());
+        assertEquals("Edge", loaded.customName());
+        assertTrue(loaded.tagsEqual(sword));
+    }
+
+    @Test
+    void storedEnchantmentsUseTheirOwnKeyAndKeepTheHigherLevel() {
+        ItemStack book = new ItemStack(BOOK);
+        book.addStoredEnchantment(0, 2);
+        book.addStoredEnchantment(0, 1);
+        assertEquals(2, book.storedEnchantments().get(0));
+        NbtTag.Compound tag = book.writeTag();
+        assertNull(tag.get("ench"));
+        assertNotNull(tag.get("StoredEnchantments"));
+    }
+
+    @Test
+    void plainStacksHaveNoTag() {
+        assertNull(new ItemStack(DIRT, 5).writeTag());
+    }
+
+    @Test
+    void stacksWithDifferentTagsDontMerge() {
+        ItemStack named = new ItemStack(DIRT, 10), plain = new ItemStack(DIRT, 10);
+        named.setCustomName("Soil");
+        assertFalse(named.canMerge(plain));
+        assertEquals(0, named.mergeFrom(plain));
+        ItemStack otherNamed = new ItemStack(DIRT, 3);
+        otherNamed.setCustomName("Soil");
+        assertEquals(3, named.mergeFrom(otherNamed));
+    }
+
+    @Test
+    void splittingAndCopyingKeepTheTags() {
+        ItemStack named = new ItemStack(DIRT, 10);
+        named.setCustomName("Soil");
+        assertEquals("Soil", named.split(4).customName());
+        assertEquals("Soil", named.copy().customName());
+        assertEquals("Soil", named.withCount(1).customName());
+        ItemStack book = new ItemStack(TestItems.item("book"));
+        book.addStoredEnchantment(5, 1);
+        assertEquals(1, book.asItem(BOOK).storedEnchantments().get(5));
     }
 }

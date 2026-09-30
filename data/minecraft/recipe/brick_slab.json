@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "###"
+  ],
+  "key": {
+    "#": "minecraft:brick_block"
+  },
+  "result": {
+    "id": "minecraft:brick_slab",
+    "count": 6
+  }
+}

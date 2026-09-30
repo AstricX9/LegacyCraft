@@ -1,0 +1,10 @@
+{
+  "material": "web",
+  "hardness": 4.0,
+  "opaque": false,
+  "solid": false,
+  "lightOpacity": 1,
+  "items": {
+    "web": 0
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "minecraft:dye_lime",
+    "minecraft:white_wool"
+  ],
+  "result": {
+    "id": "minecraft:lime_wool",
+    "count": 1
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "MMM",
+    "MMM",
+    "MMM"
+  ],
+  "key": {
+    "M": "minecraft:melon"
+  },
+  "result": {
+    "id": "minecraft:melon_block",
+    "count": 1
+  }
+}

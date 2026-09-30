@@ -1,0 +1,10 @@
+{
+  "note": "Item IDs come from the item models (assets/minecraft/models/item), sorted by name. Items listed here only change these defaults; block items are declared in their block file.",
+  "defaults": {
+    "maxStackSize": 64,
+    "maxDamage": 0,
+    "useAction": "none",
+    "food": 0,
+    "saturation": 0.0
+  }
+}

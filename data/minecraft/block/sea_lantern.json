@@ -1,0 +1,8 @@
+{
+  "material": "glass",
+  "hardness": 0.3,
+  "lightLevel": 15,
+  "items": {
+    "sea_lantern": 0
+  }
+}

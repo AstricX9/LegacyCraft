@@ -22,6 +22,21 @@ public final class InventoryPlayer {
     public ItemStack getItemStack() { return itemStack; }
     public void setItemStack(ItemStack stack) { itemStack = stack == null || stack.isEmpty() ? null : stack; }
 
+    /**
+     * Right-click with a piece of armour (ItemArmor.onItemRightClick): it
+     * moves from the selected hotbar slot into its armour slot if that slot is
+     * empty, in every game mode. Returns whether it was put on.
+     */
+    public boolean equipHeldArmor() {
+        ItemStack held = getCurrentItem();
+        if (held == null || !ArmorValues.isArmorPiece(held.item())) return false;
+        int slot = ArmorValues.armorSlot(held.item());
+        if (slot < 0 || armorInventory[slot] != null) return false;
+        armorInventory[slot] = held.split(1);
+        if (held.isEmpty()) mainInventory[currentItem] = null;
+        return true;
+    }
+
     /** Mouse wheel over the hotbar: one slot per notch, wrapping. */
     public void changeCurrentItem(int direction) {
         if (direction > 0) direction = 1;

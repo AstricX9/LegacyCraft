@@ -1,0 +1,11 @@
+{
+  "class": "rotated_pillar",
+  "material": "wood",
+  "hardness": 2.0,
+  "items": {
+    "oak_log": 0,
+    "spruce_log": 1,
+    "birch_log": 2,
+    "jungle_log": 3
+  }
+}

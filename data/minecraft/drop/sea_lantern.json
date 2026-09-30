@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:sea_lantern",
+  "drops": [
+    {
+      "item": "minecraft:prismarine_crystals",
+      "count": [
+        2,
+        3
+      ]
+    }
+  ]
+}

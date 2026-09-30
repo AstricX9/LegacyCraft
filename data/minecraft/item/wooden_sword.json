@@ -1,0 +1,5 @@
+{
+  "maxStackSize": 1,
+  "maxDamage": 59,
+  "useAction": "block"
+}

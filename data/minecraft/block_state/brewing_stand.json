@@ -1,0 +1,32 @@
+{
+  "properties": {
+    "has_bottle_0": [
+      "false",
+      "true"
+    ],
+    "has_bottle_1": [
+      "false",
+      "true"
+    ],
+    "has_bottle_2": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "has_bottle_0",
+      "bits": 1
+    },
+    {
+      "property": "has_bottle_1",
+      "shift": 1,
+      "bits": 1
+    },
+    {
+      "property": "has_bottle_2",
+      "shift": 2,
+      "bits": 1
+    }
+  ]
+}

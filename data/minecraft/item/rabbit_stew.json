@@ -1,0 +1,6 @@
+{
+  "useAction": "eat",
+  "food": 10,
+  "saturation": 12.0,
+  "maxStackSize": 1
+}

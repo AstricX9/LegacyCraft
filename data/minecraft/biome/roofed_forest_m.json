@@ -1,0 +1,11 @@
+{
+  "id": 157,
+  "temperature": 0.7,
+  "rainfall": 0.8,
+  "depth": 0.2,
+  "scale": 0.4,
+  "grassMix": "#28340A",
+  "treesPerChunk": 50,
+  "grassPerChunk": 4,
+  "flowersPerChunk": 4
+}

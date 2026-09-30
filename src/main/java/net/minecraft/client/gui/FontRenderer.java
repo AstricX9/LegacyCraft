@@ -26,16 +26,23 @@ public final class FontRenderer {
     private final int[] charWidth = new int[256];
     private final IResourceManager resources;
     private int textureId;
+    private final ResourceLocation texture;
 
     public FontRenderer(IResourceManager resources) {
+        this(resources, new ResourceLocation("minecraft:textures/font/ascii.png"));
+    }
+
+    /** A font from another 16x16 glyph sheet (the enchanting table's {@code font/ascii_sga.png}). */
+    public FontRenderer(IResourceManager resources, ResourceLocation texture) {
         this.resources = resources;
+        this.texture = texture;
         buildColorTable();
         for (int i = 0; i < charWidth.length; i++) charWidth[i] = i == 32 ? 4 : 6;
     }
 
     public void load() {
         BufferedImage image;
-        ResourceLocation font = new ResourceLocation("minecraft:textures/font/ascii.png");
+        ResourceLocation font = texture;
         try (InputStream stream = resources.open(font)) {
             image = ImageIO.read(stream);
         } catch (IOException error) {
@@ -214,6 +221,14 @@ public final class FontRenderer {
             result.append(character);
         }
         return result.toString();
+    }
+
+    /** Word-wrapped text without shadow, one line every {@link #FONT_HEIGHT} pixels (drawSplitString). */
+    public void drawSplitString(String text, int x, int y, int width, int color) {
+        for (String line : listFormattedStringToWidth(text, width)) {
+            drawString(line, x, y, color);
+            y += FONT_HEIGHT;
+        }
     }
 
     public List<String> listFormattedStringToWidth(String text, int width) {

@@ -1,0 +1,8 @@
+{
+  "class": "grass",
+  "material": "grass",
+  "hardness": 0.6,
+  "items": {
+    "mycelium": 0
+  }
+}

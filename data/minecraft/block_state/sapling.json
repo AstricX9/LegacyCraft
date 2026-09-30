@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "type": [
+      "oak",
+      "spruce",
+      "birch",
+      "jungle",
+      "acacia",
+      "dark_oak"
+    ],
+    "stage": [
+      "0",
+      "1"
+    ]
+  },
+  "meta": [
+    {
+      "property": "type",
+      "bits": 3
+    },
+    {
+      "property": "stage",
+      "shift": 3,
+      "bits": 1
+    }
+  ],
+  "model": {
+    "file": "{type}_sapling"
+  }
+}

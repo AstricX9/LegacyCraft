@@ -12,7 +12,9 @@ import net.minecraft.item.ItemStack;
  *   <li>number keys 1-9: swap the slot with that hotbar slot;</li>
  *   <li>creative middle click: copy a full stack of the slot's item onto an empty cursor.</li>
  * </ul>
- * Drag-splitting and double-click collecting are not implemented yet (DEV-015).
+ * Drag-splitting and double-click gathering live in GuiContainer, which
+ * decides when a click happens (on press with an empty hand, on release
+ * while holding a stack).
  */
 public final class SlotClicks {
     private SlotClicks() {}
@@ -29,7 +31,7 @@ public final class SlotClicks {
             return;
         }
         if (!slot.accepts(cursor)) return;
-        int room = Math.min(slot.limit(), cursor.item().maxStackSize());
+        int room = Math.min(slot.limit(cursor), cursor.item().maxStackSize());
         if (stack == null) {
             int put = Math.min(button == 0 ? cursor.count() : 1, room);
             slot.set(cursor.split(put));
@@ -62,7 +64,7 @@ public final class SlotClicks {
     public static void cloneStack(Slot slot, InventoryPlayer inventory) {
         ItemStack stack = slot.get();
         if (inventory.getItemStack() != null || stack == null) return;
-        inventory.setItemStack(new ItemStack(stack.item(), stack.item().maxStackSize(), stack.damage()));
+        inventory.setItemStack(stack.withCount(stack.item().maxStackSize()));
     }
 
     /**

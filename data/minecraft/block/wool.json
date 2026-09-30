@@ -1,0 +1,22 @@
+{
+  "material": "cloth",
+  "hardness": 0.8,
+  "items": {
+    "white_wool": 0,
+    "orange_wool": 1,
+    "magenta_wool": 2,
+    "light_blue_wool": 3,
+    "yellow_wool": 4,
+    "lime_wool": 5,
+    "pink_wool": 6,
+    "gray_wool": 7,
+    "silver_wool": 8,
+    "cyan_wool": 9,
+    "purple_wool": 10,
+    "blue_wool": 11,
+    "brown_wool": 12,
+    "green_wool": 13,
+    "red_wool": 14,
+    "black_wool": 15
+  }
+}

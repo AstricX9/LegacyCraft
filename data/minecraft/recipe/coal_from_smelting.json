@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:coal_ore",
+  "result": "minecraft:coal",
+  "experience": 0.1
+}

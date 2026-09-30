@@ -1,0 +1,13 @@
+{
+  "block": "minecraft:double_stone_slab",
+  "drops": [
+    {
+      "self": true,
+      "count": [
+        2,
+        2
+      ],
+      "block": "minecraft:stone_slab"
+    }
+  ]
+}

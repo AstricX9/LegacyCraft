@@ -179,6 +179,7 @@ final class CreativeInventoryTest {
         int destroyX = LEFT + 173 + 8, destroyY = TOP + 112 + 8;
         mc.inventory.setItemStack(new ItemStack(granite, 5));
         screen.mouseClicked(destroyX, destroyY, 0);
+        screen.mouseReleased(destroyX, destroyY, 0);
         assertNull(cursor());
         assertNotNull(mc.inventory.mainInventory[15]);
         mc.shiftDown = true;
@@ -222,8 +223,10 @@ final class CreativeInventoryTest {
 
         mc.inventory.setItemStack(new ItemStack(stone, 5));
         screen.mouseClicked(5, 5, 1);
+        screen.mouseReleased(5, 5, 1);
         assertEquals(4, cursor().count(), "right click outside throws one");
         screen.mouseClicked(5, 5, 0);
+        screen.mouseReleased(5, 5, 0);
         assertNull(cursor());
         assertEquals(4, mc.dropped.get(mc.dropped.size() - 1).count());
     }
@@ -235,6 +238,8 @@ final class CreativeInventoryTest {
         mc.inventory.setItemStack(new ItemStack(stone, 3));
         // Top-left crafting cell at (88, 26) in a 176x166 window whose top-left is (125, 37).
         inventory.mouseClicked(125 + 88 + 8, 37 + 26 + 8, 0);
+        assertNull(inventory.craftMatrix()[0], "holding a stack, the click happens on release");
+        inventory.mouseReleased(125 + 88 + 8, 37 + 26 + 8, 0);
         assertEquals(3, inventory.craftMatrix()[0].count());
         mc.displayGuiScreen(null);
         assertNull(inventory.craftMatrix()[0]);

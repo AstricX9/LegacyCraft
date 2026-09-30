@@ -1,0 +1,38 @@
+{
+ "target": "minecraft-java-1.8.9",
+ "tag": "HYPOTHESIS",
+ "note": "Furnace recipes of 1.8.9 (FurnaceRecipes), written from memory in LegacyCraft item names. 'input' names an item, or '#group' for any item of a group (vanilla's wildcard metadata: addSmeltingRecipeForBlock matches every variant of the block). 'xp' is the experience per item smelted (FurnaceRecipes.getSmeltingExperience, looked up by the result). Clownfish and pufferfish cannot be cooked (ItemFishFood.FishType.canCook).",
+ "groups": {
+  "sand": ["sand", "red_sand"],
+  "log": ["oak_log", "spruce_log", "birch_log", "jungle_log"],
+  "log2": ["acacia_log", "dark_oak_log"]
+ },
+ "recipes": [
+  {"input": "iron_ore", "result": "iron_ingot", "xp": 0.7},
+  {"input": "gold_ore", "result": "gold_ingot", "xp": 1.0},
+  {"input": "diamond_ore", "result": "diamond", "xp": 1.0},
+  {"input": "#sand", "result": "glass", "xp": 0.1},
+  {"input": "porkchop", "result": "cooked_porkchop", "xp": 0.35},
+  {"input": "beef", "result": "cooked_beef", "xp": 0.35},
+  {"input": "chicken", "result": "cooked_chicken", "xp": 0.35},
+  {"input": "rabbit", "result": "cooked_rabbit", "xp": 0.35},
+  {"input": "mutton", "result": "cooked_mutton", "xp": 0.35},
+  {"input": "cobblestone", "result": "stone", "xp": 0.1},
+  {"input": "stonebrick", "result": "cracked_stonebrick", "xp": 0.1},
+  {"input": "clay_ball", "result": "brick", "xp": 0.3},
+  {"input": "clay", "result": "hardened_clay", "xp": 0.35},
+  {"input": "cactus", "result": "dye_green", "xp": 0.2},
+  {"input": "#log", "result": "charcoal", "xp": 0.15},
+  {"input": "#log2", "result": "charcoal", "xp": 0.15},
+  {"input": "emerald_ore", "result": "emerald", "xp": 1.0},
+  {"input": "potato", "result": "baked_potato", "xp": 0.35},
+  {"input": "netherrack", "result": "netherbrick", "xp": 0.1},
+  {"input": "sponge_wet", "result": "sponge", "xp": 0.15},
+  {"input": "cod", "result": "cooked_cod", "xp": 0.35},
+  {"input": "salmon", "result": "cooked_salmon", "xp": 0.35},
+  {"input": "coal_ore", "result": "coal", "xp": 0.1},
+  {"input": "redstone_ore", "result": "redstone", "xp": 0.7},
+  {"input": "lapis_ore", "result": "dye_blue", "xp": 0.2},
+  {"input": "quartz_ore", "result": "quartz", "xp": 0.2}
+ ]
+}

@@ -32,6 +32,23 @@ public final class ArmorValues {
         return -1;
     }
 
+    /**
+     * Whether the item is a piece of armour (ItemArmor): the four pieces of
+     * the five materials, not pumpkins or heads, which only fit the helmet slot.
+     */
+    public static boolean isArmorPiece(Item item) { return material(item) != null; }
+
+    /** The armour material ("leather", "chainmail", "iron", "golden", "diamond") of a piece, or null. */
+    public static String material(Item item) {
+        String path = item.name().path();
+        for (String piece : PIECES)
+            if (path.endsWith("_" + piece)) {
+                String material = path.substring(0, path.length() - piece.length() - 1);
+                return MATERIALS.containsKey(material) ? material : null;
+            }
+        return null;
+    }
+
     public static int points(Item item, int armorSlot) {
         String path = item.name().path();
         int piece = 3 - armorSlot;

@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:stonebrick",
+  "result": "minecraft:cracked_stonebrick",
+  "experience": 0.1
+}

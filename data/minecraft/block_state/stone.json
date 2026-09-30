@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "variant": [
+      "stone",
+      "granite",
+      "smooth_granite",
+      "diorite",
+      "smooth_diorite",
+      "andesite",
+      "smooth_andesite"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 4
+    }
+  ],
+  "model": {
+    "file": "{variant}"
+  }
+}

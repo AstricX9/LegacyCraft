@@ -1,0 +1,20 @@
+{
+  "properties": {
+    "variant": [
+      "default",
+      "chiseled",
+      "lines_y",
+      "lines_x",
+      "lines_z"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 3
+    }
+  ],
+  "model": {
+    "mapper": "quartz"
+  }
+}

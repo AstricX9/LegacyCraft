@@ -147,32 +147,38 @@ public final class PlayerModel {
      * every side without changing the texture area.
      */
     static void box(float x, float y, float z, float width, float height, float depth, float grow, int u, int v) {
+        box(x, y, z, width, height, depth, grow, u, v, 64f, 64f);
+    }
+
+    /** {@link #box} on a texture of {@code textureWidth} x {@code textureHeight} pixels (armour is 64x32). */
+    static void box(float x, float y, float z, float width, float height, float depth, float grow, int u, int v,
+                    float textureWidth, float textureHeight) {
+        float tw = textureWidth, th = textureHeight;
         float x1 = (x - grow) / 16f, y1 = (y - grow) / 16f, z1 = (z - grow) / 16f;
         float x2 = (x + width + grow) / 16f, y2 = (y + height + grow) / 16f, z2 = (z + depth + grow) / 16f;
         float w = width, h = height, d = depth;
         // Front (-z): left of the texture is the model's -x side.
-        face(0, 0, -1, u + d, v + d, u + d + w, v + d + h, x1, y1, z1, x2, y1, z1, x2, y2, z1, x1, y2, z1);
+        face(tw, th, 0, 0, -1, u + d, v + d, u + d + w, v + d + h, x1, y1, z1, x2, y1, z1, x2, y2, z1, x1, y2, z1);
         // Back (+z): mirrored across.
-        face(0, 0, 1, u + d + w + d, v + d, u + d + w + d + w, v + d + h, x2, y1, z2, x1, y1, z2, x1, y2, z2, x2, y2, z2);
+        face(tw, th, 0, 0, 1, u + d + w + d, v + d, u + d + w + d + w, v + d + h, x2, y1, z2, x1, y1, z2, x1, y2, z2, x2, y2, z2);
         // Right side (-x): back edge on the left of its area, front edge on the right.
-        face(-1, 0, 0, u, v + d, u + d, v + d + h, x1, y1, z2, x1, y1, z1, x1, y2, z1, x1, y2, z2);
+        face(tw, th, -1, 0, 0, u, v + d, u + d, v + d + h, x1, y1, z2, x1, y1, z1, x1, y2, z1, x1, y2, z2);
         // Left side (+x): front edge on the left, back edge on the right.
-        face(1, 0, 0, u + d + w, v + d, u + d + w + d, v + d + h, x2, y1, z1, x2, y1, z2, x2, y2, z2, x2, y2, z1);
+        face(tw, th, 1, 0, 0, u + d + w, v + d, u + d + w + d, v + d + h, x2, y1, z1, x2, y1, z2, x2, y2, z2, x2, y2, z1);
         // Top (-y, model space is y-down): the back edge at the top of its area, the front edge touching the front.
-        face(0, -1, 0, u + d, v, u + d + w, v + d, x1, y1, z2, x2, y1, z2, x2, y1, z1, x1, y1, z1);
+        face(tw, th, 0, -1, 0, u + d, v, u + d + w, v + d, x1, y1, z2, x2, y1, z2, x2, y1, z1, x1, y1, z1);
         // Bottom (+y): next to the top, the front edge at the top of its area.
-        face(0, 1, 0, u + d + w, v, u + d + w + w, v + d, x1, y2, z1, x2, y2, z1, x2, y2, z2, x1, y2, z2);
+        face(tw, th, 0, 1, 0, u + d + w, v, u + d + w + w, v + d, x1, y2, z1, x2, y2, z1, x2, y2, z2, x1, y2, z2);
     }
 
     /** A quad whose four corners take the texture's top-left, top-right, bottom-right and bottom-left in order. */
-    private static void face(float nx, float ny, float nz, float u0, float v0, float u1, float v1,
+    private static void face(float tw, float th, float nx, float ny, float nz, float u0, float v0, float u1, float v1,
                              float ax, float ay, float az, float bx, float by, float bz,
                              float cx, float cy, float cz, float dx, float dy, float dz) {
-        final float size = 64f;
         glNormal3f(nx, ny, nz);
-        glTexCoord2f(u0 / size, v0 / size); glVertex3f(ax, ay, az);
-        glTexCoord2f(u1 / size, v0 / size); glVertex3f(bx, by, bz);
-        glTexCoord2f(u1 / size, v1 / size); glVertex3f(cx, cy, cz);
-        glTexCoord2f(u0 / size, v1 / size); glVertex3f(dx, dy, dz);
+        glTexCoord2f(u0 / tw, v0 / th); glVertex3f(ax, ay, az);
+        glTexCoord2f(u1 / tw, v0 / th); glVertex3f(bx, by, bz);
+        glTexCoord2f(u1 / tw, v1 / th); glVertex3f(cx, cy, cz);
+        glTexCoord2f(u0 / tw, v1 / th); glVertex3f(dx, dy, dz);
     }
 }

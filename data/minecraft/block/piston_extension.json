@@ -1,0 +1,6 @@
+{
+  "material": "piston",
+  "hardness": -1.0,
+  "opaque": false,
+  "renderType": "invisible"
+}

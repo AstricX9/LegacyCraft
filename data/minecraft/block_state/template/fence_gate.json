@@ -1,0 +1,43 @@
+{
+  "properties": {
+    "facing": [
+      "south",
+      "west",
+      "north",
+      "east"
+    ],
+    "in_wall": [
+      "false",
+      "true"
+    ],
+    "open": [
+      "false",
+      "true"
+    ],
+    "powered": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "facing",
+      "bits": 2
+    },
+    {
+      "property": "open",
+      "shift": 2,
+      "bits": 1
+    },
+    {
+      "property": "powered",
+      "shift": 3,
+      "bits": 1
+    }
+  ],
+  "model": {
+    "ignore": [
+      "powered"
+    ]
+  }
+}

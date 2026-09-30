@@ -1,0 +1,18 @@
+{
+  "block": "minecraft:dirt",
+  "drops": [
+    {
+      "item": "minecraft:dirt",
+      "meta": [
+        2
+      ]
+    },
+    {
+      "self": true,
+      "meta": [
+        0,
+        1
+      ]
+    }
+  ]
+}

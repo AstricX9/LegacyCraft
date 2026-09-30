@@ -1,0 +1,44 @@
+{
+  "properties": {
+    "variant": [
+      "all_outside",
+      "north_west",
+      "north",
+      "north_east",
+      "west",
+      "center",
+      "east",
+      "south_west",
+      "south",
+      "south_east",
+      "stem",
+      "all_inside",
+      "all_stem"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 4,
+      "map": [
+        "all_inside",
+        "north_west",
+        "north",
+        "north_east",
+        "west",
+        "center",
+        "east",
+        "south_west",
+        "south",
+        "south_east",
+        "stem",
+        null,
+        null,
+        null,
+        "all_outside",
+        "all_stem"
+      ],
+      "fallback": "all_inside"
+    }
+  ]
+}

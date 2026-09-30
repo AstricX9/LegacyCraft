@@ -26,6 +26,13 @@ public final class TestItems {
             new ResourceLocation("minecraft", "item/" + name), null, 0));
     }
 
+    /** An item that places {@code block}: one per name. */
+    public static Item placing(String name, net.minecraft.block.Block block) {
+        return ITEMS.computeIfAbsent(name + "/places/" + block.name(), key -> new Item(ITEMS.size(),
+            new ResourceLocation("minecraft", name), 64, 0, Item.UseAction.NONE, 0, 0,
+            new ResourceLocation("minecraft", "item/" + name), block, 0));
+    }
+
     /** The creative tab data from the source tree (Gradle runs tests in the project directory). */
     public static CreativeTabs creativeTabs() {
         try (var reader = java.nio.file.Files.newBufferedReader(

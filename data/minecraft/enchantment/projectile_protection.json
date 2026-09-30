@@ -1,0 +1,24 @@
+{
+  "id": 4,
+  "translation_key": "enchantment.protect.projectile",
+  "weight": 5,
+  "max_level": 4,
+  "supported_items": "armor",
+  "min_cost": {
+    "base": 3,
+    "per_level_above_first": 6
+  },
+  "max_cost": {
+    "base": 18,
+    "per_level_above_first": 6
+  },
+  "incompatible": [
+    "minecraft:protection",
+    "minecraft:fire_protection",
+    "minecraft:blast_protection"
+  ],
+  "protection": {
+    "against": "projectile",
+    "multiplier": 1.5
+  }
+}

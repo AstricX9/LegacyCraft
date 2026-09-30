@@ -1,0 +1,19 @@
+{
+  "id": 33,
+  "translation_key": "enchantment.untouching",
+  "weight": 1,
+  "max_level": 1,
+  "supported_items": "digger",
+  "min_cost": {
+    "base": 15,
+    "per_level_above_first": 0
+  },
+  "max_cost": {
+    "base": 61,
+    "per_level_above_first": 10
+  },
+  "incompatible": [
+    "minecraft:fortune"
+  ],
+  "anvil_also_accepts": "shears"
+}

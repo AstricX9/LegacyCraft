@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "minecraft:dye_black",
+    "minecraft:white_wool"
+  ],
+  "result": {
+    "id": "minecraft:black_wool",
+    "count": 1
+  }
+}

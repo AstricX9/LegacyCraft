@@ -1,0 +1,32 @@
+{
+  "properties": {
+    "variant": [
+      "stone",
+      "sandstone",
+      "wood_old",
+      "cobblestone",
+      "brick",
+      "stone_brick",
+      "nether_brick",
+      "quartz"
+    ],
+    "seamless": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 3
+    },
+    {
+      "property": "seamless",
+      "shift": 3,
+      "bits": 1
+    }
+  ],
+  "model": {
+    "mapper": "double_slab"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:ender_chest",
+  "drops": [
+    {
+      "item": "minecraft:obsidian",
+      "count": [
+        8,
+        8
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": 17,
+  "translation_key": "enchantment.damage.undead",
+  "weight": 5,
+  "max_level": 5,
+  "supported_items": "weapon",
+  "min_cost": {
+    "base": 5,
+    "per_level_above_first": 8
+  },
+  "max_cost": {
+    "base": 25,
+    "per_level_above_first": 8
+  },
+  "incompatible": [
+    "minecraft:sharpness",
+    "minecraft:bane_of_arthropods"
+  ],
+  "anvil_also_accepts": "axes"
+}

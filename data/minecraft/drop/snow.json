@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:snow",
+  "drops": [
+    {
+      "item": "minecraft:snowball",
+      "count": [
+        4,
+        4
+      ]
+    }
+  ]
+}

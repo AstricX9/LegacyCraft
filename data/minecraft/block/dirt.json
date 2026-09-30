@@ -1,0 +1,10 @@
+{
+  "class": "dirt",
+  "material": "ground",
+  "hardness": 0.5,
+  "items": {
+    "dirt": 0,
+    "coarse_dirt": 1,
+    "podzol": 2
+  }
+}

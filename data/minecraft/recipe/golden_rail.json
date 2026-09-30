@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "X X",
+    "X#X",
+    "XRX"
+  ],
+  "key": {
+    "X": "minecraft:gold_ingot",
+    "#": "minecraft:stick",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "minecraft:golden_rail",
+    "count": 6
+  }
+}

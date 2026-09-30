@@ -36,7 +36,7 @@ public final class ParticleManager {
     public static final ResourceLocation PARTICLES = new ResourceLocation("minecraft:textures/particle/particles.png");
     private static final int MAX_PER_LAYER = 4000;
 
-    public enum Kind { SMOKE, LARGE_SMOKE, FLAME, LAVA, DRIP_WATER, DRIP_LAVA, SUSPENDED, TOWN_AURA, REDDUST, BLOCK_CRACK, BUBBLE, SPLASH }
+    public enum Kind { SMOKE, LARGE_SMOKE, FLAME, LAVA, DRIP_WATER, DRIP_LAVA, SUSPENDED, TOWN_AURA, REDDUST, BLOCK_CRACK, BUBBLE, SPLASH, PORTAL, ENCHANTMENT_TABLE }
 
     private final World world;
     private final TextureAtlas atlas;
@@ -97,6 +97,8 @@ public final class ParticleManager {
             case BLOCK_CRACK -> digging(state, x, y, z, vx, vy, vz, floor(x), floor(y), floor(z));
             case BUBBLE -> new Particles.Bubble(world, random, x, y, z, vx, vy, vz);
             case SPLASH -> new Particles.Splash(world, random, x, y, z, vx, vy, vz);
+            case PORTAL -> new Particles.Portal(world, random, x, y, z, vx, vy, vz);
+            case ENCHANTMENT_TABLE -> new Particles.EnchantmentTable(world, random, x, y, z, vx, vy, vz);
         };
         if (particle != null) add(particle);
     }
@@ -233,11 +235,53 @@ public final class ParticleManager {
                 if (random.nextInt(10) == 0) spawn(Kind.TOWN_AURA, x + random.nextFloat(), y + 1.1f, z + random.nextFloat(), 0, 0, 0, null);
             }
             case "water", "flowing_water", "lava", "flowing_lava" -> liquid(x, y, z, state);
-            case "portal" -> {
-                if (random.nextInt(100) == 0)
-                    sounds.play("portal.portal", x + 0.5, y + 0.5, z + 0.5, 0.5f, random.nextFloat() * 0.4f + 0.8f);
-            }
+            case "portal" -> portal(x, y, z);
+            case "enchanting_table" -> enchantingTable(x, y, z);
             default -> { }
+        }
+    }
+
+    /**
+     * BlockEnchantmentTable.randomDisplayTick: each bookshelf in the ring two
+     * blocks out (at table height or one above), 1 time in 16, sends a glyph
+     * to above the table, unless the block halfway between is not air.
+     */
+    private void enchantingTable(int x, int y, int z) {
+        for (int i = -2; i <= 2; i++) {
+            for (int j = -2; j <= 2; j++) {
+                if (i > -2 && i < 2 && j == -1) j = 2;
+                if (random.nextInt(16) != 0) continue;
+                for (int k = 0; k <= 1; k++) {
+                    if (!world.inBounds(x + i, y + k, z + j) || !world.get(x + i, y + k, z + j).name().path().equals("bookshelf")) continue;
+                    if (!world.get(x + i / 2, y, z + j / 2).isAir()) break;
+                    spawn(Kind.ENCHANTMENT_TABLE, x + 0.5, y + 2.0, z + 0.5, i + random.nextFloat() - 0.5,
+                        k - random.nextFloat() - 1f, j + random.nextFloat() - 0.5, null);
+                }
+            }
+        }
+    }
+
+    /**
+     * BlockPortal.randomDisplayTick: now and then the portal hum, and four
+     * swirl particles, each starting a quarter block out from either face and
+     * flying off across the sheet.
+     */
+    private void portal(int x, int y, int z) {
+        if (random.nextInt(100) == 0)
+            sounds.play("portal.portal", x + 0.5, y + 0.5, z + 0.5, 0.5f, random.nextFloat() * 0.4f + 0.8f);
+        boolean alongX = world.get(x - 1, y, z).name().path().equals("portal") || world.get(x + 1, y, z).name().path().equals("portal");
+        for (int i = 0; i < 4; i++) {
+            double px = x + random.nextFloat(), py = y + random.nextFloat(), pz = z + random.nextFloat();
+            double vx = (random.nextFloat() - 0.5) * 0.5, vy = (random.nextFloat() - 0.5) * 0.5, vz = (random.nextFloat() - 0.5) * 0.5;
+            int side = random.nextInt(2) * 2 - 1;
+            if (!alongX) {
+                px = x + 0.5 + 0.25 * side;
+                vx = random.nextFloat() * 2f * side;
+            } else {
+                pz = z + 0.5 + 0.25 * side;
+                vz = random.nextFloat() * 2f * side;
+            }
+            spawn(Kind.PORTAL, px, py, pz, vx, vy, vz, null);
         }
     }
 

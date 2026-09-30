@@ -1,0 +1,9 @@
+{
+  "class": "wall",
+  "hardness": 2.0,
+  "opaque": false,
+  "items": {
+    "cobblestone_wall": 0,
+    "mossy_cobblestone_wall": 1
+  }
+}

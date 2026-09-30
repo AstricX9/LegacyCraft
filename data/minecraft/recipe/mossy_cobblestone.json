@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "minecraft:cobblestone",
+    "minecraft:vine"
+  ],
+  "result": {
+    "id": "minecraft:mossy_cobblestone",
+    "count": 1
+  }
+}

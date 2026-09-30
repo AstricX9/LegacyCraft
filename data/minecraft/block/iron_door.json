@@ -1,0 +1,9 @@
+{
+  "class": "door",
+  "material": "iron",
+  "hardness": 5.0,
+  "opaque": false,
+  "items": {
+    "iron_door": 0
+  }
+}

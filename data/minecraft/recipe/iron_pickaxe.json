@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "XXX",
+    " # ",
+    " # "
+  ],
+  "key": {
+    "X": "minecraft:iron_ingot",
+    "#": "minecraft:stick"
+  },
+  "result": {
+    "id": "minecraft:iron_pickaxe",
+    "count": 1
+  }
+}

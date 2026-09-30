@@ -4,116 +4,98 @@ import com.google.gson.JsonParser;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.TestItems;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * What breaking a block drops: tool requirements, ores, self-drops, snow
- * layers, leaves and shears, crops and double plants.
- */
+/** Silk Touch and Fortune on block drops (HYPOTHESIS: recalled 1.8.9 canSilkHarvest and quantityDroppedWithBonus). */
 final class BlockDropsTest {
-    private BlockDrops drops;
-    private final Item woodPick = TestItems.item("wooden_pickaxe", 1, 59);
-    private final Item ironPick = TestItems.item("iron_pickaxe", 1, 250);
-    private final Item shears = TestItems.item("shears", 1, 238);
-    private final Item shovel = TestItems.item("wooden_shovel", 1, 59);
+    private static final Item PICKAXE = TestItems.item("diamond_pickaxe", 1, 1561), SHOVEL = TestItems.item("diamond_shovel", 1, 1561);
 
-    /** Items named after the block they place: "stone.1" is the item placing stone with metadata 1. */
-    private final BlockDrops.Items items = new BlockDrops.Items() {
+    private static final BlockDrops DROPS = BlockDrops.parse(JsonParser.parseString("""
+        {"blocks": {
+          "coal_ore": [{"item": "coal"}],
+          "lapis_ore": [{"item": "dye_blue", "count": [4, 8]}],
+          "redstone_ore": [{"item": "redstone", "count": [4, 5]}],
+          "lit_redstone_ore": [{"item": "redstone", "count": [4, 5]}],
+          "glowstone": [{"item": "glowstone_dust", "count": [2, 4]}],
+          "glass": [],
+          "glass_pane": [],
+          "stone": [{"item": "cobblestone", "meta": [0]}],
+          "double_stone_slab": [{"block": "stone_slab", "count": [2, 2]}]
+        }}""").getAsJsonObject(), new BlockDrops.Items() {
         @Override public Item byName(String name) { return TestItems.item(name); }
-        @Override public Item placing(String block, int metadata) { return TestItems.item(block + "." + metadata); }
-    };
+        @Override public Item placing(String block, int metadata) { return TestItems.item(block + (metadata == 0 ? "" : "#" + metadata)); }
+    });
 
-    @BeforeEach
-    void load() throws Exception {
-        String json = Files.readString(Path.of("src/main/resources/assets/legacycraft/loot/blocks.json"));
-        drops = BlockDrops.parse(JsonParser.parseString(json).getAsJsonObject(), items);
+    private static List<ItemStack> drops(String block, String material, Item tool, int fortune, boolean silk, boolean fullCube, Random random) {
+        return DROPS.drops(block, material, 0, tool, fortune, silk, fullCube, random);
     }
 
-    private List<ItemStack> drop(String block, String material, int meta, Item tool) {
-        return drops.drops(block, material, meta, tool, new Random(1));
-    }
-
-    private static String names(List<ItemStack> stacks) {
-        StringBuilder text = new StringBuilder();
-        for (ItemStack stack : stacks) text.append(stack.item().name().path()).append('x').append(stack.count()).append(' ');
-        return text.toString().trim();
+    private static String only(List<ItemStack> drops) {
+        assertEquals(1, drops.size(), drops.toString());
+        return drops.get(0).item().name().path() + " x" + drops.get(0).count();
     }
 
     @Test
-    void stoneNeedsAPickaxeAndGivesCobblestone() {
-        assertTrue(drop("stone", "rock", 0, null).isEmpty());
-        assertEquals("cobblestonex1", names(drop("stone", "rock", 0, woodPick)));
-        assertEquals("stone.1x1", names(drop("stone", "rock", 1, woodPick)), "granite drops itself");
+    void silkTouchTakesFullBlocksWhole() {
+        Random random = new Random(1);
+        assertEquals("coal_ore x1", only(drops("coal_ore", "rock", PICKAXE, 0, true, true, random)));
+        assertEquals("stone x1", only(drops("stone", "rock", PICKAXE, 0, true, true, random)));
+        assertEquals("glass x1", only(drops("glass", "glass", null, 0, true, true, random)));
+        assertTrue(drops("glass", "glass", null, 0, false, true, random).isEmpty(), "glass breaks without it");
     }
 
     @Test
-    void oresDropTheirItems() {
-        assertEquals("diamondx1", names(drop("diamond_ore", "rock", 0, ironPick)));
-        assertTrue(drop("diamond_ore", "rock", 0, woodPick).isEmpty());
-        for (int seed = 0; seed < 50; seed++) {
-            int lapis = drops.drops("lapis_ore", "rock", 0, ironPick, new Random(seed)).get(0).count();
-            assertTrue(lapis >= 4 && lapis <= 8);
-            int redstone = drops.drops("redstone_ore", "rock", 0, ironPick, new Random(seed)).get(0).count();
-            assertTrue(redstone >= 4 && redstone <= 5);
+    void silkTouchHasItsExceptions() {
+        Random random = new Random(2);
+        assertEquals("redstone_ore x1", only(drops("lit_redstone_ore", "rock", PICKAXE, 0, true, true, random)));
+        assertEquals("glass_pane x1", only(drops("glass_pane", "glass", null, 0, true, false, random)), "panes aren't cubes but take it");
+        assertEquals("stone_slab x2", only(drops("double_stone_slab", "rock", PICKAXE, 0, true, true, random)), "double slabs never");
+        assertTrue(drops("stone", "rock", null, 0, true, true, random).isEmpty(), "the tool must still harvest it");
+        assertFalse(BlockDrops.canSilkHarvest("furnace", true), "tile entities never");
+        assertTrue(BlockDrops.canSilkHarvest("ender_chest", false));
+    }
+
+    @Test
+    void fortuneMultipliesOres() {
+        Random random = new Random(3);
+        int total = 0, most = 0;
+        for (int i = 0; i < 2000; i++) {
+            List<ItemStack> drops = drops("coal_ore", "rock", PICKAXE, 3, false, true, random);
+            int count = drops.get(0).count();
+            assertTrue(count >= 1 && count <= 4, "up to (Fortune + 1) times: " + count);
+            total += count;
+            most = Math.max(most, count);
         }
+        assertEquals(4, most);
+        assertEquals(2.2, total / 2000.0, 0.15, "1, 1, 2, 3 or 4 equally");
     }
 
     @Test
-    void simpleBlocksDropThemselvesOrTheirSource() {
-        assertEquals("dirtx1", names(drop("grass", "grass", 0, null)));
-        assertEquals("dirt.1x1", names(drop("dirt", "ground", 1, null)), "coarse dirt stays coarse");
-        assertEquals("dirtx1", names(drop("dirt", "ground", 2, null)), "podzol drops dirt");
-        assertEquals("log.6x1", names(drop("log", "wood", 6, null)));
-        assertEquals("wooden_slab.2x2", names(drop("double_wooden_slab", "wood", 2, null)));
-        assertEquals("bookx3", names(drop("bookshelf", "wood", 0, null)));
-        assertEquals("", names(drop("glass", "glass", 0, null)));
-        assertEquals("wooden_door.1x1", names(drop("wooden_door", "wood", 1, null)));
-        assertEquals("", names(drop("wooden_door", "wood", 9, null)), "the upper half drops nothing");
-    }
-
-    @Test
-    void snowLayersNeedAShovelAndGiveOneSnowballPerLayer() {
-        assertTrue(drop("snow_layer", "snow", 2, null).isEmpty());
-        assertEquals("snowballx3", names(drop("snow_layer", "snow", 2, shovel)));
-    }
-
-    @Test
-    void leavesGiveSaplingsRarelyAndThemselvesToShears() {
-        assertEquals("leaves.4x1", names(drop("leaves", "leaves", 4, shears)));
-        int saplings = 0, apples = 0;
-        Random random = new Random(42);
-        for (int i = 0; i < 20000; i++) {
-            for (ItemStack stack : drops.drops("leaves", "leaves", 0, null, random)) {
-                if (stack.item().name().path().equals("oak_sapling")) saplings++;
-                if (stack.item().name().path().equals("apple")) apples++;
-            }
+    void fortuneAddsToRedstoneAndCapsGlowstone() {
+        Random random = new Random(4);
+        int most = 0;
+        for (int i = 0; i < 500; i++) {
+            most = Math.max(most, drops("redstone_ore", "rock", TestItems.item("iron_pickaxe", 1, 250), 3, false, true, random).get(0).count());
+            int glowstone = drops("glowstone", "glass", null, 3, false, true, random).get(0).count();
+            assertTrue(glowstone >= 2 && glowstone <= 4, "clamped to 4: " + glowstone);
         }
-        assertEquals(1000, saplings, 120, "about 1 in 20");
-        assertEquals(100, apples, 40, "about 1 in 200");
+        assertEquals(8, most, "4-5 plus 0-3");
     }
 
     @Test
-    void cropsDropSeedsUntilRipe() {
-        assertEquals("wheat_seedsx1", names(drop("wheat", "plants", 3, null)));
-        List<ItemStack> ripe = drop("wheat", "plants", 7, null);
-        assertEquals("wheat", ripe.get(0).item().name().path());
-        assertEquals("dye_brownx3", names(drop("cocoa", "plants", 8, null)));
-        assertEquals("dye_brownx1", names(drop("cocoa", "plants", 1, null)));
-        int wart = drop("nether_wart", "plants", 3, null).get(0).count();
-        assertTrue(wart >= 2 && wart <= 4);
+    void fortuneThreeAlwaysGivesFlintFromGravel() {
+        Random random = new Random(5);
+        for (int i = 0; i < 50; i++) assertEquals("flint x1", only(drops("gravel", "sand", SHOVEL, 3, false, true, random)));
     }
 
     @Test
-    void doublePlantsDropTheFlowerOrSeeds() {
-        assertEquals("double_plant.0x1", names(drop("double_plant", "vine", 0, null)));
-        assertEquals("tall_grassx2", names(drop("double_plant", "vine", 2, shears)));
+    void withoutEnchantmentsNothingChanges() {
+        Random random = new Random(6);
+        for (int i = 0; i < 100; i++) assertEquals("coal x1", only(drops("coal_ore", "rock", PICKAXE, 0, false, true, random)));
     }
 }

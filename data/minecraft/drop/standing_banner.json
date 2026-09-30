@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:standing_banner",
+  "drops": [
+    {
+      "item": "minecraft:banner"
+    }
+  ]
+}

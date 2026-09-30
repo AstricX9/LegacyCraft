@@ -109,10 +109,22 @@ public final class ToolValues {
      */
     public static float breakProgressPerTick(Item item, String block, String material, float hardness,
                                              boolean onGround, boolean headInWater) {
+        return breakProgressPerTick(item, block, material, hardness, onGround, headInWater, 0, false);
+    }
+
+    /**
+     * As above with the held tool's Efficiency level and whether Aqua Affinity
+     * is worn (EntityPlayer.getToolDigEfficiency): Efficiency adds
+     * {@code level² + 1} to a speed above 1 (the tool suits the block), and
+     * Aqua Affinity skips the underwater slowdown.
+     */
+    public static float breakProgressPerTick(Item item, String block, String material, float hardness,
+                                             boolean onGround, boolean headInWater, int efficiency, boolean aquaAffinity) {
         if (hardness < 0) return 0f;
         if (hardness == 0) return 1f;
         float speed = strVsBlock(item, block, material);
-        if (headInWater) speed /= 5f;
+        if (speed > 1f && efficiency > 0) speed += efficiency * efficiency + 1;
+        if (headInWater && !aquaAffinity) speed /= 5f;
         if (!onGround) speed /= 5f;
         return speed / hardness / (canHarvest(item, block, material) ? 30f : 100f);
     }

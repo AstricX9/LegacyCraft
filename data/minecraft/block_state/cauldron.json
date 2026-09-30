@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "level": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ]
+  },
+  "meta": [
+    {
+      "property": "level",
+      "bits": 2
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "has_record": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "has_record",
+      "bits": 1
+    }
+  ],
+  "model": {
+    "ignore": [
+      "has_record"
+    ]
+  }
+}

@@ -56,7 +56,9 @@ public final class LevelInfo {
      * {@code id}, {@code Count}, {@code Damage}. LegacyCraft writes its own
      * item names as the id (DEV-015).
      */
-    public record SavedStack(int slot, String id, int count, int damage) {}
+    public record SavedStack(int slot, String id, int count, int damage, NbtTag.Compound tag) {
+        public SavedStack(int slot, String id, int count, int damage) { this(slot, id, count, damage, null); }
+    }
 
     /** 1.8.9's {@code Player.abilities} compound. */
     public record Abilities(boolean flying, boolean mayfly, boolean instabuild, boolean invulnerable, boolean mayBuild,
@@ -75,6 +77,14 @@ public final class LevelInfo {
     public int selectedItemSlot;
     /** The player's saved abilities; null when level.dat has none. */
     public Abilities abilities;
+    /** 1.8.9's {@code XpLevel}, {@code XpP} (progress to the next level) and {@code XpTotal}. */
+    public record Experience(int level, float progress, int total) {}
+    /** The player's saved experience; null when level.dat has none. */
+    public Experience experience;
+    /** 1.8.9's {@code HealF} (health), {@code Air} and {@code XpSeed} (the enchanting table's seed). */
+    public record Vitals(float health, int air, int xpSeed) {}
+    /** The player's saved health, air and table seed; null when level.dat has none. */
+    public Vitals vitals;
 
     /** The 1.8.9 game rules and their defaults (VERIFIED_HISTORY: /gamerule list for 1.8). */
     public static Map<String, String> defaultGameRules() {
@@ -171,6 +181,7 @@ public final class LevelInfo {
                     tag.put("id", new NbtTag.Str(stack.id()));
                     tag.put("Count", new NbtTag.Byte((byte) stack.count()));
                     tag.put("Damage", new NbtTag.Short((short) stack.damage()));
+                    if (stack.tag() != null) tag.put("tag", stack.tag());
                     stacks.add(tag);
                 }
                 playerTag.put("Inventory", new NbtTag.NbtList(stacks.isEmpty() ? NbtTag.END : NbtTag.COMPOUND, stacks));
@@ -186,6 +197,17 @@ public final class LevelInfo {
                 tag.put("flySpeed", new NbtTag.Float(abilities.flySpeed()));
                 tag.put("walkSpeed", new NbtTag.Float(abilities.walkSpeed()));
                 playerTag.put("abilities", tag);
+            }
+            if (vitals != null) {
+                playerTag.put("HealF", new NbtTag.Float(vitals.health()));
+                playerTag.put("Health", new NbtTag.Short((short) Math.ceil(vitals.health())));
+                playerTag.put("Air", new NbtTag.Short((short) vitals.air()));
+                playerTag.put("XpSeed", new NbtTag.Int(vitals.xpSeed()));
+            }
+            if (experience != null) {
+                playerTag.put("XpLevel", new NbtTag.Int(experience.level()));
+                playerTag.put("XpP", new NbtTag.Float(experience.progress()));
+                playerTag.put("XpTotal", new NbtTag.Int(experience.total()));
             }
             data.put("Player", playerTag);
         }
@@ -246,7 +268,8 @@ public final class LevelInfo {
                 for (NbtTag element : list.values()) {
                     if (!(element instanceof NbtTag.Compound tag) || !(tag.get("id") instanceof NbtTag.Str id)) continue;
                     int damage = tag.get("Damage") instanceof NbtTag.Short value ? value.value() : 0;
-                    info.inventory.add(new SavedStack(byteOr(tag, "Slot", 0) & 0xFF, id.value(), byteOr(tag, "Count", 1), damage));
+                    info.inventory.add(new SavedStack(byteOr(tag, "Slot", 0) & 0xFF, id.value(), byteOr(tag, "Count", 1), damage,
+                        tag.get("tag") instanceof NbtTag.Compound extra ? extra : null));
                 }
                 info.selectedItemSlot = intOr(playerTag, "SelectedItemSlot", 0);
             }
@@ -256,6 +279,15 @@ public final class LevelInfo {
                     tag.get("flySpeed") instanceof NbtTag.Float fly ? fly.value() : 0.05f,
                     tag.get("walkSpeed") instanceof NbtTag.Float walk ? walk.value() : 0.1f);
             }
+            if (playerTag.has("HealF") || playerTag.has("Health")) {
+                float health = playerTag.get("HealF") instanceof NbtTag.Float heal ? heal.value()
+                    : playerTag.get("Health") instanceof NbtTag.Short shortHealth ? shortHealth.value() : 20f;
+                int air = playerTag.get("Air") instanceof NbtTag.Short value ? value.value() : 300;
+                info.vitals = new Vitals(health, air, intOr(playerTag, "XpSeed", 0));
+            }
+            if (playerTag.has("XpLevel"))
+                info.experience = new Experience(intOr(playerTag, "XpLevel", 0),
+                    playerTag.get("XpP") instanceof NbtTag.Float progress ? progress.value() : 0f, intOr(playerTag, "XpTotal", 0));
         }
         return info;
     }

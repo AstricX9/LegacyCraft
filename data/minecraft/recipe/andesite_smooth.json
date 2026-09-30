@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SS",
+    "SS"
+  ],
+  "key": {
+    "S": "minecraft:andesite"
+  },
+  "result": {
+    "id": "minecraft:andesite_smooth",
+    "count": 4
+  }
+}

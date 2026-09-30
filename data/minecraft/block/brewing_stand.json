@@ -1,0 +1,10 @@
+{
+  "class": "brewing_stand",
+  "material": "iron",
+  "hardness": 0.5,
+  "opaque": false,
+  "lightLevel": 1,
+  "items": {
+    "brewing_stand": 0
+  }
+}

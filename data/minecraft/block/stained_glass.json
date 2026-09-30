@@ -1,0 +1,25 @@
+{
+  "material": "glass",
+  "hardness": 0.3,
+  "opaque": false,
+  "fullCube": true,
+  "cullSame": "state",
+  "items": {
+    "white_stained_glass": 0,
+    "orange_stained_glass": 1,
+    "magenta_stained_glass": 2,
+    "light_blue_stained_glass": 3,
+    "yellow_stained_glass": 4,
+    "lime_stained_glass": 5,
+    "pink_stained_glass": 6,
+    "gray_stained_glass": 7,
+    "silver_stained_glass": 8,
+    "cyan_stained_glass": 9,
+    "purple_stained_glass": 10,
+    "blue_stained_glass": 11,
+    "brown_stained_glass": 12,
+    "green_stained_glass": 13,
+    "red_stained_glass": 14,
+    "black_stained_glass": 15
+  }
+}

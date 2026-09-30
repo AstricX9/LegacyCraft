@@ -1,0 +1,27 @@
+{
+  "properties": {
+    "shape": [
+      "north_south",
+      "east_west",
+      "ascending_east",
+      "ascending_west",
+      "ascending_north",
+      "ascending_south"
+    ],
+    "powered": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "shape",
+      "bits": 3
+    },
+    {
+      "property": "powered",
+      "shift": 3,
+      "bits": 1
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": 25,
+  "temperature": 0.2,
+  "rainfall": 0.3,
+  "depth": 0.1,
+  "scale": 0.8,
+  "topBlock": "minecraft:stone",
+  "fillerBlock": "minecraft:stone"
+}

@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:mycelium",
+  "drops": [
+    {
+      "item": "minecraft:dirt"
+    }
+  ]
+}

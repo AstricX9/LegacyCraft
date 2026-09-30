@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:powered_comparator",
+  "drops": [
+    {
+      "item": "minecraft:comparator"
+    }
+  ]
+}

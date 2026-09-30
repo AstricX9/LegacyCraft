@@ -1,0 +1,22 @@
+{
+  "block": "minecraft:stone",
+  "drops": [
+    {
+      "item": "minecraft:cobblestone",
+      "meta": [
+        0
+      ]
+    },
+    {
+      "self": true,
+      "meta": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    }
+  ]
+}

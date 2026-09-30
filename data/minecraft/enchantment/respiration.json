@@ -1,0 +1,16 @@
+{
+  "id": 5,
+  "translation_key": "enchantment.oxygen",
+  "weight": 2,
+  "max_level": 3,
+  "supported_items": "armor_head",
+  "min_cost": {
+    "base": 10,
+    "per_level_above_first": 10
+  },
+  "max_cost": {
+    "base": 40,
+    "per_level_above_first": 10
+  },
+  "incompatible": []
+}

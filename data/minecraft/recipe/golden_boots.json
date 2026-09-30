@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "X X",
+    "X X"
+  ],
+  "key": {
+    "X": "minecraft:gold_ingot"
+  },
+  "result": {
+    "id": "minecraft:golden_boots",
+    "count": 1
+  }
+}

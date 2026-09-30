@@ -1,0 +1,7 @@
+{
+  "material": "redstone_light",
+  "hardness": 0.3,
+  "items": {
+    "redstone_lamp": 0
+  }
+}

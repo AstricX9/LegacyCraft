@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:glowstone",
+  "drops": [
+    {
+      "item": "minecraft:glowstone_dust",
+      "count": [
+        2,
+        4
+      ]
+    }
+  ]
+}

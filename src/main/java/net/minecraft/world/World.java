@@ -1,9 +1,14 @@
 package net.minecraft.world;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockFurnace;
 import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.BlockUpdates;
+import net.minecraft.inventory.Furnace;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeRegistry;
@@ -20,6 +25,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +64,19 @@ public final class World implements IBlockWorld {
         default void liquidsMixed(int x, int y, int z) {}
         /** A block broke because a gameplay change took its support. */
         default void popped(int x, int y, int z, BlockState previous) {}
+        /** A block went out with its break effects but no drops (a portal whose frame broke). */
+        default void shattered(int x, int y, int z, BlockState previous) {}
+        /** A block that held items is gone; its contents spill here (InventoryHelper.dropInventoryItems). */
+        default void containerBroken(int x, int y, int z, List<ItemStack> contents) {}
     }
     private Events events = new Events() {};
+
+    /** A furnace's position (the key of its tile entity). */
+    public record BlockPos(int x, int y, int z) {}
+    /** The furnaces' contents and fire, by position (vanilla keeps them as tile entities in their chunk). */
+    private final Map<BlockPos, Furnace> furnaces = new LinkedHashMap<>();
+    private FurnaceRecipes smelting;
+    private java.util.function.Function<String, Item> items;
 
     /**
      * A pending block tick (NextTickListEntry): due at a world tick, ordered
@@ -83,6 +100,14 @@ public final class World implements IBlockWorld {
     private long tickTime, nextTickOrder;
     private final Random tickRandom = new Random();
     private final LiquidFlow liquids;
+    private final FireSpread fire;
+    private final net.minecraft.block.Block portal;
+    /** Where enchanting tables stand (their tile entities, which animate the book above them). */
+    private final java.util.Set<BlockPos> enchantingTables = new java.util.LinkedHashSet<>();
+    private final Block enchantingTable;
+    /** The game settings world logic reads (the client copies them in from level.dat each tick). */
+    private int difficulty = 2;
+    private boolean doFireTick = true, raining;
 
     private final Block air, grass, bedrock;
     private final GenBlocks genBlocks;
@@ -124,6 +149,27 @@ public final class World implements IBlockWorld {
         populator = new ChunkPopulator(genBlocks, seed);
         light = new LightEngine(this, registry);
         liquids = new LiquidFlow(this, registry);
+        fire = new FireSpread(this);
+        portal = registry.get("minecraft:portal");
+        enchantingTable = registry.get("minecraft:enchanting_table");
+    }
+
+    /** Every enchanting table in the loaded chunks (for their book animation). */
+    public java.util.Set<BlockPos> enchantingTables() { return java.util.Collections.unmodifiableSet(enchantingTables); }
+
+    /** Finds the enchanting tables in a chunk that was loaded rather than generated. */
+    private void findEnchantingTables(Chunk chunk) {
+        if (enchantingTable == null) return;
+        int id = enchantingTable.registryId();
+        for (int s = 0; s < Chunk.HEIGHT / 16; s++) {
+            var section = chunk.section(s);
+            if (section == null || section.isEmpty()) continue;
+            for (int y = 0; y < 16; y++)
+                for (int z = 0; z < 16; z++)
+                    for (int x = 0; x < 16; x++)
+                        if (unpackBlockId(section.get(x, y, z)) == id)
+                            enchantingTables.add(new BlockPos(chunk.chunkX() * Chunk.SIZE + x, s * 16 + y, chunk.chunkZ() * Chunk.SIZE + z));
+        }
     }
 
     @Override
@@ -164,14 +210,41 @@ public final class World implements IBlockWorld {
         Block now = state.block();
         if (old.lightOpacity() != now.lightOpacity() || old.lightLevel() != now.lightLevel()) light.blockChanged(x, y, z);
         for (Listener listener : listeners) listener.blockChanged(x, y, z);
-        // Block.onBlockAdded: only liquids react so far.
-        if (old != now) liquids.added(x, y, z, state);
+        // Block.onBlockAdded: liquids and fire react so far.
+        if (old != now) {
+            liquids.added(x, y, z, state);
+            if (fire.isFire(now)) fire.added(x, y, z, tickRandom);
+        }
+        if (old != now && enchantingTable != null) {
+            if (now == enchantingTable) enchantingTables.add(new BlockPos(x, y, z));
+            else if (old == enchantingTable) enchantingTables.remove(new BlockPos(x, y, z));
+        }
+        // BlockFurnace.breakBlock: the contents spill unless it only swapped between lit and unlit.
+        if (old instanceof BlockFurnace && !(now instanceof BlockFurnace)) {
+            Furnace furnace = furnaces.remove(new BlockPos(x, y, z));
+            if (furnace != null) {
+                List<ItemStack> contents = furnace.takeContents();
+                if (!contents.isEmpty()) events.containerBroken(x, y, z, contents);
+            }
+        }
     }
 
     @Override
     public void neighbourChanged(int x, int y, int z, BlockState state) {
         liquids.neighbourChanged(x, y, z, state);
+        if (fire.isFire(state.block())) fire.neighbourChanged(x, y, z);
+        else if (state.block() == portal) PortalShape.neighbourChanged(this, x, y, z, state);
     }
+
+    public void setDifficulty(int difficulty) { this.difficulty = difficulty; }
+    public int difficulty() { return difficulty; }
+    public void setDoFireTick(boolean doFireTick) { this.doFireTick = doFireTick; }
+    public boolean doFireTick() { return doFireTick; }
+    public void setRaining(boolean raining) { this.raining = raining; }
+    public boolean isRaining() { return raining; }
+
+    /** Lights a nether portal in an empty obsidian frame around the spot (what fire lit on obsidian does). */
+    public boolean trySpawnPortal(int x, int y, int z) { return PortalShape.trySpawn(this, x, y, z); }
 
     /** Lets the six neighbours react to a change here (notifyNeighborsOfStateChange). */
     public void notifyNeighbours(int x, int y, int z) {
@@ -227,6 +300,58 @@ public final class World implements IBlockWorld {
             BlockState state = getState(tick.x(), tick.y(), tick.z());
             if (state.block() != tick.block() || state.block().isAir()) continue;
             if (liquids.isFlowing(state.block())) liquids.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
+            else if (fire.isFire(state.block())) fire.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
+        }
+        tickFurnaces();
+    }
+
+    // ---- furnaces (TileEntityFurnace) ------------------------------------------------------
+
+    /** The recipes and item names furnaces use; set once the item registry is loaded (without it nothing smelts). */
+    public void setSmelting(FurnaceRecipes recipes, java.util.function.Function<String, Item> items) {
+        this.smelting = recipes;
+        this.items = items;
+    }
+
+    public FurnaceRecipes smelting() { return smelting; }
+    public java.util.function.Function<String, Item> itemLookup() { return items; }
+
+    /**
+     * The furnace at a position, made empty the first time it is asked for
+     * (BlockFurnace.createNewTileEntity), or null when no furnace block is there.
+     */
+    public Furnace furnaceAt(int x, int y, int z) {
+        if (!(get(x, y, z) instanceof BlockFurnace)) return null;
+        return furnaces.computeIfAbsent(new BlockPos(x, y, z), key -> new Furnace(smelting, items));
+    }
+
+    /** Every furnace with its position, for saving. */
+    public Map<BlockPos, Furnace> furnaces() { return java.util.Collections.unmodifiableMap(furnaces); }
+
+    /** Installs a saved furnace (loading). */
+    public void restoreFurnace(int x, int y, int z, Furnace furnace) { furnaces.put(new BlockPos(x, y, z), furnace); }
+
+    /**
+     * Each furnace burns and cooks for one tick; when its fire is lit or goes
+     * out the block swaps between furnace and lit_furnace, keeping its facing
+     * and contents (BlockFurnace.setState). A furnace whose block is gone is forgotten.
+     */
+    private void tickFurnaces() {
+        if (furnaces.isEmpty()) return;
+        for (Map.Entry<BlockPos, Furnace> entry : List.copyOf(furnaces.entrySet())) {
+            BlockPos pos = entry.getKey();
+            if (generatedChunk(floorDiv(pos.x(), Chunk.SIZE), floorDiv(pos.z(), Chunk.SIZE)) == null) continue;
+            BlockState state = getState(pos.x(), pos.y(), pos.z());
+            if (!(state.block() instanceof BlockFurnace)) {
+                furnaces.remove(pos);
+                continue;
+            }
+            Furnace furnace = entry.getValue();
+            if (furnace.update()) {
+                Block target = registry.get(furnace.isBurning() ? "minecraft:lit_furnace" : "minecraft:furnace");
+                if (target != null && target != state.block())
+                    setStateAndUpdate(pos.x(), pos.y(), pos.z(), BlockState.of(target, state.metadata()));
+            }
         }
     }
 
@@ -293,6 +418,7 @@ public final class World implements IBlockWorld {
             throw new IllegalStateException("Chunk is already loaded: " + chunk.chunkX() + "," + chunk.chunkZ());
         nextGenerationIndex = Math.max(nextGenerationIndex, chunk.generationIndex() + 1);
         light.lightChunk(chunk);
+        findEnchantingTables(chunk);
     }
 
     /**

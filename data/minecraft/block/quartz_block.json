@@ -1,0 +1,9 @@
+{
+  "class": "quartz",
+  "hardness": 0.8,
+  "items": {
+    "quartz_block": 0,
+    "chiseled_quartz_block": 1,
+    "quartz_column": 2
+  }
+}

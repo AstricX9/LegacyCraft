@@ -1,0 +1,10 @@
+{
+  "class": "button",
+  "material": "circuits",
+  "hardness": 0.5,
+  "opaque": false,
+  "solid": false,
+  "items": {
+    "stone_button": 0
+  }
+}

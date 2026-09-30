@@ -22,6 +22,10 @@ public final class CraftingGrid {
     private final ItemStack[] cells;
     private final CraftingManager recipes;
     private final Function<String, Item> items;
+    private Consumer<ItemStack> onCrafted = stack -> {};
+
+    /** Told about every result taken (SlotCrafting.onCrafting: achievements). */
+    public void setOnCrafted(Consumer<ItemStack> onCrafted) { this.onCrafted = onCrafted == null ? stack -> {} : onCrafted; }
 
     public CraftingGrid(int width, int height, CraftingManager recipes, Function<String, Item> items) {
         this.width = width;
@@ -61,6 +65,8 @@ public final class CraftingGrid {
      * else is dropped.
      */
     void consume(InventoryPlayer inventory, Consumer<ItemStack> drop) {
+        ItemStack made = result();
+        if (made != null) onCrafted.accept(made);
         for (int i = 0; i < cells.length; i++) {
             ItemStack stack = cells[i];
             if (stack == null) continue;

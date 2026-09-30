@@ -1,0 +1,10 @@
+{
+  "class": "chest",
+  "material": "wood",
+  "hardness": 2.5,
+  "opaque": false,
+  "renderType": "entity",
+  "items": {
+    "chest": 0
+  }
+}

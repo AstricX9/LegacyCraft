@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "###",
+    "#X#",
+    "###"
+  ],
+  "key": {
+    "#": "minecraft:glass",
+    "X": "minecraft:dye_gray"
+  },
+  "result": {
+    "id": "minecraft:gray_stained_glass",
+    "count": 8
+  }
+}

@@ -30,7 +30,10 @@ public class GuiCrafting extends GuiContainer {
     @Override
     protected void buildSlots() {
         InventoryPlayer inventory = inventory();
-        if (grid == null) grid = new CraftingGrid(3, 3, mc.crafting(), mc::itemByName);
+        if (grid == null) {
+            grid = new CraftingGrid(3, 3, mc.crafting(), mc::itemByName);
+            grid.setOnCrafted(mc::onItemCrafted);
+        }
         slots.add(new SlotPos(grid.resultSlot(), 124, 35, Kind.OTHER));
         for (int row = 0; row < 3; row++)
             for (int column = 0; column < 3; column++)

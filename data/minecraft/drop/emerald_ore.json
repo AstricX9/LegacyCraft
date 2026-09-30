@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:emerald_ore",
+  "drops": [
+    {
+      "item": "minecraft:emerald"
+    }
+  ]
+}

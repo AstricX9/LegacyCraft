@@ -1,0 +1,9 @@
+{
+  "class": "trapdoor",
+  "material": "iron",
+  "hardness": 5.0,
+  "opaque": false,
+  "items": {
+    "iron_trapdoor": 0
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "type": [
+      "dandelion"
+    ]
+  },
+  "model": {
+    "file": "{type}"
+  }
+}

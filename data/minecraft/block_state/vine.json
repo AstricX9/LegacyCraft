@@ -1,0 +1,45 @@
+{
+  "properties": {
+    "east": [
+      "false",
+      "true"
+    ],
+    "north": [
+      "false",
+      "true"
+    ],
+    "south": [
+      "false",
+      "true"
+    ],
+    "up": [
+      "false",
+      "true"
+    ],
+    "west": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "south",
+      "bits": 1
+    },
+    {
+      "property": "west",
+      "shift": 1,
+      "bits": 1
+    },
+    {
+      "property": "north",
+      "shift": 2,
+      "bits": 1
+    },
+    {
+      "property": "east",
+      "shift": 3,
+      "bits": 1
+    }
+  ]
+}

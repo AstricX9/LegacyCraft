@@ -1,0 +1,8 @@
+{
+  "id": 3,
+  "temperature": 0.2,
+  "rainfall": 0.3,
+  "depth": 1.0,
+  "scale": 0.5,
+  "treesPerChunk": 0
+}

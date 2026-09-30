@@ -1,0 +1,8 @@
+{
+  "class": "fence",
+  "hardness": 2.0,
+  "opaque": false,
+  "items": {
+    "nether_brick_fence": 0
+  }
+}

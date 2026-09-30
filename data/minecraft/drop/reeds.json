@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:reeds",
+  "drops": [
+    {
+      "item": "minecraft:reeds"
+    }
+  ]
+}

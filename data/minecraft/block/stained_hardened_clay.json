@@ -1,0 +1,21 @@
+{
+  "hardness": 1.25,
+  "items": {
+    "white_stained_hardened_clay": 0,
+    "orange_stained_hardened_clay": 1,
+    "magenta_stained_hardened_clay": 2,
+    "light_blue_stained_hardened_clay": 3,
+    "yellow_stained_hardened_clay": 4,
+    "lime_stained_hardened_clay": 5,
+    "pink_stained_hardened_clay": 6,
+    "gray_stained_hardened_clay": 7,
+    "silver_stained_hardened_clay": 8,
+    "cyan_stained_hardened_clay": 9,
+    "purple_stained_hardened_clay": 10,
+    "blue_stained_hardened_clay": 11,
+    "brown_stained_hardened_clay": 12,
+    "green_stained_hardened_clay": 13,
+    "red_stained_hardened_clay": 14,
+    "black_stained_hardened_clay": 15
+  }
+}

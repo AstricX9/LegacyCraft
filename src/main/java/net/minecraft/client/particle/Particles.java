@@ -378,4 +378,109 @@ public final class Particles {
             if (maxAge-- <= 0) dead = true;
         }
     }
+
+    /**
+     * The purple swirl around a nether portal (EntityPortalFX): starts at its
+     * spot plus its offset and is pulled back along the offset, rising a
+     * block as it goes, shrinking out and brightening over 40-49 ticks;
+     * passes through blocks.
+     */
+    /**
+     * A glyph flying from a bookshelf into an enchanting table
+     * (EntityEnchantmentTableParticleFX): starts at the shelf ({@code origin}
+     * plus the offset), drifts in to the origin over 30-39 ticks, dropping
+     * 1.2 blocks at the end, brightening as it goes; one of the 26 glyph
+     * textures from index 225, pale with a purple cast.
+     */
+    public static final class EnchantmentTable extends Particle {
+        private final double originX, originY, originZ;
+
+        public EnchantmentTable(World world, Random random, double x, double y, double z, double vx, double vy, double vz) {
+            super(world, random, x, y, z, vx, vy, vz);
+            motionX = vx;
+            motionY = vy;
+            motionZ = vz;
+            originX = x;
+            originY = y;
+            originZ = z;
+            this.x = prevX = x + vx;
+            this.y = prevY = y + vy;
+            this.z = prevZ = z + vz;
+            float shade = random.nextFloat() * 0.6f + 0.4f;
+            scale = random.nextFloat() * 0.5f + 0.2f;
+            red = green = blue = shade;
+            green *= 0.9f;
+            red *= 0.9f;
+            maxAge = (int) (Math.random() * 10.0) + 30;
+            noClip = true;
+            textureIndex = (int) (Math.random() * 26.0 + 1.0 + 224.0);
+        }
+
+        @Override public int[] light(float partialTicks) {
+            int[] light = super.light(partialTicks);
+            float f = (float) age / maxAge;
+            f = f * f * f * f;
+            light[0] = Math.min(15, light[0] + (int) (f * 15f));
+            return light;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            float f = 1f - (float) age / maxAge;
+            float fall = 1f - f;
+            fall = fall * fall;
+            fall = fall * fall;
+            x = originX + motionX * f;
+            y = originY + motionY * f - fall * 1.2f;
+            z = originZ + motionZ * f;
+            if (age++ >= maxAge) dead = true;
+        }
+    }
+
+    public static final class Portal extends Particle {
+        private final double originX, originY, originZ;
+        private final float baseScale;
+
+        public Portal(World world, Random random, double x, double y, double z, double vx, double vy, double vz) {
+            super(world, random, x, y, z, vx, vy, vz);
+            motionX = vx;
+            motionY = vy;
+            motionZ = vz;
+            originX = x;
+            originY = y;
+            originZ = z;
+            float shade = random.nextFloat() * 0.6f + 0.4f;
+            baseScale = scale = random.nextFloat() * 0.2f + 0.5f;
+            red = green = blue = shade;
+            green *= 0.3f;
+            red *= 0.9f;
+            maxAge = (int) (Math.random() * 10.0) + 40;
+            noClip = true;
+            textureIndex = (int) (Math.random() * 8.0);
+        }
+
+        @Override protected float size(float partialTicks) {
+            float left = 1f - (age + partialTicks) / maxAge;
+            return 0.1f * baseScale * (1f - left * left);
+        }
+
+        @Override public int[] light(float partialTicks) {
+            int[] light = super.light(partialTicks);
+            float f = (float) age / maxAge;
+            f = f * f * f * f;
+            light[0] = Math.min(15, light[0] + (int) (f * 15f));
+            return light;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            float f = (float) age / maxAge;
+            f = -f + f * f * 2f;
+            f = 1f - f;
+            x = originX + motionX * f;
+            y = originY + motionY * f + (1f - f);
+            z = originZ + motionZ * f;
+            if (age++ >= maxAge) dead = true;
+        }
+    }
 }

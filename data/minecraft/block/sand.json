@@ -1,0 +1,8 @@
+{
+  "material": "sand",
+  "hardness": 0.5,
+  "items": {
+    "sand": 0,
+    "red_sand": 1
+  }
+}

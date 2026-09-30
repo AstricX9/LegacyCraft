@@ -1,0 +1,16 @@
+{
+  "material": "portal",
+  "hardness": -1.0,
+  "opaque": false,
+  "solid": false,
+  "renderType": "entity",
+  "lightLevel": 15,
+  "bounds": [
+    0,
+    0,
+    0,
+    16,
+    12,
+    16
+  ]
+}

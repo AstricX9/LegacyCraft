@@ -74,4 +74,37 @@ final class InventoryPlayerTest {
         assertEquals(-1, ArmorValues.armorSlot(TestItems.item("stone")));
         assertEquals(8, ArmorValues.points(TestItems.item("diamond_chestplate"), 2));
     }
+
+    @Test
+    void rightClickPutsArmourOnOnlyIntoAnEmptySlot() {
+        InventoryPlayer inventory = new InventoryPlayer();
+        Item helmet = TestItems.item("iron_helmet", 1, 165), boots = TestItems.item("diamond_boots", 1, 429);
+        inventory.currentItem = 2;
+        inventory.mainInventory[2] = new ItemStack(helmet, 1, 7);
+        assertTrue(inventory.equipHeldArmor());
+        assertNull(inventory.mainInventory[2]);
+        assertEquals(helmet, inventory.armorInventory[3].item());
+        assertEquals(7, inventory.armorInventory[3].damage(), "keeps its wear");
+
+        inventory.mainInventory[2] = new ItemStack(TestItems.item("golden_helmet", 1, 77));
+        assertFalse(inventory.equipHeldArmor(), "the helmet slot is taken");
+        assertNotNull(inventory.mainInventory[2]);
+
+        inventory.mainInventory[2] = new ItemStack(boots);
+        assertTrue(inventory.equipHeldArmor());
+        assertEquals(boots, inventory.armorInventory[0].item());
+    }
+
+    @Test
+    void onlyArmourPiecesAreWornByRightClick() {
+        InventoryPlayer inventory = new InventoryPlayer();
+        inventory.mainInventory[0] = new ItemStack(TestItems.item("pumpkin"));
+        assertFalse(inventory.equipHeldArmor(), "a pumpkin is placed, not worn, on right-click");
+        inventory.mainInventory[0] = new ItemStack(stone);
+        assertFalse(inventory.equipHeldArmor());
+        inventory.mainInventory[0] = null;
+        assertFalse(inventory.equipHeldArmor());
+        assertEquals("golden", ArmorValues.material(TestItems.item("golden_chestplate", 1, 112)));
+        assertNull(ArmorValues.material(TestItems.item("skull_zombie")));
+    }
 }

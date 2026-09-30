@@ -2,6 +2,10 @@ package net.minecraft.client.entity;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.settings.GameSettings;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.entity.DamageSource;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.world.World;
 
@@ -58,14 +62,258 @@ public final class Player {
     public boolean sneaking, sprinting;
     /** Whether the player counts as in water this tick, and whether they just went in (the client splashes). */
     public boolean inWater, enteredWater;
+    /** Touched a portal block this tick (BlockPortal.onEntityCollidedWithBlock); the client clears it once used. */
+    public boolean inPortal;
+    /** How far the portal's purple haze has built up, 0-1 (EntityPlayerSP.timeInPortal), and last tick's value. */
+    public float timeInPortal, prevTimeInPortal;
     public float fallDistance;
 
     // Player abilities (level.dat "abilities"): Creative may fly; Spectator always flies through blocks.
     public boolean allowFlying, isFlying, noClip;
-    /** Shown by the survival HUD. No damage, hunger or experience sources exist yet (DEV-015). */
+    /** Health (0-20). Food never drops yet (no hunger); experience comes only from furnaces (DEV-028). */
     public float health = 20f;
     public int foodLevel = 20, experienceLevel;
+    /** The seed the enchanting table offers from (EntityPlayer.xpSeed), rerolled whenever levels are spent on it. */
+    public int xpSeed;
+    /** Progress to the next level (0-1), and every point ever gained (EntityPlayer.experience / experienceTotal). */
     public float experience;
+    public int experienceTotal;
+
+    /**
+     * Adds experience points (EntityPlayer.addExperience): the bar fills by
+     * points over the level's cap and each full bar is a level. The cap is
+     * 7 + 2 x level below 15, 37 + 5 x (level - 15) below 30, then
+     * 112 + 9 x (level - 30).
+     */
+    public void addExperience(int amount) {
+        amount = Math.min(amount, Integer.MAX_VALUE - experienceTotal);
+        experience += (float) amount / xpBarCap();
+        experienceTotal += amount;
+        while (experience >= 1f) {
+            experience = (experience - 1f) * xpBarCap();
+            experienceLevel++;
+            experience /= xpBarCap();
+        }
+    }
+
+    /**
+     * Adds (or with a negative count removes) whole levels
+     * (EntityPlayer.addExperienceLevel); going below 0 empties the bar.
+     */
+    public void addExperienceLevel(int levels) {
+        experienceLevel += levels;
+        if (experienceLevel < 0) {
+            experienceLevel = 0;
+            experience = 0;
+            experienceTotal = 0;
+        }
+    }
+
+    /** Spends levels on the enchanting table (EntityPlayer.removeExperienceLevel): the table's seed is rerolled too. */
+    public void removeExperienceLevel(int levels) {
+        addExperienceLevel(-levels);
+        xpSeed = random.nextInt();
+    }
+
+    // ---- health and damage (EntityLivingBase / EntityPlayer, HYPOTHESIS: recalled) ---------------
+
+    /** Ticks left of the red hurt flash and the camera shake (hurtTime, starting at 10). */
+    public int hurtTime;
+    public final int maxHurtTime = 10;
+    /** Ticks of protection after being hurt (hurtResistantTime, 20): only bigger hits get through in the first 10. */
+    public int hurtResistantTime;
+    /** The damage of the hit that started the protection (lastDamage). */
+    public float lastDamage;
+    /** Ticks since death (the camera tips over for 20). */
+    public int deathTime;
+    /** Air left under water, 300 when full (Entity.getAir); at -20 the player takes drowning damage. */
+    public int air = 300;
+    /** The worn armour (0 boots .. 3 helmet): the inventory's armour slots once the client links them. */
+    public ItemStack[] armor = new ItemStack[4];
+    /** Creative and Spectator take no damage but falling out of the world (capabilities.disableDamage). */
+    public boolean disableDamage;
+    /** The difficulty (0 peaceful .. 3 hard) and the naturalRegeneration game rule, copied in by the client. */
+    public int difficulty = 2;
+    public boolean naturalRegeneration = true;
+    private int foodTimer, ticksExisted;
+    /** Ticks this player has lived (drives the armour glint scroll). */
+    public int ticksExisted() { return ticksExisted; }
+
+    /** What the client does when the player is hurt or dies (sounds, the death message, armour breaking). */
+    public interface DamageListener {
+        /** Hurt by {@code amount} (after armour); {@code fresh} is false when only the excess over a recent hit counted. */
+        default void hurt(DamageSource source, float amount, boolean fresh) {}
+        default void died(DamageSource source) {}
+        /** A worn piece in armour slot {@code slot} broke from the wear. */
+        default void armorBroke(int slot) {}
+    }
+    public DamageListener damageListener = new DamageListener() {};
+
+    /** The armour points worn (1.8.9 armour values), as the HUD and damage reduction use them. */
+    public int armorValue() {
+        int total = 0;
+        for (int slot = 0; slot < armor.length; slot++)
+            if (armor[slot] != null) total += net.minecraft.inventory.ArmorValues.points(armor[slot].item(), slot);
+        return total;
+    }
+
+    /**
+     * Takes damage (EntityLivingBase.attackEntityFrom): nothing while
+     * damage is disabled (Creative) unless it is out-of-world damage, or when
+     * already dead. Within the first 10 of the 20 protected ticks after a hit
+     * only the excess over that hit counts; otherwise the whole amount does,
+     * the protection restarts and the player flashes red. Returns whether it hurt.
+     */
+    public boolean attack(DamageSource source, float amount) {
+        if (disableDamage && !source.canHarmInCreative()) return false;
+        if (dead || health <= 0) return false;
+        boolean fresh = true;
+        if (hurtResistantTime > 20 / 2.0f) {
+            if (amount <= lastDamage) return false;
+            damageEntity(source, amount - lastDamage);
+            lastDamage = amount;
+            fresh = false;
+        } else {
+            lastDamage = amount;
+            hurtResistantTime = 20;
+            damageEntity(source, amount);
+            hurtTime = maxHurtTime;
+        }
+        if (health <= 0) {
+            dead = true;
+            clearItemInUse();
+            sounds.play("game.player.die", 1f, (random.nextFloat() - random.nextFloat()) * 0.2f + 1f);
+            damageListener.died(source);
+        } else if (fresh) {
+            sounds.play("game.player.hurt", 1f, (random.nextFloat() - random.nextFloat()) * 0.2f + 1f);
+        }
+        damageListener.hurt(source, amount, fresh);
+        return true;
+    }
+
+    /**
+     * EntityPlayer.damageEntity: blocking with a sword halves blockable damage
+     * ((1 + d) / 2); armour points take {@code d x (25 - armour) / 25} off
+     * blockable damage and wear each piece by d/4 (at least 1); protection
+     * enchantments take up to 20/25 more off anything but void damage.
+     */
+    private void damageEntity(DamageSource source, float damage) {
+        if (!source.isUnblockable() && isBlocking() && damage > 0) damage = (1f + damage) * 0.5f;
+        if (!source.isUnblockable()) {
+            damageArmor(damage);
+            damage = damage * (25 - armorValue()) / 25f;
+        }
+        if (damage <= 0) return;
+        int protection = EnchantmentHelper.protectionPoints(armor, source, random);
+        if (protection > 20) protection = 20;
+        if (protection > 0) damage = damage * (25 - protection) / 25f;
+        if (damage != 0) health = Math.max(0f, health - damage);
+    }
+
+    /** InventoryPlayer.damageArmor: every worn piece loses d/4 durability (at least 1), Unbreaking allowing. */
+    private void damageArmor(float damage) {
+        damage /= 4f;
+        if (damage < 1f) damage = 1f;
+        for (int slot = 0; slot < armor.length; slot++) {
+            ItemStack piece = armor[slot];
+            if (piece == null || !net.minecraft.inventory.ArmorValues.isArmorPiece(piece.item())) continue;
+            if (EnchantmentHelper.damageItem(piece, (int) damage, random) || piece.isEmpty()) {
+                armor[slot] = null;
+                damageListener.armorBroke(slot);
+            }
+        }
+    }
+
+    /** Heals, up to 20 (EntityLivingBase.heal). */
+    public void heal(float amount) { if (health > 0) health = Math.min(20f, health + amount); }
+
+    /**
+     * Landing (EntityPlayer/EntityLivingBase.fall): with flight allowed
+     * nothing; otherwise {@code ceil((distance - 3) x multiplier)} damage with
+     * the big (above 4) or small fall sound, and the landing block's step
+     * sound at half volume and 3/4 pitch.
+     */
+    private void fall(float distance, float multiplier) {
+        if (allowFlying || noClip) return;
+        int damage = (int) Math.ceil((distance - 3f) * multiplier);
+        if (damage <= 0) return;
+        sounds.play(damage > 4 ? "game.player.hurt.fall.big" : "game.player.hurt.fall.small", 1f, 1f);
+        attack(DamageSource.FALL, damage);
+        int bx = floor(x), by = floor(y - 0.2), bz = floor(z);
+        Block block = by >= 0 && by < World.HEIGHT ? world.get(bx, by, bz) : null;
+        if (block != null && !block.isAir()) {
+            net.minecraft.block.BlockSoundType type = net.minecraft.block.BlockSoundType.of(block);
+            sounds.play(type.stepSound(), type.volume() * 0.5f, type.frequency() * 0.75f);
+        }
+    }
+
+    /**
+     * Once per tick while alive (EntityLivingBase.onEntityUpdate and
+     * EntityPlayer.onLivingUpdate): suffocation in a solid block (1), air
+     * running out under water (Respiration may skip a tick's loss; 2 damage
+     * each time it reaches -20), falling out of the world (4), the hurt and
+     * protection timers, and healing: 1 every 80 ticks with food at 18 or
+     * more, or 1 a second in Peaceful.
+     */
+    private void livingUpdate() {
+        ticksExisted++;
+        if (!noClip && insideOpaqueBlock()) attack(DamageSource.IN_WALL, 1f);
+        if (headInWater() && !noClip) {
+            if (!disableDamage) {
+                int respiration = EnchantmentHelper.maxLevel(Enchantment.RESPIRATION, armor);
+                if (!(respiration > 0 && random.nextInt(respiration + 1) > 0)) air--;
+                if (air == -20) {
+                    air = 0;
+                    attack(DamageSource.DROWN, 2f);
+                }
+            }
+        } else {
+            air = 300;
+        }
+        if (y < -64) attack(DamageSource.OUT_OF_WORLD, 4f);
+        if (hurtTime > 0) hurtTime--;
+        if (hurtResistantTime > 0) hurtResistantTime--;
+        if (dead) return;
+        if (difficulty == 0 && naturalRegeneration && health < 20f && ticksExisted % 20 == 0) heal(1f);
+        if (naturalRegeneration && foodLevel >= 18 && health > 0 && health < 20f) {
+            if (++foodTimer >= 80) {
+                heal(1f);
+                foodTimer = 0;
+            }
+        } else {
+            foodTimer = 0;
+        }
+    }
+
+    /** Eyes under a water surface (Entity.isInsideOfMaterial(water)): the surface sits a ninth under the liquid's height. */
+    public boolean headInWater() {
+        double eye = y + eyeHeight();
+        int bx = floor(x), by = floor(eye), bz = floor(z);
+        if (by < 0 || by >= World.HEIGHT || world.generatedChunk(bx >> 4, bz >> 4) == null) return false;
+        net.minecraft.block.BlockState state = world.getState(bx, by, bz);
+        if (!state.block().material().equals("water")) return false;
+        float surface = by + 1 - (net.minecraft.block.Liquids.heightPercent(state.metadata()) - 0.11111111f);
+        return eye < surface;
+    }
+
+    /** Any of eight points around the eyes inside a solid full block (isEntityInsideOpaqueBlock). */
+    private boolean insideOpaqueBlock() {
+        for (int i = 0; i < 8; i++) {
+            double px = x + ((i % 2) - 0.5f) * WIDTH * 0.8f;
+            double py = y + (((i >> 1) % 2) - 0.5f) * 0.1f + eyeHeight();
+            double pz = z + (((i >> 2) % 2) - 0.5f) * WIDTH * 0.8f;
+            int bx = floor(px), by = floor(py), bz = floor(pz);
+            if (by < 0 || by >= World.HEIGHT || world.generatedChunk(bx >> 4, bz >> 4) == null) continue;
+            if (world.get(bx, by, bz).isNormalCube()) return true;
+        }
+        return false;
+    }
+
+    /** Points in the current level's bar (EntityPlayer.xpBarCap). */
+    public int xpBarCap() {
+        return experienceLevel >= 30 ? 112 + (experienceLevel - 30) * 9
+            : experienceLevel >= 15 ? 37 + (experienceLevel - 15) * 5 : 7 + experienceLevel * 2;
+    }
 
     /**
      * The stack being used (a sword held up to block, later food or a bow) and
@@ -129,6 +377,7 @@ public final class Player {
         z = spawnZ;
         y = world.surfaceHeight((int) Math.floor(x), (int) Math.floor(z)) + 1.01;
         prevX = x; prevY = y; prevZ = z;
+        xpSeed = random.nextInt();
     }
 
     /** One 20 Hz tick of movement from these keys. */
@@ -137,6 +386,7 @@ public final class Player {
         enteredWater = false;
         if (dead) {
             clearItemInUse();
+            deathTime++;
             return;
         }
         if (itemInUse != null && --itemInUseCount <= 0) clearItemInUse();
@@ -205,7 +455,7 @@ public final class Player {
         float airSpeed = 0.02f + (sprinting ? 0.02f * 0.3f : 0f);
         moveWithHeading(strafe, forward, airSpeed);
         if (onGround && isFlying && !noClip) isFlying = false;
-        if (y < VOID_DEATH_Y) dead = true;
+        livingUpdate();
         firstUpdate = false;
     }
 
@@ -223,9 +473,19 @@ public final class Player {
         if (isFlying) airSpeed = 0.05f * (sprinting ? 2f : 1f);
         if (inWater && !isFlying) {
             double startY = y;
-            moveFlying(strafe, forward, 0.02f);
+            // Depth Strider (EntityLivingBase.moveEntityWithHeading): up to level 3, halved off the ground,
+            // moves the water drag towards 0.546 and the push towards the walking speed.
+            float drag = 0.8f, push = 0.02f;
+            float strider = Math.min(3f, net.minecraft.enchantment.EnchantmentHelper.maxLevel(
+                net.minecraft.enchantment.Enchantment.DEPTH_STRIDER, armor));
+            if (!onGround) strider *= 0.5f;
+            if (strider > 0f) {
+                drag += (0.54600006f - drag) * strider / 3f;
+                push += (moveSpeed() - push) * strider / 3f;
+            }
+            moveFlying(strafe, forward, push);
             move(motionX, motionY, motionZ);
-            motionX *= 0.8; motionY *= 0.8; motionZ *= 0.8;
+            motionX *= drag; motionY *= 0.8; motionZ *= drag;
             motionY -= 0.02;
             if (collidedHorizontally && offsetIsFree(motionX, motionY + 0.6 - y + startY, motionZ)) motionY = 0.3;
         } else if (inLava() && !isFlying) {
@@ -418,8 +678,14 @@ public final class Player {
         collidedHorizontally = wantedX != dx || wantedZ != dz;
         collidedVertically = wantedY != dy;
         onGround = collidedVertically && wantedY < 0;
-        if (onGround) fallDistance = 0;
-        else if (dy < 0) fallDistance -= (float) dy;
+        if (onGround) {
+            // Entity.updateFallState / Block.onFallenUpon: slime cancels the damage unless sneaking.
+            if (fallDistance > 0) {
+                boolean slime = blockName(floor(x), floor(y - 0.2), floor(z)).equals("slime");
+                fall(fallDistance, slime && !sneaking ? 0f : 1f);
+            }
+            fallDistance = 0;
+        } else if (dy < 0) fallDistance -= (float) dy;
         if (wantedX != dx) motionX = 0;
         if (wantedZ != dz) motionZ = 0;
         if (collidedVertically) {
@@ -476,6 +742,8 @@ public final class Player {
                     switch (blockName(bx, by, bz)) {
                         case "soul_sand" -> { motionX *= 0.4; motionZ *= 0.4; }
                         case "web" -> inWeb = true;
+                        case "portal" -> inPortal = true;
+                        case "cactus" -> attack(DamageSource.CACTUS, 1f);
                         case "slime" -> {
                             if (Math.abs(motionY) < 0.1 && !sneaking) {
                                 double factor = 0.4 + Math.abs(motionY) * 0.2;
@@ -563,6 +831,9 @@ public final class Player {
         if (!noClip) isFlying = false;
         health = 20f;
         foodLevel = 20;
+        air = 300;
+        hurtTime = hurtResistantTime = deathTime = 0;
+        lastDamage = 0;
     }
 
     private static double clamp(double value, double min, double max) { return Math.max(min, Math.min(max, value)); }

@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "variant": [
+      "stonebrick",
+      "mossy_stonebrick",
+      "cracked_stonebrick",
+      "chiseled_stonebrick"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 2
+    }
+  ],
+  "model": {
+    "file": "{variant}"
+  }
+}

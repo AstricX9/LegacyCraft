@@ -1,0 +1,39 @@
+{
+  "properties": {
+    "facing": [
+      "south",
+      "west",
+      "north",
+      "east"
+    ],
+    "occupied": [
+      "false",
+      "true"
+    ],
+    "part": [
+      "foot",
+      "head"
+    ]
+  },
+  "meta": [
+    {
+      "property": "facing",
+      "bits": 2
+    },
+    {
+      "property": "occupied",
+      "shift": 2,
+      "bits": 1
+    },
+    {
+      "property": "part",
+      "shift": 3,
+      "bits": 1
+    }
+  ],
+  "model": {
+    "ignore": [
+      "occupied"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "material": "sand",
+  "hardness": 0.5,
+  "bounds": [
+    0,
+    0,
+    0,
+    16,
+    16,
+    16
+  ],
+  "collision": [
+    [
+      0,
+      0,
+      0,
+      16,
+      14,
+      16
+    ]
+  ],
+  "items": {
+    "soul_sand": 0
+  }
+}

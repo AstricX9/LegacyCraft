@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "#X#"
+  ],
+  "key": {
+    "#": "minecraft:wheat",
+    "X": "minecraft:dye_brown"
+  },
+  "result": {
+    "id": "minecraft:cookie",
+    "count": 8
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "class": "redstone_diode",
+  "material": "circuits",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": true,
+  "bounds": [
+    0,
+    0,
+    0,
+    16,
+    2,
+    16
+  ]
+}

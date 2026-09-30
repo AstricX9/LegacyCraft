@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:quartz_ore",
+  "drops": [
+    {
+      "item": "minecraft:quartz"
+    }
+  ]
+}

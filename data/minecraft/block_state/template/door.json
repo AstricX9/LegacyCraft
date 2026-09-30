@@ -1,0 +1,71 @@
+{
+  "properties": {
+    "facing": [
+      "east",
+      "south",
+      "west",
+      "north"
+    ],
+    "half": [
+      "lower",
+      "upper"
+    ],
+    "hinge": [
+      "left",
+      "right"
+    ],
+    "open": [
+      "false",
+      "true"
+    ],
+    "powered": [
+      "false",
+      "true"
+    ]
+  },
+  "defaults": {
+    "facing": "north"
+  },
+  "meta": [
+    {
+      "property": "half",
+      "shift": 3,
+      "bits": 1
+    },
+    {
+      "property": "facing",
+      "bits": 2,
+      "when": {
+        "half": "lower"
+      }
+    },
+    {
+      "property": "open",
+      "shift": 2,
+      "bits": 1,
+      "when": {
+        "half": "lower"
+      }
+    },
+    {
+      "property": "hinge",
+      "bits": 1,
+      "when": {
+        "half": "upper"
+      }
+    },
+    {
+      "property": "powered",
+      "shift": 1,
+      "bits": 1,
+      "when": {
+        "half": "upper"
+      }
+    }
+  ],
+  "model": {
+    "ignore": [
+      "powered"
+    ]
+  }
+}

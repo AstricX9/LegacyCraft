@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "#",
+    "#"
+  ],
+  "key": {
+    "#": "minecraft:stone_brick_slab"
+  },
+  "result": {
+    "id": "minecraft:chiseled_stonebrick",
+    "count": 1
+  }
+}

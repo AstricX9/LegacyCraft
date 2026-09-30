@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:daylight_detector_inverted",
+  "drops": [
+    {
+      "item": "minecraft:daylight_detector"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "class": "rail",
+  "material": "circuits",
+  "hardness": 0.7,
+  "opaque": false,
+  "solid": false,
+  "items": {
+    "detector_rail": 0
+  }
+}

@@ -30,7 +30,10 @@ public class GuiInventory extends GuiContainer {
     protected void buildSlots() {
         InventoryPlayer inventory = inventory();
         // Kept across resizes (initGui runs again) so the grid's contents survive.
-        if (grid == null) grid = new CraftingGrid(2, 2, mc.crafting(), mc::itemByName);
+        if (grid == null) {
+            grid = new CraftingGrid(2, 2, mc.crafting(), mc::itemByName);
+            grid.setOnCrafted(mc::onItemCrafted);
+        }
         slots.add(new SlotPos(grid.resultSlot(), 144, 36, Kind.OTHER));
         for (int row = 0; row < 2; row++)
             for (int column = 0; column < 2; column++)

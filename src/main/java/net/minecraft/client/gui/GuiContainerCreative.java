@@ -157,7 +157,7 @@ public class GuiContainerCreative extends GuiContainer {
         ListSlot(int index) { this.index = index; }
         @Override public ItemStack get() {
             CreativeTabs.Entry entry = entryAt(index);
-            return entry == null ? null : new ItemStack(entry.item(), 1);
+            return entry == null ? null : entry.newStack();
         }
         @Override public void set(ItemStack stack) {}
         @Override public boolean accepts(ItemStack stack) { return false; }
@@ -251,6 +251,14 @@ public class GuiContainerCreative extends GuiContainer {
         super.mouseReleased(mouseX, mouseY, button);
     }
 
+    /** ContainerCreative.canDragIntoSlot: only the player's own slots, never the item grid or the bin. */
+    @Override
+    protected boolean canDragIntoSlot(SlotPos pos) { return pos != destroySlot && !isListSlot(pos); }
+
+    /** ContainerCreative.canMergeSlot: double-click gathers only from slots below y 90 (the hotbar row, mostly). */
+    @Override
+    protected boolean canMergeSlot(SlotPos pos) { return pos != destroySlot && !isListSlot(pos) && pos.y() > 90; }
+
     @Override
     protected boolean isOutside(int mouseX, int mouseY) {
         return super.isOutside(mouseX, mouseY) && tabAt(mouseX, mouseY) == null;
@@ -291,21 +299,21 @@ public class GuiContainerCreative extends GuiContainer {
         ItemStack cursor = inventory.getItemStack();
         if (button == 2) {
             if (cursor == null && shown != null)
-                inventory.setItemStack(new ItemStack(shown.item(), shown.item().maxStackSize(), shown.damage()));
+                inventory.setItemStack(shown.withCount(shown.item().maxStackSize()));
             return;
         }
         if (cursor != null && shown != null && cursor.canMerge(shown)) {
             int max = cursor.item().maxStackSize();
             if (button == 0) {
                 int count = shift ? max : Math.min(max, cursor.count() + 1);
-                inventory.setItemStack(new ItemStack(cursor.item(), count, cursor.damage()));
+                inventory.setItemStack(cursor.withCount(count));
             } else if (cursor.count() <= 1) {
                 inventory.setItemStack(null);
             } else {
-                inventory.setItemStack(new ItemStack(cursor.item(), cursor.count() - 1, cursor.damage()));
+                inventory.setItemStack(cursor.withCount(cursor.count() - 1));
             }
         } else if (shown != null && cursor == null) {
-            inventory.setItemStack(new ItemStack(shown.item(), shift ? shown.item().maxStackSize() : 1, shown.damage()));
+            inventory.setItemStack(shown.withCount(shift ? shown.item().maxStackSize() : 1));
         } else {
             inventory.setItemStack(null);
         }
@@ -317,7 +325,7 @@ public class GuiContainerCreative extends GuiContainer {
         if (pos == destroySlot) return;
         if (isListSlot(pos)) {
             ItemStack shown = pos.slot().get();
-            if (shown != null) mc.dropPlayerItem(new ItemStack(shown.item(), wholeStack ? shown.item().maxStackSize() : 1, shown.damage()));
+            if (shown != null) mc.dropPlayerItem(shown.withCount(wholeStack ? shown.item().maxStackSize() : 1));
             return;
         }
         super.dropFromSlot(pos, wholeStack);
@@ -328,7 +336,7 @@ public class GuiContainerCreative extends GuiContainer {
         if (isListSlot(pos)) {
             ItemStack shown = pos.slot().get();
             if (shown != null)
-                inventory().mainInventory[hotbarIndex] = new ItemStack(shown.item(), shown.item().maxStackSize(), shown.damage());
+                inventory().mainInventory[hotbarIndex] = shown.withCount(shown.item().maxStackSize());
             return;
         }
         if (pos == destroySlot) return;

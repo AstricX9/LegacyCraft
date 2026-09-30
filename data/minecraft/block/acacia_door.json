@@ -1,0 +1,9 @@
+{
+  "class": "door",
+  "material": "wood",
+  "hardness": 3.0,
+  "opaque": false,
+  "items": {
+    "acacia_door": 0
+  }
+}

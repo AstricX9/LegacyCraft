@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:tripwire",
+  "drops": [
+    {
+      "item": "minecraft:string"
+    }
+  ]
+}

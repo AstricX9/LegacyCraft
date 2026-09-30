@@ -1,0 +1,7 @@
+{
+  "class": "skull",
+  "material": "circuits",
+  "hardness": 1.0,
+  "opaque": false,
+  "renderType": "entity"
+}

@@ -2,8 +2,9 @@ package net.minecraft.client.gui;
 
 /**
  * The Escape menu ("Game menu"). In singleplayer it pauses the integrated
- * server (master context §69). Achievements, Statistics and Open to LAN are
- * shown but disabled until those systems exist (DEV-010, DEV-013).
+ * server (master context §69). Achievements opens the achievement map;
+ * Statistics and Open to LAN are shown but disabled until those systems
+ * exist (DEV-010, DEV-013).
  */
 public class GuiIngameMenu extends GuiScreen {
     @Override
@@ -17,7 +18,7 @@ public class GuiIngameMenu extends GuiScreen {
         buttonList.add(lan);
         GuiButton achievements = new GuiButton(5, width / 2 - 100, height / 4 + 48 + offset, 98, 20, I18n.format("gui.achievements"));
         GuiButton stats = new GuiButton(6, width / 2 + 2, height / 4 + 48 + offset, 98, 20, I18n.format("gui.stats"));
-        achievements.enabled = stats.enabled = false;
+        stats.enabled = false;
         buttonList.add(achievements);
         buttonList.add(stats);
     }
@@ -31,6 +32,7 @@ public class GuiIngameMenu extends GuiScreen {
                 mc.saveAndQuitToTitle();
             }
             case 4 -> mc.displayGuiScreen(null);
+            case 5 -> mc.displayGuiScreen(new GuiAchievements(this));
             default -> {}
         }
     }

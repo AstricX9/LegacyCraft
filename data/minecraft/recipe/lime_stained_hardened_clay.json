@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "###",
+    "#X#",
+    "###"
+  ],
+  "key": {
+    "#": "minecraft:hardened_clay",
+    "X": "minecraft:dye_lime"
+  },
+  "result": {
+    "id": "minecraft:lime_stained_hardened_clay",
+    "count": 8
+  }
+}

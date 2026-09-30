@@ -1,0 +1,9 @@
+{
+  "class": "pressure_plate",
+  "hardness": 0.5,
+  "opaque": false,
+  "solid": false,
+  "items": {
+    "stone_pressure_plate": 0
+  }
+}

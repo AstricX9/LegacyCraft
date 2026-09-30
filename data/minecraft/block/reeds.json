@@ -1,0 +1,18 @@
+{
+  "class": "reed",
+  "material": "plants",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": false,
+  "bounds": [
+    2,
+    0,
+    2,
+    14,
+    16,
+    14
+  ],
+  "items": {
+    "reeds": 0
+  }
+}

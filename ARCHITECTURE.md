@@ -17,9 +17,10 @@ are not copied wholesale.
 | `net.minecraft.client.renderer.texture` | atlases, animation, resource textures | discovered block/GUI atlases |
 | `net.minecraft.client.audio` | sound events, music, positioned playback | sounds.json event/variant registry |
 | `net.minecraft.block` | blocks, materials, properties, block states | 1.8.9 ID table + metadata codec; one class per kind of block (actual state, shapes, placement, support) |
-| `net.minecraft.item` | items, stacks, tools, food, armor | indexed definitions + stacks/durability |
-| `net.minecraft.entity` | entities, AI, attributes, combat | lifecycle + runtime ID manager |
-| `net.minecraft.inventory` | slots, containers, crafting, furnaces | stack inventory + shaped recipes |
+| `net.minecraft.item` | items, stacks, tools, food, armor | indexed definitions + stacks/durability + item tags (enchantments, names, prior work) |
+| `net.minecraft.enchantment` | enchantments, table rolls, enchantment effects | 1.8.9 enchantment table + EnchantmentHelper rolls, protection, Unbreaking (DEV-029) |
+| `net.minecraft.entity` | entities, AI, attributes, combat | lifecycle + runtime ID manager + damage sources |
+| `net.minecraft.inventory` | slots, containers, crafting, furnaces | stack inventory, crafting grids, furnaces (smelting.json), enchanting table, anvil |
 | `net.minecraft.world` | simulation and block access | biome-aware unbounded block access |
 | `net.minecraft.world.chunk` | chunk lifecycle, sections and streaming | lazy indexed chunks + 16x16x16 sections |
 | `net.minecraft.world.biome` | climate, terrain and decoration | 1.8.9 biome table + colours; vanilla GenLayer placement |

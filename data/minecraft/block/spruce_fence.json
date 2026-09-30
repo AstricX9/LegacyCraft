@@ -1,0 +1,9 @@
+{
+  "class": "fence",
+  "material": "wood",
+  "hardness": 2.0,
+  "opaque": false,
+  "items": {
+    "spruce_fence": 0
+  }
+}

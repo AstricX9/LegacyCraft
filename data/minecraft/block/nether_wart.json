@@ -1,0 +1,15 @@
+{
+  "class": "nether_wart",
+  "material": "plants",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": false,
+  "bounds": [
+    0,
+    0,
+    0,
+    16,
+    4,
+    16
+  ]
+}

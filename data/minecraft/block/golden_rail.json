@@ -1,0 +1,10 @@
+{
+  "class": "rail",
+  "material": "circuits",
+  "hardness": 0.7,
+  "opaque": false,
+  "solid": false,
+  "items": {
+    "golden_rail": 0
+  }
+}

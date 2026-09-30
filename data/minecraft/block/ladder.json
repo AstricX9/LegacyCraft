@@ -1,0 +1,10 @@
+{
+  "class": "ladder",
+  "material": "circuits",
+  "hardness": 0.4,
+  "opaque": false,
+  "solid": true,
+  "items": {
+    "ladder": 0
+  }
+}

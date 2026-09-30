@@ -1,0 +1,10 @@
+{
+  "class": "tripwire_hook",
+  "material": "circuits",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": false,
+  "items": {
+    "tripwire_hook": 0
+  }
+}

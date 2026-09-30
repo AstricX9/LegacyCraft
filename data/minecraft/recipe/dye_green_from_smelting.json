@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:cactus",
+  "result": "minecraft:dye_green",
+  "experience": 0.2
+}

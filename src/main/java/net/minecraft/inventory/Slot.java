@@ -10,6 +10,8 @@ public interface Slot {
     default boolean accepts(ItemStack stack) { return true; }
     /** Most items this slot holds regardless of the item's own stack size. */
     default int limit() { return 64; }
+    /** Most of {@code stack} this slot holds (a furnace's fuel slot takes one bucket); by default {@link #limit()}. */
+    default int limit(ItemStack stack) { return limit(); }
 
     /** A slot backed by an array element. */
     static Slot of(ItemStack[] array, int index) {

@@ -139,6 +139,7 @@ public final class BlockRegistry {
             case "ender_chest" -> new BlockEnderChest(properties);
             case "fence" -> new BlockFence(properties);
             case "fence_gate" -> new BlockFenceGate(properties);
+            case "fire" -> new BlockFire(properties);
             case "flower_pot" -> new BlockFlowerPot(properties);
             case "furnace" -> new BlockFurnace(properties);
             case "grass" -> new BlockGrass(properties);

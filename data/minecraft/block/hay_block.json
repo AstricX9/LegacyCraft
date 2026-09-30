@@ -1,0 +1,8 @@
+{
+  "class": "rotated_pillar",
+  "material": "grass",
+  "hardness": 0.5,
+  "items": {
+    "hay_block": 0
+  }
+}

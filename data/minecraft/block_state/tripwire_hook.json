@@ -1,0 +1,38 @@
+{
+  "properties": {
+    "attached": [
+      "false",
+      "true"
+    ],
+    "facing": [
+      "south",
+      "west",
+      "north",
+      "east"
+    ],
+    "powered": [
+      "false",
+      "true"
+    ],
+    "suspended": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "facing",
+      "bits": 2
+    },
+    {
+      "property": "attached",
+      "shift": 2,
+      "bits": 1
+    },
+    {
+      "property": "powered",
+      "shift": 3,
+      "bits": 1
+    }
+  ]
+}

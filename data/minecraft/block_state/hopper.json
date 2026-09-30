@@ -1,0 +1,41 @@
+{
+  "properties": {
+    "facing": [
+      "down",
+      "north",
+      "south",
+      "west",
+      "east"
+    ],
+    "enabled": [
+      "true",
+      "false"
+    ]
+  },
+  "meta": [
+    {
+      "property": "facing",
+      "bits": 3,
+      "map": [
+        "down",
+        null,
+        "north",
+        "south",
+        "west",
+        "east",
+        null,
+        null
+      ]
+    },
+    {
+      "property": "enabled",
+      "shift": 3,
+      "bits": 1
+    }
+  ],
+  "model": {
+    "ignore": [
+      "enabled"
+    ]
+  }
+}

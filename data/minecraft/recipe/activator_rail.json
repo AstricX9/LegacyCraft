@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "XSX",
+    "X#X",
+    "XSX"
+  ],
+  "key": {
+    "X": "minecraft:iron_ingot",
+    "#": "minecraft:redstone_torch",
+    "S": "minecraft:stick"
+  },
+  "result": {
+    "id": "minecraft:activator_rail",
+    "count": 6
+  }
+}

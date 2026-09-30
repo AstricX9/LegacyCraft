@@ -1,0 +1,27 @@
+{
+  "class": "cactus",
+  "material": "cactus",
+  "hardness": 0.4,
+  "opaque": false,
+  "bounds": [
+    1,
+    0,
+    1,
+    15,
+    16,
+    15
+  ],
+  "collision": [
+    [
+      1,
+      0,
+      1,
+      15,
+      15,
+      15
+    ]
+  ],
+  "items": {
+    "cactus": 0
+  }
+}

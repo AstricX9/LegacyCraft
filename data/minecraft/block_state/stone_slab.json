@@ -1,0 +1,32 @@
+{
+  "properties": {
+    "variant": [
+      "stone",
+      "sandstone",
+      "wood_old",
+      "cobblestone",
+      "brick",
+      "stone_brick",
+      "nether_brick",
+      "quartz"
+    ],
+    "half": [
+      "bottom",
+      "top"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 3
+    },
+    {
+      "property": "half",
+      "shift": 3,
+      "bits": 1
+    }
+  ],
+  "model": {
+    "file": "{variant}_slab"
+  }
+}

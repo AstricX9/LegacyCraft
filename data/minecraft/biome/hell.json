@@ -1,0 +1,10 @@
+{
+  "id": 8,
+  "temperature": 2.0,
+  "rainfall": 0.0,
+  "depth": 0.1,
+  "scale": 0.2,
+  "topBlock": "minecraft:netherrack",
+  "fillerBlock": "minecraft:netherrack",
+  "rain": false
+}

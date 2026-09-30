@@ -1,0 +1,9 @@
+{
+  "id": 14,
+  "temperature": 0.9,
+  "rainfall": 1.0,
+  "depth": 0.2,
+  "scale": 0.3,
+  "topBlock": "minecraft:mycelium",
+  "mushroomsPerChunk": 1
+}

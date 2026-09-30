@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:emerald_ore",
+  "result": "minecraft:emerald",
+  "experience": 1.0
+}

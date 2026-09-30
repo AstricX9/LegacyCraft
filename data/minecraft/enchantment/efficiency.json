@@ -1,0 +1,17 @@
+{
+  "id": 32,
+  "translation_key": "enchantment.digging",
+  "weight": 10,
+  "max_level": 5,
+  "supported_items": "digger",
+  "min_cost": {
+    "base": 1,
+    "per_level_above_first": 10
+  },
+  "max_cost": {
+    "base": 61,
+    "per_level_above_first": 10
+  },
+  "incompatible": [],
+  "anvil_also_accepts": "shears"
+}

@@ -1,0 +1,18 @@
+{
+  "class": "ender_chest",
+  "hardness": 22.5,
+  "opaque": false,
+  "renderType": "entity",
+  "lightLevel": 7,
+  "bounds": [
+    1,
+    0,
+    1,
+    15,
+    14,
+    15
+  ],
+  "items": {
+    "ender_chest": 0
+  }
+}

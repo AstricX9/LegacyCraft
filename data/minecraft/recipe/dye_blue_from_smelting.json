@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:lapis_ore",
+  "result": "minecraft:dye_blue",
+  "experience": 0.2
+}

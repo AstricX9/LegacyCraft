@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:clay",
+  "drops": [
+    {
+      "item": "minecraft:clay_ball",
+      "count": [
+        4,
+        4
+      ]
+    }
+  ]
+}

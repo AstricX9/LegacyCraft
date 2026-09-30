@@ -70,9 +70,37 @@ public final class ItemRenderer {
         this.foliageColor = colors.foliageColor(0.5f, 1.0f);
     }
 
+    /** Multiplies the colour of GUI item icons (the achievement map darkens locked icons); 1 normally. */
+    public float guiBrightness = 1f;
+
+    /** An item in a slot, with the enchantment glint over flat enchanted items and enchanted books. */
     public void renderItemAndEffectIntoGUI(ItemStack stack, int x, int y) {
         if (stack == null) return;
-        renderItemIntoGUI(stack.item(), x, y);
+        Item item = stack.item();
+        ItemModel model = models.computeIfAbsent(item, this::resolve);
+        boolean glint = net.minecraft.enchantment.EnchantmentHelper.hasGlint(stack);
+        BlockState state = item.placedState();
+        if ((model.block() || model.builtinEntity()) && state != null && renderBlock(state, model.guiRotation(), x, y)) return;
+        if (model.layers().isEmpty()) return;
+        if (!glint) {
+            renderFlat(item, model.layers(), x, y);
+            return;
+        }
+        // The item writes its own depth where its pixels are, so the glint (depth EQUAL) lands only on them.
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(true);
+        glDepthFunc(GL_ALWAYS);
+        renderFlat(item, model.layers(), x, y);
+        glDepthFunc(GL_LEQUAL);
+        Glint.item(textures, () -> {
+            glBegin(GL_QUADS);
+            glTexCoord2f(0, 0); glVertex3f(x, y, 100);
+            glTexCoord2f(0, 1); glVertex3f(x, y + 16, 100);
+            glTexCoord2f(1, 1); glVertex3f(x + 16, y + 16, 100);
+            glTexCoord2f(1, 0); glVertex3f(x + 16, y, 100);
+            glEnd();
+        });
+        glDisable(GL_DEPTH_TEST);
     }
 
     public void renderItemIntoGUI(Item item, int x, int y) {
@@ -84,11 +112,14 @@ public final class ItemRenderer {
     }
 
     /** Stack size (when not 1) and the durability bar, drawn over an item. */
-    public void renderItemOverlays(FontRenderer font, ItemStack stack, int x, int y) {
+    public void renderItemOverlays(FontRenderer font, ItemStack stack, int x, int y) { renderItemOverlays(font, stack, x, y, null); }
+
+    /** As above, with {@code text} (when not null) shown in place of the stack size (renderItemOverlayIntoGUI). */
+    public void renderItemOverlays(FontRenderer font, ItemStack stack, int x, int y, String text) {
         if (stack == null) return;
         glDisable(GL_DEPTH_TEST);
-        if (stack.count() != 1) {
-            String count = String.valueOf(stack.count());
+        if (stack.count() != 1 || text != null) {
+            String count = text != null ? text : String.valueOf(stack.count());
             font.drawStringWithShadow(count, x + 19 - 2 - font.getStringWidth(count), y + 6 + 3, 0xFFFFFF);
         }
         Item item = stack.item();
@@ -124,7 +155,8 @@ public final class ItemRenderer {
             // Animated sprites (clock, compass) are vertical strips; show the first frame.
             float v1 = size[1] > size[0] ? (float) size[0] / size[1] : 1f;
             int tint = layerTint(item, layer);
-            glColor4f((tint >> 16 & 255) / 255f, (tint >> 8 & 255) / 255f, (tint & 255) / 255f, 1);
+            float b = guiBrightness;
+            glColor4f((tint >> 16 & 255) / 255f * b, (tint >> 8 & 255) / 255f * b, (tint & 255) / 255f * b, 1);
             glBegin(GL_QUADS);
             glTexCoord2f(0, 0); glVertex3f(x, y, 100);
             glTexCoord2f(0, v1); glVertex3f(x, y + 16, 100);
@@ -191,7 +223,8 @@ public final class ItemRenderer {
             float shade = !quad.shade() ? 1f : face == Direction.UP ? 1f : face == Direction.DOWN ? .5f
                 : (face == Direction.NORTH || face == Direction.SOUTH) ? .8f : .6f;
             int color = quad.tintIndex() >= 0 ? tint : 0xFFFFFF;
-            glColor4f((color >> 16 & 255) / 255f * shade, (color >> 8 & 255) / 255f * shade, (color & 255) / 255f * shade, 1);
+            float lit = shade * guiBrightness;
+            glColor4f((color >> 16 & 255) / 255f * lit, (color >> 8 & 255) / 255f * lit, (color & 255) / 255f * lit, 1);
             for (int i = 0; i < 4; i++) {
                 glTexCoord2f(tile.u0() + (tile.u1() - tile.u0()) * quad.u(i), tile.v0() + (tile.v1() - tile.v0()) * quad.v(i));
                 glVertex3f(quad.x(i), quad.y(i), quad.z(i));
@@ -210,6 +243,22 @@ public final class ItemRenderer {
      * other item as its flat texture 0.5 blocks wide, visible from both sides.
      * The colour multiplier carries the world light at the entity.
      */
+    /** A dropped stack: {@link #renderItemInWorld(Item, float, float, float)}, with the glint when enchanted. */
+    public void renderItemInWorld(ItemStack stack, float red, float green, float blue) {
+        if (stack == null) return;
+        renderItemInWorld(stack.item(), red, green, blue);
+        ItemModel model = models.computeIfAbsent(stack.item(), this::resolve);
+        if (!net.minecraft.enchantment.EnchantmentHelper.hasGlint(stack) || isBlockModel(stack.item()) || model.layers().isEmpty()) return;
+        Glint.item(textures, () -> {
+            glBegin(GL_QUADS);
+            glTexCoord2f(0, 1); glVertex3f(-0.25f, -0.25f, 0);
+            glTexCoord2f(1, 1); glVertex3f(0.25f, -0.25f, 0);
+            glTexCoord2f(1, 0); glVertex3f(0.25f, 0.25f, 0);
+            glTexCoord2f(0, 0); glVertex3f(-0.25f, 0.25f, 0);
+            glEnd();
+        });
+    }
+
     public void renderItemInWorld(Item item, float red, float green, float blue) {
         if (item == null) return;
         ItemModel model = models.computeIfAbsent(item, this::resolve);
@@ -344,7 +393,15 @@ public final class ItemRenderer {
      * Faces carry normals for {@link StandardLighting}; the colour carries
      * the light at the holder.
      */
-    public void renderHeld(Item item, Held view, float red, float green, float blue) {
+    public void renderHeld(Item item, Held view, float red, float green, float blue) { renderHeld(item, view, red, green, blue, false); }
+
+    /** A held stack, with the glint over a flat enchanted item. */
+    public void renderHeld(ItemStack stack, Held view, float red, float green, float blue) {
+        if (stack == null) return;
+        renderHeld(stack.item(), view, red, green, blue, net.minecraft.enchantment.EnchantmentHelper.hasGlint(stack));
+    }
+
+    private void renderHeld(Item item, Held view, float red, float green, float blue, boolean glint) {
         if (item == null) return;
         ItemModel model = models.computeIfAbsent(item, this::resolve);
         BlockState state = item.placedState();
@@ -380,6 +437,14 @@ public final class ItemRenderer {
                 int tint = layerTint(item, layer);
                 glColor4f((tint >> 16 & 255) / 255f * red, (tint >> 8 & 255) / 255f * green, (tint & 255) / 255f * blue, 1);
                 mesh.draw();
+            }
+            if (glint) {
+                Glint.item(textures, () -> {
+                    for (ResourceLocation texture : model.layers()) {
+                        ItemMesh mesh = meshes.get(texture);
+                        if (mesh != null) mesh.draw();
+                    }
+                });
             }
         }
         glColor4f(1, 1, 1, 1);

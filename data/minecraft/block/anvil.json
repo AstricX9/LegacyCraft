@@ -1,0 +1,11 @@
+{
+  "class": "anvil",
+  "material": "anvil",
+  "hardness": 5.0,
+  "opaque": false,
+  "items": {
+    "anvil_intact": 0,
+    "anvil_slightly_damaged": 4,
+    "anvil_very_damaged": 8
+  }
+}

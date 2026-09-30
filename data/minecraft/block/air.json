@@ -1,0 +1,8 @@
+{
+  "material": "air",
+  "hardness": 0,
+  "opaque": false,
+  "solid": false,
+  "renderType": "invisible",
+  "targetable": false
+}

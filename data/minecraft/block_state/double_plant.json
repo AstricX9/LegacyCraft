@@ -1,0 +1,33 @@
+{
+  "properties": {
+    "variant": [
+      "sunflower",
+      "syringa",
+      "double_grass",
+      "double_fern",
+      "double_rose",
+      "paeonia"
+    ],
+    "half": [
+      "lower",
+      "upper"
+    ]
+  },
+  "meta": [
+    {
+      "property": "half",
+      "shift": 3,
+      "bits": 1
+    },
+    {
+      "property": "variant",
+      "bits": 3,
+      "when": {
+        "half": "lower"
+      }
+    }
+  ],
+  "model": {
+    "file": "{variant}"
+  }
+}

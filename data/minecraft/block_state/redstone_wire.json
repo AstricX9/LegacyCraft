@@ -1,0 +1,53 @@
+{
+  "properties": {
+    "east": [
+      "none",
+      "side",
+      "up"
+    ],
+    "north": [
+      "none",
+      "side",
+      "up"
+    ],
+    "power": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15"
+    ],
+    "south": [
+      "none",
+      "side",
+      "up"
+    ],
+    "west": [
+      "none",
+      "side",
+      "up"
+    ]
+  },
+  "meta": [
+    {
+      "property": "power",
+      "bits": 4
+    }
+  ],
+  "model": {
+    "ignore": [
+      "power"
+    ]
+  }
+}

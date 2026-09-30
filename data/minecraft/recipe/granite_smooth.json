@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SS",
+    "SS"
+  ],
+  "key": {
+    "S": "minecraft:granite"
+  },
+  "result": {
+    "id": "minecraft:granite_smooth",
+    "count": 4
+  }
+}

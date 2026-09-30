@@ -1,0 +1,9 @@
+{
+  "class": "pumpkin",
+  "material": "gourd",
+  "hardness": 1.0,
+  "lightLevel": 15,
+  "items": {
+    "lit_pumpkin": 0
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:unlit_redstone_torch",
+  "drops": [
+    {
+      "item": "minecraft:redstone_torch"
+    }
+  ]
+}

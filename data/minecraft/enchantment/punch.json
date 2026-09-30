@@ -1,0 +1,16 @@
+{
+  "id": 49,
+  "translation_key": "enchantment.arrowKnockback",
+  "weight": 2,
+  "max_level": 2,
+  "supported_items": "bow",
+  "min_cost": {
+    "base": 12,
+    "per_level_above_first": 20
+  },
+  "max_cost": {
+    "base": 37,
+    "per_level_above_first": 20
+  },
+  "incompatible": []
+}

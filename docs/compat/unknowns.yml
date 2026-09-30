@@ -513,3 +513,20 @@
     and right-click / shift-click the result with a nearly full inventory.
   owner: unassigned
   status: open
+
+- question: >
+    Achievements: each one's map column and row, icon, parent and special
+    flag; the pop-up timing and colours; the map's backdrop rule, line and
+    icon colours (whether earned icons are drawn at full or 0.75
+    brightness, how the next-up ones pulse), zoom steps and drag limits;
+    exactly when the "Press E" hint appears; and the Adventuring Time biome
+    names.
+  why_it_matters: AchievementList, GuiAchievements and GuiAchievementToast are HYPOTHESIS.
+  current_hypothesis: As coded.
+  evidence: none captured yet
+  vanilla_test_needed: >
+    Screenshot the 1.8.9 achievement map with a few achievements earned
+    (scrolled to each corner, zoomed in and out), time the pop-up, and read
+    a real stats/<uuid>.json after visiting some biomes.
+  owner: unassigned
+  status: open

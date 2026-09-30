@@ -33,4 +33,18 @@ public interface CommandSender {
     void kill();
     /** Empties the inventory (and held cursor stack); returns how many items were removed. */
     int clearInventory();
+
+    /** The item in the sender's hand, or null (getCurrentEquippedItem); changes to it stick. */
+    default net.minecraft.item.ItemStack heldItem() { return null; }
+    /** Adds experience points (EntityPlayer.addExperience). */
+    default void addExperience(int points) {}
+    /** Adds (or with a negative count takes) whole levels (EntityPlayer.addExperienceLevel). */
+    default void addExperienceLevels(int levels) {}
+
+    /** The sender's achievements, or null when it has none. */
+    default net.minecraft.stats.StatFile achievements() { return null; }
+    /** Awards an achievement if its parent is earned, announcing it (EntityPlayerMP.triggerAchievement). */
+    default void awardAchievement(net.minecraft.stats.Achievement achievement) {}
+    /** Takes an achievement away, announcing it in chat. */
+    default void revokeAchievement(net.minecraft.stats.Achievement achievement) {}
 }

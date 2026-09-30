@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "#minecraft:log",
+  "result": "minecraft:charcoal",
+  "experience": 0.15
+}

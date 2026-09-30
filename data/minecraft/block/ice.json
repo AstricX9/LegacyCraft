@@ -1,0 +1,11 @@
+{
+  "material": "ice",
+  "hardness": 0.5,
+  "opaque": false,
+  "fullCube": true,
+  "cullSame": "block",
+  "lightOpacity": 3,
+  "items": {
+    "ice": 0
+  }
+}

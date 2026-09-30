@@ -1,0 +1,10 @@
+{
+  "class": "stairs",
+  "hardness": 0.8,
+  "opaque": false,
+  "lightOpacity": 15,
+  "useNeighborBrightness": true,
+  "items": {
+    "red_sandstone_stairs": 0
+  }
+}

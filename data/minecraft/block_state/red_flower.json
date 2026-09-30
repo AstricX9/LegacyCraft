@@ -1,0 +1,24 @@
+{
+  "properties": {
+    "type": [
+      "poppy",
+      "blue_orchid",
+      "allium",
+      "houstonia",
+      "red_tulip",
+      "orange_tulip",
+      "white_tulip",
+      "pink_tulip",
+      "oxeye_daisy"
+    ]
+  },
+  "meta": [
+    {
+      "property": "type",
+      "bits": 4
+    }
+  ],
+  "model": {
+    "file": "{type}"
+  }
+}

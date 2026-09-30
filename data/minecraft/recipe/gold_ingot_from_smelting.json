@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:gold_ore",
+  "result": "minecraft:gold_ingot",
+  "experience": 1.0
+}

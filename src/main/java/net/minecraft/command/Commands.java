@@ -22,7 +22,8 @@ public final class Commands {
 
     static List<Command> all(CommandHandler handler) {
         return List.of(new Help(handler), new Time(), new GameRule(), new GameMode(), new Difficulty(), new Teleport(),
-            new Seed(), new Kill(), new Say(), new Emote(), new Weather(), new SetWorldSpawn(), new Clear());
+            new Seed(), new Kill(), new Say(), new Emote(), new Weather(), new SetWorldSpawn(), new Clear(),
+            new AchievementCommand(), new Enchant(), new Xp());
     }
 
     // ---- shared parsing ---------------------------------------------------------------------
@@ -431,6 +432,148 @@ public final class Commands {
             LevelInfo level = sender.level();
             level.spawnX = x; level.spawnY = y; level.spawnZ = z;
             feedback(sender, "commands.setworldspawn.success", x, y, z);
+        }
+    }
+
+    /**
+     * /achievement give|take stat|* [player] (CommandAchievement): give earns
+     * any missing parents first; take also takes everything that depends on
+     * it; "*" gives or takes them all.
+     */
+    static final class AchievementCommand implements Command {
+        @Override public String name() { return "achievement"; }
+        @Override public String usage() { return "commands.achievement.usage"; }
+
+        @Override public void execute(CommandSender sender, String[] args) throws CommandException {
+            if (args.length < 2) throw new CommandException.WrongUsage(usage());
+            boolean give = args[0].equalsIgnoreCase("give"), take = args[0].equalsIgnoreCase("take");
+            net.minecraft.stats.Achievement achievement = args[1].startsWith("achievement.")
+                ? net.minecraft.stats.AchievementList.get(args[1]) : null;
+            if (achievement == null && !args[1].equals("*"))
+                throw new CommandException("commands.achievement.unknownAchievement", args[1]);
+            if (args.length >= 3) player(sender, args[2]);
+            net.minecraft.stats.StatFile stats = sender.achievements();
+            if (stats == null || !give && !take) return;
+            List<net.minecraft.stats.Achievement> all = net.minecraft.stats.AchievementList.ALL;
+            if (achievement == null) {
+                if (give) {
+                    for (net.minecraft.stats.Achievement each : all) sender.awardAchievement(each);
+                    feedback(sender, "commands.achievement.give.success.all", sender.name());
+                } else {
+                    for (int i = all.size() - 1; i >= 0; i--) if (stats.has(all.get(i))) sender.revokeAchievement(all.get(i));
+                    feedback(sender, "commands.achievement.take.success.all", sender.name());
+                }
+                return;
+            }
+            String shown = "[" + I18n.format(achievement.nameKey()) + "]";
+            if (give) {
+                if (stats.has(achievement)) throw new CommandException("commands.achievement.alreadyHave", sender.name(), shown);
+                List<net.minecraft.stats.Achievement> parents = net.minecraft.stats.StatFile.ancestors(achievement);
+                for (int i = parents.size() - 1; i >= 0; i--) sender.awardAchievement(parents.get(i));
+                sender.awardAchievement(achievement);
+                feedback(sender, "commands.achievement.give.success.one", sender.name(), shown);
+            } else {
+                if (!stats.has(achievement)) throw new CommandException("commands.achievement.dontHave", sender.name(), shown);
+                for (net.minecraft.stats.Achievement child : net.minecraft.stats.StatFile.descendants(achievement))
+                    if (stats.has(child)) sender.revokeAchievement(child);
+                sender.revokeAchievement(achievement);
+                feedback(sender, "commands.achievement.take.success.one", shown, sender.name());
+            }
+        }
+
+        @Override public List<String> complete(CommandSender sender, String[] args) {
+            if (args.length == 1) return last(args, "give", "take");
+            if (args.length == 2) {
+                List<String> names = new ArrayList<>();
+                for (net.minecraft.stats.Achievement each : net.minecraft.stats.AchievementList.ALL) names.add(each.statName());
+                return matching(args[1], names);
+            }
+            return args.length == 3 ? matching(args[2], List.of(sender.name())) : List.of();
+        }
+    }
+
+    /**
+     * /enchant &lt;player&gt; &lt;id or name&gt; [level] (CommandEnchant): adds an
+     * enchantment to the held item if it could go on it (as an anvil would
+     * allow) and nothing on it conflicts; the level defaults to 1 and must be
+     * between 1 and the enchantment's maximum.
+     */
+    static final class Enchant implements Command {
+        @Override public String name() { return "enchant"; }
+        @Override public String usage() { return "commands.enchant.usage"; }
+
+        @Override public void execute(CommandSender sender, String[] args) throws CommandException {
+            if (args.length < 2) throw new CommandException.WrongUsage(usage());
+            entity(sender, args[0]);
+            int id;
+            try {
+                id = parseInt(args[1], 0);
+            } catch (CommandException notANumber) {
+                net.minecraft.enchantment.Enchantment named = net.minecraft.enchantment.Enchantment.byName(args[1]);
+                if (named == null) throw notANumber;
+                id = named.id;
+            }
+            net.minecraft.item.ItemStack held = sender.heldItem();
+            if (held == null) throw new CommandException("commands.enchant.noItem");
+            net.minecraft.enchantment.Enchantment enchantment = net.minecraft.enchantment.Enchantment.byId(id);
+            if (enchantment == null) throw new CommandException("commands.enchant.notFound", id);
+            if (!enchantment.canApply(held)) throw new CommandException("commands.enchant.cantEnchant");
+            int level = args.length >= 3 ? parseInt(args[2], enchantment.minLevel(), enchantment.maxLevel) : 1;
+            for (var entry : held.enchantments().entrySet()) {
+                net.minecraft.enchantment.Enchantment there = net.minecraft.enchantment.Enchantment.byId(entry.getKey());
+                if (there != null && !there.canApplyTogether(enchantment))
+                    throw new CommandException("commands.enchant.cantCombine", translatedName(enchantment, level),
+                        translatedName(there, entry.getValue()));
+            }
+            held.addEnchantment(enchantment.id, level);
+            feedback(sender, "commands.enchant.success");
+        }
+
+        static String translatedName(net.minecraft.enchantment.Enchantment enchantment, int level) {
+            return I18n.translateChat(enchantment.translationKey()) + " "
+                + I18n.translateChat(net.minecraft.enchantment.EnchantmentHelper.levelKey(level));
+        }
+
+        @Override public List<String> complete(CommandSender sender, String[] args) {
+            if (args.length == 1) return matching(args[0], List.of(sender.name()));
+            if (args.length == 2) {
+                List<String> names = new ArrayList<>();
+                for (var enchantment : net.minecraft.enchantment.Enchantment.ALL) names.add(enchantment.commandName());
+                return matching(args[1], names);
+            }
+            return List.of();
+        }
+    }
+
+    /**
+     * /xp &lt;amount&gt;[L] [player] (CommandXP): points, or whole levels with
+     * an L suffix; negative levels are taken away, negative points refused.
+     */
+    static final class Xp implements Command {
+        @Override public String name() { return "xp"; }
+        @Override public String usage() { return "commands.xp.usage"; }
+
+        @Override public void execute(CommandSender sender, String[] args) throws CommandException {
+            if (args.length <= 0) throw new CommandException.WrongUsage(usage());
+            String text = args[0];
+            boolean levels = text.endsWith("l") || text.endsWith("L");
+            if (levels && text.length() > 1) text = text.substring(0, text.length() - 1);
+            int amount = parseInt(text);
+            boolean negative = amount < 0;
+            if (negative) amount = -amount;
+            if (args.length > 1) player(sender, args[1]);
+            if (levels) {
+                sender.addExperienceLevels(negative ? -amount : amount);
+                feedback(sender, negative ? "commands.xp.success.negative.levels" : "commands.xp.success.levels", amount, sender.name());
+            } else {
+                if (negative) throw new CommandException("commands.xp.failure.widthdrawXp");
+                sender.addExperience(amount);
+                feedback(sender, "commands.xp.success", amount, sender.name());
+            }
+        }
+
+        @Override public List<String> complete(CommandSender sender, String[] args) {
+            return args.length == 2 ? matching(args[1], List.of(sender.name())) : List.of();
         }
     }
 

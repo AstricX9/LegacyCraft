@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": "minecraft:potato",
+  "result": "minecraft:baked_potato",
+  "experience": 0.35
+}

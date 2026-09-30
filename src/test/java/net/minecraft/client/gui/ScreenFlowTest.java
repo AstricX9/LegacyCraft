@@ -313,5 +313,29 @@ final class ScreenFlowTest {
         @Override public InventoryPlayer playerInventory() { return inventory; }
         @Override public boolean isCreative() { return creative; }
         @Override public void dropPlayerItem(ItemStack stack) { dropped.add(stack); }
+
+        /** The furnace a furnace screen opens on, and what was reported taken out of furnaces ("iron_ingot x3"). */
+        net.minecraft.inventory.Furnace furnace;
+        final List<String> smelted = new ArrayList<>();
+        @Override public net.minecraft.inventory.Furnace furnaceAt(int x, int y, int z) { return furnace; }
+        @Override public void onItemSmelted(net.minecraft.item.Item item, int count) { smelted.add(item.name().path() + " x" + count); }
+
+        /** The player's levels and enchanting seed, the shelves around any table, and the levels anvils charged. */
+        int level, seed, shelves;
+        final List<Integer> anvilCharges = new ArrayList<>();
+        @Override public int experienceLevel() { return level; }
+        @Override public int xpSeed() { return seed; }
+        @Override public void removeExperienceLevels(int levels) {
+            level = Math.max(0, level - levels);
+            seed++;
+        }
+        @Override public int bookshelvesAround(int x, int y, int z) { return shelves; }
+        @Override public void onAnvilUsed(int x, int y, int z, int levels) {
+            anvilCharges.add(levels);
+            level -= levels;
+        }
+        @Override public net.minecraft.item.Item itemByName(String name) {
+            return name.equals("enchanted_book") ? net.minecraft.item.TestItems.item(name, 1, 0) : null;
+        }
     }
 }

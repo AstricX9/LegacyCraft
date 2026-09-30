@@ -1,0 +1,8 @@
+{
+  "hardness": 0.8,
+  "items": {
+    "sandstone": 0,
+    "chiseled_sandstone": 1,
+    "smooth_sandstone": 2
+  }
+}

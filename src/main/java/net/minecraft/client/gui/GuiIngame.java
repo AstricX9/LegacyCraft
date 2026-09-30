@@ -13,13 +13,25 @@ import static org.lwjgl.opengl.GL11.*;
  * rows, and the item name sits 14px lower there. Spectator draws no hotbar.
  *
  * <p>Positions and sprite coordinates follow vanilla's GuiIngame layout
- * (HYPOTHESIS until screenshot-compared). Hearts do not shake or blink and
- * there is no air, mount or boss bar yet (DEV-015).
+ * (HYPOTHESIS until screenshot-compared). Hearts blink white for a second
+ * after a change while the player is protected from damage and shake at 2
+ * hearts or fewer; bubbles show the air left under water. There is no
+ * mount or boss bar yet (DEV-015).
  */
 public class GuiIngame extends Gui {
     /** What the HUD shows about the player. */
     public record Status(boolean survivalHud, boolean spectator, boolean hardcore, float health, int food,
-                         int armor, int experienceLevel, float experience) {}
+                         int armor, int experienceLevel, float experience, boolean underwater, int air, int hurtResistantTime) {
+        public Status(boolean survivalHud, boolean spectator, boolean hardcore, float health, int food, int armor,
+                      int experienceLevel, float experience) {
+            this(survivalHud, spectator, hardcore, health, food, armor, experienceLevel, experience, false, 300, 0);
+        }
+    }
+
+    /** The heart blink state (GuiIngame.playerHealth / lastPlayerHealth / healthUpdateCounter / lastSystemTime). */
+    private int playerHealth, lastPlayerHealth;
+    private long healthUpdateCounter, lastSystemTime;
+    private final java.util.Random rand = new java.util.Random();
 
     private final GuiContext mc;
     private int remainingHighlightTicks;
@@ -132,18 +144,50 @@ public class GuiIngame extends Gui {
                 else drawTexturedModalRect(x, y, 16, 9, 9, 9);
             }
         }
+        // GuiIngame.renderPlayerStats: a change while protected from damage blinks the hearts (20 ticks when
+        // hurt, 10 when healed), showing the previous health in white; at 4 health or less they shake.
+        long now = System.currentTimeMillis();
+        if (health < playerHealth && status.hurtResistantTime() > 0) {
+            lastSystemTime = now;
+            healthUpdateCounter = updateCounter + 20;
+        } else if (health > playerHealth && status.hurtResistantTime() > 0) {
+            lastSystemTime = now;
+            healthUpdateCounter = updateCounter + 10;
+        }
+        if (now - lastSystemTime > 1000L) {
+            playerHealth = health;
+            lastPlayerHealth = health;
+            lastSystemTime = now;
+        }
+        playerHealth = health;
+        int previous = lastPlayerHealth;
+        boolean blink = healthUpdateCounter > updateCounter && (healthUpdateCounter - updateCounter) / 3L % 2L == 1L;
+        rand.setSeed(updateCounter * 312871L);
         int heartV = status.hardcore() ? 45 : 0;
-        for (int i = 0; i < 10; i++) {
-            int x = left + i * 8;
-            drawTexturedModalRect(x, top, 16, heartV, 9, 9);
-            if (i * 2 + 1 < health) drawTexturedModalRect(x, top, 16 + 36, heartV, 9, 9);
-            else if (i * 2 + 1 == health) drawTexturedModalRect(x, top, 16 + 45, heartV, 9, 9);
+        for (int i = 9; i >= 0; i--) {
+            int x = left + i * 8, y = top;
+            if (health <= 4) y += rand.nextInt(2);
+            drawTexturedModalRect(x, y, 16 + (blink ? 9 : 0), heartV, 9, 9);
+            if (blink) {
+                if (i * 2 + 1 < previous) drawTexturedModalRect(x, y, 16 + 54, heartV, 9, 9);
+                if (i * 2 + 1 == previous) drawTexturedModalRect(x, y, 16 + 63, heartV, 9, 9);
+            }
+            if (i * 2 + 1 < health) drawTexturedModalRect(x, y, 16 + 36, heartV, 9, 9);
+            if (i * 2 + 1 == health) drawTexturedModalRect(x, y, 16 + 45, heartV, 9, 9);
         }
         for (int i = 0; i < 10; i++) {
             int x = right - i * 8 - 9;
             drawTexturedModalRect(x, top, 16, 27, 9, 9);
             if (i * 2 + 1 < status.food()) drawTexturedModalRect(x, top, 16 + 36, 27, 9, 9);
             else if (i * 2 + 1 == status.food()) drawTexturedModalRect(x, top, 16 + 45, 27, 9, 9);
+        }
+        // Air bubbles above the food while the eyes are under water: full ones, then one popping.
+        if (status.underwater()) {
+            int air = status.air();
+            int full = (int) Math.ceil((air - 2) * 10.0 / 300.0);
+            int popping = (int) Math.ceil(air * 10.0 / 300.0) - full;
+            for (int i = 0; i < full + popping; i++)
+                drawTexturedModalRect(right - i * 8 - 9, top - 10, i < full ? 16 : 25, 18, 9, 9);
         }
     }
 
@@ -169,7 +213,8 @@ public class GuiIngame extends Gui {
 
     private void renderSelectedItem(int width, int height, boolean survivalHud) {
         if (remainingHighlightTicks <= 0 || highlightingItemStack == null) return;
-        String name = mc.itemName(highlightingItemStack.item());
+        String name = mc.stackName(highlightingItemStack);
+        if (highlightingItemStack.hasCustomName()) name = FontRenderer.FORMAT_CHAR + "o" + name;
         int alpha = highlightAlpha(remainingHighlightTicks);
         if (alpha <= 0) return;
         int x = (width - mc.font().getStringWidth(name)) / 2;

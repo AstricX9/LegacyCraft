@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "###",
+    "###",
+    "###"
+  ],
+  "key": {
+    "#": "minecraft:dye_blue"
+  },
+  "result": {
+    "id": "minecraft:lapis_block",
+    "count": 1
+  }
+}

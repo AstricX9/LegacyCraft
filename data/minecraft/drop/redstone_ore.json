@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:redstone_ore",
+  "drops": [
+    {
+      "item": "minecraft:redstone",
+      "count": [
+        4,
+        5
+      ]
+    }
+  ]
+}

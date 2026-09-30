@@ -1,0 +1,16 @@
+{
+  "id": 62,
+  "translation_key": "enchantment.fishingSpeed",
+  "weight": 2,
+  "max_level": 3,
+  "supported_items": "fishing_rod",
+  "min_cost": {
+    "base": 15,
+    "per_level_above_first": 9
+  },
+  "max_cost": {
+    "base": 61,
+    "per_level_above_first": 10
+  },
+  "incompatible": []
+}

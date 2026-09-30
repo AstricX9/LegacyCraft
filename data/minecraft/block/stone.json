@@ -1,0 +1,11 @@
+{
+  "items": {
+    "stone": 0,
+    "granite": 1,
+    "granite_smooth": 2,
+    "diorite": 3,
+    "diorite_smooth": 4,
+    "andesite": 5,
+    "andesite_smooth": 6
+  }
+}

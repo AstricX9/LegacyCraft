@@ -1,0 +1,12 @@
+{
+  "block": "minecraft:bookshelf",
+  "drops": [
+    {
+      "item": "minecraft:book",
+      "count": [
+        3,
+        3
+      ]
+    }
+  ]
+}

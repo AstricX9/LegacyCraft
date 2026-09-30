@@ -1,0 +1,24 @@
+{
+  "id": 0,
+  "translation_key": "enchantment.protect.all",
+  "weight": 10,
+  "max_level": 4,
+  "supported_items": "armor",
+  "min_cost": {
+    "base": 1,
+    "per_level_above_first": 11
+  },
+  "max_cost": {
+    "base": 21,
+    "per_level_above_first": 11
+  },
+  "incompatible": [
+    "minecraft:fire_protection",
+    "minecraft:blast_protection",
+    "minecraft:projectile_protection"
+  ],
+  "protection": {
+    "against": "any",
+    "multiplier": 0.75
+  }
+}

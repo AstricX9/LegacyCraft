@@ -30,6 +30,9 @@ public final class WorldStorage {
     private static final int TICKS_MAGIC = 0x4c435454; // LCTT
     /** Pending block ticks (vanilla keeps them per chunk as TileTicks); optional, so older saves load. */
     private static final String TICKS_FILE = "ticks.lct";
+    private static final int FURNACES_MAGIC = 0x4c434655; // LCFU
+    /** Furnace contents and fire (vanilla keeps them per chunk as TileEntities); optional, so older saves load. */
+    private static final String FURNACES_FILE = "furnaces.lcf";
 
     private WorldStorage() {}
     public static boolean exists(Path directory) { return Files.isRegularFile(directory.resolve(INDEX_FILE)); }
@@ -56,6 +59,43 @@ public final class WorldStorage {
         }
         moveAtomically(temporary, target);
         writeTicks(directory, world);
+        writeFurnaces(directory, world);
+    }
+
+    private static void writeFurnaces(Path directory, World world) throws IOException {
+        Path target = directory.resolve(FURNACES_FILE);
+        Path temporary = directory.resolve(FURNACES_FILE + ".tmp");
+        var furnaces = world.furnaces();
+        try (var output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary))))) {
+            output.writeInt(FURNACES_MAGIC);
+            output.writeInt(furnaces.size());
+            for (var entry : furnaces.entrySet()) {
+                output.writeInt(entry.getKey().x());
+                output.writeInt(entry.getKey().y());
+                output.writeInt(entry.getKey().z());
+                entry.getValue().write(output);
+            }
+        }
+        moveAtomically(temporary, target);
+    }
+
+    /**
+     * Reads the furnaces back into {@code world}, resolving item names with the
+     * world's item lookup ({@link World#setSmelting}); without one the
+     * furnaces load empty.
+     */
+    private static void readFurnaces(Path directory, World world) throws IOException {
+        Path source = directory.resolve(FURNACES_FILE);
+        if (!Files.isRegularFile(source)) return;
+        try (var input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(source))))) {
+            require(input.readInt() == FURNACES_MAGIC, "Invalid furnace file");
+            int count = input.readInt();
+            require(count >= 0, "Negative furnace count");
+            for (int i = 0; i < count; i++) {
+                int x = input.readInt(), y = input.readInt(), z = input.readInt();
+                world.restoreFurnace(x, y, z, net.minecraft.inventory.Furnace.read(input, world.smelting(), world.itemLookup()));
+            }
+        }
     }
 
     private static void writeTicks(Path directory, World world) throws IOException {
@@ -113,6 +153,7 @@ public final class WorldStorage {
                 world.restoreChunk(readChunk(directory.resolve("chunks"), x, z, generationIndex, blocks.size()));
             }
             readTicks(directory, world, blocks);
+            readFurnaces(directory, world);
             return world;
         }
     }

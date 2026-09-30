@@ -1,0 +1,16 @@
+{
+  "id": 6,
+  "translation_key": "enchantment.waterWorker",
+  "weight": 2,
+  "max_level": 1,
+  "supported_items": "armor_head",
+  "min_cost": {
+    "base": 1,
+    "per_level_above_first": 0
+  },
+  "max_cost": {
+    "base": 41,
+    "per_level_above_first": 0
+  },
+  "incompatible": []
+}

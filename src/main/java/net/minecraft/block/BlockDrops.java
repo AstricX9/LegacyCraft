@@ -96,22 +96,72 @@ public final class BlockDrops {
      * lower half's metadata.
      */
     public List<ItemStack> drops(String block, String material, int metadata, Item tool, Random random) {
+        return drops(block, material, metadata, tool, 0, false, false, random);
+    }
+
+    /** Blocks with a tile entity, which Silk Touch never takes whole (Block.canSilkHarvest). */
+    private static final java.util.Set<String> TILE_ENTITIES = java.util.Set.of("furnace", "lit_furnace", "dispenser",
+        "dropper", "mob_spawner", "noteblock", "jukebox", "command_block", "beacon", "chest", "trapped_chest", "hopper",
+        "brewing_stand", "enchanting_table", "daylight_detector", "daylight_detector_inverted", "standing_sign",
+        "wall_sign", "skull", "flower_pot", "piston_extension", "end_portal");
+
+    /**
+     * Whether Silk Touch takes a block as itself (Block.canSilkHarvest): full
+     * cubes without a tile entity, except double slabs, plus panes and ender
+     * chests, which override it.
+     */
+    public static boolean canSilkHarvest(String block, boolean fullCube) {
+        if (block.equals("glass_pane") || block.equals("stained_glass_pane") || block.equals("ender_chest")) return true;
+        if (block.startsWith("double_") && block.endsWith("slab") || block.equals("double_wooden_slab")) return false;
+        return fullCube && !TILE_ENTITIES.contains(block);
+    }
+
+    /**
+     * Drops with the held tool's enchantments: {@code silkTouch} on a block
+     * that {@link #canSilkHarvest} gives the block itself (createStackedBlock:
+     * lit redstone ore gives redstone ore, a silverfish block its stone), and
+     * {@code fortune} (the Fortune level) raises ore, glowstone, melon, sea
+     * lantern, redstone, crop, nether wart and tall grass yields and the
+     * flint, sapling and apple chances (quantityDroppedWithBonus and friends).
+     * HYPOTHESIS: recalled 1.8.9 formulas.
+     */
+    public List<ItemStack> drops(String block, String material, int metadata, Item tool, int fortune, boolean silkTouch,
+                                 boolean fullCube, Random random) {
         List<ItemStack> result = new ArrayList<>();
         if (!ToolValues.canHarvest(tool, block, material)) return result;
+        if (silkTouch && canSilkHarvest(block, fullCube)) {
+            Item whole = switch (block) {
+                case "lit_redstone_ore" -> items.placing("redstone_ore", 0);
+                case "monster_egg" -> switch (metadata) {
+                    case 1 -> items.placing("cobblestone", 0);
+                    case 2, 3, 4, 5 -> items.placing("stonebrick", metadata - 2);
+                    default -> items.placing("stone", 0);
+                };
+                default -> items.placing(block, metadata);
+            };
+            if (whole != null) {
+                result.add(new ItemStack(whole, 1));
+                return result;
+            }
+        }
         boolean shears = ToolValues.type(tool) == ToolValues.Type.SHEARS;
         switch (block) {
             case "leaves", "leaves2" -> {
                 if (shears) { add(result, items.placing(block, metadata), 1); return result; }
                 int variant = metadata & 3;
                 boolean jungle = block.equals("leaves") && variant == 3;
-                if (random.nextInt(jungle ? 40 : 20) == 0) add(result, items.byName(sapling(block, variant)), 1);
+                int saplingChance = jungle ? 40 : 20;
+                if (fortune > 0) saplingChance = Math.max(10, saplingChance - (2 << fortune));
+                if (random.nextInt(saplingChance) == 0) add(result, items.byName(sapling(block, variant)), 1);
                 boolean appleTree = block.equals("leaves") ? variant == 0 : variant == 1;
-                if (appleTree && random.nextInt(200) == 0) add(result, items.byName("apple"), 1);
+                int appleChance = 200;
+                if (fortune > 0) appleChance = Math.max(40, appleChance - (10 << fortune));
+                if (appleTree && random.nextInt(appleChance) == 0) add(result, items.byName("apple"), 1);
                 return result;
             }
             case "tallgrass" -> {
                 if (shears) add(result, items.placing(block, metadata), 1);
-                else if (random.nextInt(8) == 0) add(result, items.byName("wheat_seeds"), 1);
+                else if (random.nextInt(8) == 0) add(result, items.byName("wheat_seeds"), 1 + random.nextInt(fortune * 2 + 1));
                 return result;
             }
             case "double_plant" -> {
@@ -138,7 +188,7 @@ public final class BlockDrops {
                 return result;
             }
             case "gravel" -> {
-                add(result, items.byName(random.nextInt(10) == 0 ? "flint" : "gravel"), 1);
+                add(result, items.byName(random.nextInt(10 - Math.min(fortune, 3) * 3) == 0 ? "flint" : "gravel"), 1);
                 return result;
             }
             case "wheat", "carrots", "potatoes" -> {
@@ -148,7 +198,7 @@ public final class BlockDrops {
                 add(result, items.byName(age >= 7 ? crop : seed), 1);
                 if (age >= 7) {
                     int extra = 0;
-                    for (int i = 0; i < 3; i++) if (random.nextInt(15) <= age) extra++;
+                    for (int i = 0; i < 3 + fortune; i++) if (random.nextInt(15) <= age) extra++;
                     add(result, items.byName(seed), extra);
                     if (block.equals("potatoes") && random.nextInt(50) == 0) add(result, items.byName("poisonous_potato"), 1);
                 }
@@ -161,7 +211,12 @@ public final class BlockDrops {
                 return result;
             }
             case "nether_wart" -> {
-                add(result, items.byName("nether_wart"), (metadata & 3) >= 3 ? 2 + random.nextInt(3) : 1);
+                int count = 1;
+                if ((metadata & 3) >= 3) {
+                    count = 2 + random.nextInt(3);
+                    if (fortune > 0) count += random.nextInt(fortune + 1);
+                }
+                add(result, items.byName("nether_wart"), count);
                 return result;
             }
             case "cocoa" -> {
@@ -184,11 +239,25 @@ public final class BlockDrops {
             if (!rule.appliesTo(metadata)) continue;
             if (rule.chance() < 1f && random.nextFloat() >= rule.chance()) continue;
             int count = rule.min() + (rule.max() > rule.min() ? random.nextInt(rule.max() - rule.min() + 1) : 0);
+            if (fortune > 0) count = withFortune(block, count, fortune, random);
             Item item = rule.item() != null ? items.byName(rule.item())
                 : items.placing(rule.block() != null ? rule.block() : block, metadata);
             add(result, item, count);
         }
         return result;
+    }
+
+    /** A table drop's count with Fortune (quantityDroppedWithBonus of BlockOre, BlockRedstoneOre, BlockGlowstone, BlockMelon, BlockSeaLantern). */
+    static int withFortune(String block, int count, int fortune, Random random) {
+        return switch (block) {
+            case "coal_ore", "diamond_ore", "emerald_ore", "quartz_ore", "lapis_ore" ->
+                count * (Math.max(0, random.nextInt(fortune + 2) - 1) + 1);
+            case "redstone_ore", "lit_redstone_ore" -> count + random.nextInt(fortune + 1);
+            case "glowstone" -> Math.max(1, Math.min(4, count + random.nextInt(fortune + 1)));
+            case "melon_block" -> Math.min(9, count + random.nextInt(1 + fortune));
+            case "sea_lantern" -> Math.max(1, Math.min(5, count + random.nextInt(fortune + 1)));
+            default -> count;
+        };
     }
 
     private static String sapling(String block, int variant) {

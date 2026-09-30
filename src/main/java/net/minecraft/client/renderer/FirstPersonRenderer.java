@@ -95,13 +95,13 @@ public final class FirstPersonRenderer {
             glRotatef(30f, 0, 1, 0);
             glRotatef(-80f, 1, 0, 0);
             glRotatef(60f, 0, 1, 0);
-            items.renderHeld(itemToRender.item(), ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
         } else if (itemToRender != null) {
             float root = (float) Math.sqrt(swing);
             glTranslatef(-0.4f * (float) Math.sin(root * Math.PI), 0.2f * (float) Math.sin(root * Math.PI * 2),
                 -0.2f * (float) Math.sin(swing * Math.PI));
             transformFirstPersonItem(equip, swing);
-            items.renderHeld(itemToRender.item(), ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
         } else if (!player.dead) {
             renderArm(equip, swing, light);
         }

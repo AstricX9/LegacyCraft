@@ -55,6 +55,23 @@ final class CommandHandlerTest {
     }
 
     @Test
+    void achievementGiveEarnsTheParentsAndTakeTheDependents() {
+        var pickaxe = net.minecraft.stats.AchievementList.get("buildPickaxe");
+        var wood = net.minecraft.stats.AchievementList.get("mineWood");
+        assertTrue(handler.execute(sender, "/achievement give achievement.buildPickaxe"));
+        assertTrue(sender.stats.has(pickaxe));
+        assertTrue(sender.stats.has(wood), "parents come too");
+        assertFalse(handler.execute(sender, "/achievement give achievement.buildPickaxe"), "already has it");
+        assertTrue(handler.execute(sender, "/achievement take achievement.mineWood"));
+        assertFalse(sender.stats.has(wood));
+        assertFalse(sender.stats.has(pickaxe), "what needs it goes too");
+        assertTrue(sender.stats.has(net.minecraft.stats.AchievementList.get("openInventory")));
+        assertTrue(handler.execute(sender, "/achievement give *"));
+        for (var each : net.minecraft.stats.AchievementList.ALL) assertTrue(sender.stats.has(each), each.id());
+        assertFalse(handler.execute(sender, "/achievement give mineWood"), "names need the achievement. prefix");
+    }
+
+    @Test
     void badArgumentsAreRedErrors() {
         assertFalse(handler.execute(sender, "/time set morning"));
         assertEquals("§c'morning' is not a valid number", sender.last());
@@ -151,5 +168,9 @@ final class CommandHandlerTest {
         @Override public void setDifficulty(int difficulty) { level.difficulty = difficulty; }
         @Override public void kill() {}
         @Override public int clearInventory() { return 0; }
+        final net.minecraft.stats.StatFile stats = new net.minecraft.stats.StatFile();
+        @Override public net.minecraft.stats.StatFile achievements() { return stats; }
+        @Override public void awardAchievement(net.minecraft.stats.Achievement achievement) { stats.unlock(achievement); }
+        @Override public void revokeAchievement(net.minecraft.stats.Achievement achievement) { stats.set(achievement, false); }
     }
 }

@@ -195,8 +195,8 @@
     biome-dependent grass/foliage/water colours (master context §56).
   replica_behavior: >
     Tile-entity blocks draw the missing-model cube; fluids use FluidMesher
-    (sloped corners, flow-oriented texture, DEV-022); flower pots always look empty; fire always uses the
-    no-neighbours variant; repeater `locked` is always false; grass/foliage
+    (sloped corners, flow-oriented texture, DEV-022); flower pots always look empty; fire picks its
+    shape from its flammable neighbours (DEV-026); repeater `locked` is always false; grass/foliage
     colours are the fixed `tintColor` constants (spruce/birch leaves, lily
     pads, stems and redstone dust use their fixed vanilla-style colours).
   reason: >
@@ -296,8 +296,8 @@
   replica_behavior: >
     All screens exist with vanilla layout and translated captions. Still
     missing behind them: no shader pipeline (Super Secret Settings is
-    disabled), the snooper never sends anything, Achievements and
-    Statistics are disabled in the pause menu, the font has no Unicode
+    disabled), the snooper never sends anything, Statistics is disabled in
+    the pause menu (Achievements opens the map, DEV-025), the font has no Unicode
     pages, and the profiler chart is not drawn. Broadcast Settings shows
     the same "Twitch Broadcasting Unavailable" screen vanilla shows when its
     Twitch SDK fails to load.
@@ -403,20 +403,28 @@
     Blocks break over time with 1.8.9's hardness/tool rules and drop item
     entities that fall, merge, despawn after 5 minutes and are picked up;
     Q and clicks outside an inventory throw items; death scatters the
-    inventory; the 2x2 and 3x3 grids craft (DEV-024). But: no drag-splitting
-    or double-click; builtin/entity items
+    inventory; the 2x2 and 3x3 grids craft (DEV-024); drag-splitting (even,
+    one each, Creative full stacks), double-click gathering and
+    shift-double-click follow the recalled GuiContainer rules (HYPOTHESIS;
+    the second press of a shift-double-click keeps the first press's item,
+    which the recalled code would clear). But: builtin/entity items
     draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
-    flat double-sided quads; every name is white and the registry-name
-    tooltip line is omitted; saved inventories use LegacyCraft item names
-    as ids and dropped items are not saved with the world; spawn eggs,
-    banners and the enchanted golden apple are listed once each; hearts
-    are static and only health/food/armor/xp rows exist (no damage,
-    hunger or experience sources); no enchantments.
+    flat double-sided quads; names use the enchantment rarity colours
+    (aqua enchanted, yellow enchanted books, white otherwise; other
+    rarities are not modelled) and the registry-name tooltip line is
+    omitted; saved inventories use LegacyCraft item names as ids (with
+    vanilla-shaped item tags) and dropped items are not saved with the
+    world; spawn eggs, banners and the enchanted golden apple are listed
+    once each; hearts blink and shake and the air bar shows under water,
+    but there are no mount or boss bars and food never drains (DEV-029).
+    Enchantments, Fortune and Silk Touch: DEV-029. Worn armour is drawn on
+    the player and right-click puts it on (silent, as in 1.8.9), but
+    leather can't be dyed (always the default brown).
   reason: >
-    Tile-entity item rendering, entity persistence and enchantments are
-    separate milestones.
+    Tile-entity item rendering and entity persistence are separate
+    milestones.
   compatibility_effect: >
-    P2 now that crafting exists (no smelting yet); creative building and
+    P2 now that crafting and smelting exist; creative building and
     survival mining/collecting work.
   user_visible: true
 
@@ -626,8 +634,8 @@
     TextureAtlasTest). Pending ticks are saved in one ticks.lct file per
     world rather than per chunk. In Creative the player's fire never burns
     down, only water puts it out (reported from vanilla 1.8.9 play; the
-    mechanism is UNKNOWN). NOT DONE: lava igniting blocks and fire
-    spreading or burning out, Nether lava speed, springs flowing at generation (DEV-016), and the liquid
+    mechanism is UNKNOWN). NOT DONE: lava igniting blocks (no random
+    block ticks yet; fire itself spreads and burns out, DEV-026), Nether lava speed, springs flowing at generation (DEV-016), and the liquid
     tick skipping chunks whose neighbours are not loaded (only the tick's
     own chunk is checked, so a flow reaching the edge can generate new
     chunks).
@@ -635,8 +643,7 @@
     Fire behaviour and dimensions are separate systems not built
     yet; one tick file keeps the chunk format unchanged.
   compatibility_effect: >
-    P2: water and lava flow and look as recalled; lava cannot start fires
-    and fire never spreads or goes out.
+    P2: water and lava flow and look as recalled; lava cannot start fires.
   user_visible: true
 
 - id: DEV-023
@@ -690,10 +697,165 @@
     goes. Result slot clicks, shift-click, number keys and the drop key
     follow the recalled Container rules, including the right-click half and
     shift-click overflow losses. NOT DONE: armour dyeing, fireworks, banners,
-    map and book copying, the enchanted golden apple, smelting and
-    furnaces, achievements for crafting.
+    map and book copying, the enchanted golden apple. Smelting is DEV-028.
   reason: >
     Special recipes need item NBT (colours, patterns, map data) that items
-    don't carry yet; furnaces are a tile entity.
-  compatibility_effect: P2 until the special recipes and smelting exist.
+    don't carry yet.
+  compatibility_effect: P2 until the special recipes exist.
+  user_visible: true
+
+- id: DEV-025
+  subsystem: achievements
+  vanilla_behavior: >
+    34 achievements (AchievementList) earned in a tree, each only once its
+    parent is; the pop-up in the top-right ("Achievement get!"), the chat
+    line "<player> has just earned the achievement [name]", the standing
+    "Press E" hint for new players, the achievement map from the pause menu
+    (dragging, wheel zoom, block backdrop, lines, tooltips), /achievement
+    give|take, Adventuring Time's biome list, and stats/<uuid>.json in the
+    world folder. Triggers come from crafting, smelting, picking items up,
+    killing mobs, brewing, portals, riding, breeding, beacons and more.
+  replica_behavior: >
+    All 34 achievements with recalled map positions, icons, parents and
+    special flags (HYPOTHESIS), unlock rules, pop-up, chat line, hint,
+    achievement map, /achievement and biome tracking, saved as
+    stats/<player name>.json in vanilla's JSON shape. Triggers wired:
+    opening the inventory, crafting (workbench, pickaxes, furnace, hoe,
+    bread, cake, sword, enchanting table, bookshelf), taking iron ingots and
+    cooked fish out of a furnace, and picking up logs, leather, diamonds and
+    blaze rods. The map is clipped with a scissor box
+    rather than vanilla's depth trick, and its backdrop is seeded from the
+    player name (vanilla uses the session's player id). NOT DONE: the
+    triggers of systems that don't exist yet (mobs and combat,
+    minecarts, the Nether and End, brewing, breeding, beacons, throwing
+    diamonds at players) and the statistics screen.
+  reason: >
+    Those triggers belong to later systems; offline play has no player id.
+  compatibility_effect: >
+    P2: only the early crafting achievements can be earned in play;
+    /achievement reaches the rest.
+  user_visible: true
+
+- id: DEV-026
+  subsystem: fire, flint and steel, nether portals
+  vanilla_behavior: >
+    Flint and steel lights fire beside the block clicked (fire.ignite, one
+    durability). Fire (BlockFire) ticks every 30-39 ticks while doFireTick
+    is on: it ages, spreads to and burns flammable blocks by their
+    encouragement and flammability (faster at higher difficulty, slower in
+    humid biomes), goes out without fuel or in rain, burns forever on
+    netherrack, primes TNT it burns, and hangs on flammable walls. Fire lit
+    in an empty obsidian frame (2-21 wide, 3-21 tall, either axis) fills it
+    with portal blocks, which break when the frame does; portals hum and
+    swirl purple particles; standing in one builds up the purple haze and
+    screen wobble (with portal.trigger) and after 4 seconds (at once in
+    Creative) takes the player to the Nether with portal.travel.
+  replica_behavior: >
+    All of that (HYPOTHESIS: recalled constants and the Size algorithm)
+    except the journey: there is no Nether, so the haze fills and stays
+    while the player stands in the portal and nothing else happens. Burnt
+    TNT just disappears (no TNT entity), items and other entities ignore
+    portals, and rain only counts as the level.dat raining flag (no
+    weather strength or rendering).
+  reason: The Nether dimension, entities and weather are not built yet.
+  compatibility_effect: P2 until the Nether exists.
+  user_visible: true
+
+- id: DEV-027
+  subsystem: nether portals (frame breaking), punching out fire
+  vanilla_behavior: >
+    UNKNOWN which way 1.8.9 goes: the recalled BlockPortal.onNeighborBlockChange
+    sets portal blocks to air with no effects (the glass-shatter on frame
+    break is recalled from later versions), while the user reports the
+    portal breaks with the glass sound. Clicking a block face with fire on
+    it puts the fire out with random.fizz (World.extinguishFire); in
+    Creative that replaces the break, in Survival the block behind is also
+    hit. Fire itself is not targetable.
+  replica_behavior: >
+    Portal blocks that lose their frame shatter: glass break sound and
+    block-break particles for each, no drops (following the user's report).
+    Fire is punched out as described (HYPOTHESIS: recalled
+    ItemInWorldManager.onBlockClicked / clickBlockCreative), including
+    Creative's 5-tick repeat and moving onto a new block in Survival.
+  reason: User playtest feedback; the portal sound disagrees with recalled code, so it is logged here.
+  compatibility_effect: P3 (sound and particles only) if 1.8.9 is in fact silent.
+  user_visible: true
+
+- id: DEV-028
+  subsystem: furnaces and smelting
+  vanilla_behavior: >
+    FurnaceRecipes smelts one item into one in 200 ticks, with experience
+    per recipe; TileEntityFurnace burns fuel by getItemBurnTime (wooden
+    slabs 150, other wooden block items 300, coal blocks 16000, wooden
+    tools 200, sticks and saplings 100, coal 1600, blaze rods 2400, lava
+    buckets 20000 leaving the bucket), lets the cook time fall back two per
+    tick without fire, swaps furnace and lit_furnace as the fire starts and
+    stops, fills a bucket from a smelted wet sponge, and spills its contents
+    when broken. ContainerFurnace has input, fuel (fuel or single buckets)
+    and output slots with vanilla shift-click routing; SlotFurnaceOutput
+    spawns experience orbs for what is taken and triggers Acquire Hardware
+    and Delicious Fish. Furnaces save in their chunk's TileEntities list.
+  replica_behavior: >
+    smelting.json lists the recalled recipes and experience (HYPOTHESIS);
+    FurnaceRecipes, inventory.Furnace, World and GuiFurnace follow the
+    recalled rules above, including the gauge re-read from the fuel slot
+    on load. Differences: experience is added straight to the player
+    (EntityPlayer.addExperience) because experience orbs don't exist, and
+    is saved as XpLevel/XpP/XpTotal in level.dat; furnaces are saved in
+    the world folder's furnaces.lcf (items by LegacyCraft name) rather than
+    per chunk; hoppers don't feed or empty furnaces. As in vanilla's
+    mergeItemStack, shift-click can put more than one bucket in the fuel
+    slot.
+  reason: >
+    Experience orbs are entities that don't exist yet; there is no general
+    tile-entity system or Anvil chunk writer yet.
+  compatibility_effect: >
+    P2: smelting plays like vanilla; experience arrives without orbs.
+  user_visible: true
+
+- id: DEV-029
+  subsystem: enchanting, anvils and player damage
+  vanilla_behavior: >
+    ContainerEnchantment rolls three offers from the player's xpSeed and up
+    to 15 bookshelves (calcItemStackEnchantability, buildEnchantmentList),
+    shows a clue and Standard Galactic text, takes 1-3 lapis and levels and
+    rerolls the seed; books become enchanted books. The table's book turns
+    to the nearest player within 3 blocks and bookshelves send glyph
+    particles. ContainerRepair repairs with materials, combines items and
+    books, renames, charges prior work (2n+1) and refuses 40+ levels; the
+    anvil wears 12% of the time and falls like sand. Enchanted items and
+    books glint in the GUI, in the hand, dropped and on worn armour, and
+    their names and tooltips follow ItemStack.getTooltip. Protection
+    enchantments reduce damage, Fire Protection shortens burning,
+    Respiration slows drowning, Aqua Affinity and Efficiency speed mining,
+    Depth Strider speeds swimming, Unbreaking saves wear, Fortune and Silk
+    Touch change drops; weapon, bow, fishing and Thorns enchantments act on
+    mobs, arrows and fishing. EntityLivingBase takes fall, fire, lava,
+    drowning, suffocation, cactus and void damage through armour and the
+    10-tick invulnerability window, with the hurt tilt and red flash, and
+    players starve and heal from their food bar. /enchant and /xp exist.
+  replica_behavior: >
+    All of the above with recalled constants (HYPOTHESIS), with these
+    differences. Sharpness, Smite, Bane of Arthropods, Knockback, Fire
+    Aspect, Looting, Thorns, Power, Punch, Flame, Infinity, Luck of the Sea
+    and Lure can be rolled, combined and shown but do nothing (no mobs,
+    bows or fishing yet). Blast and Projectile Protection never apply (no
+    explosions or projectiles). Anvils don't fall. Food never drains, so
+    hunger never harms (peaceful and full-food regeneration work). The
+    enchanting table's book and tables are found by scanning loaded chunks
+    rather than kept as tile entities, and the in-world book is lit by the
+    table's light with glColor rather than the lightmap. Closing the table
+    or anvil returns items to the inventory (throwing what doesn't fit)
+    instead of dropping them at the player's feet. The anvil name box has
+    focus when it opens, so E types an "e" until the box is clicked away.
+    Silk Touch is decided by a list of tile-entity blocks plus the
+    fullCube flag rather than each block's own override. Shift-clicking an
+    anvil result that doesn't fully fit throws the rest rather than
+    losing it.
+  reason: >
+    Mobs, projectiles, explosions, falling blocks, hunger and a tile-entity
+    system are later milestones.
+  compatibility_effect: >
+    P2: enchanting, anvils and armour enchantments play like vanilla;
+    weapon and tool-less enchantments are cosmetic for now.
   user_visible: true

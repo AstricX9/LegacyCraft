@@ -1,0 +1,47 @@
+{
+  "properties": {
+    "color": [
+      "white",
+      "orange",
+      "magenta",
+      "light_blue",
+      "yellow",
+      "lime",
+      "pink",
+      "gray",
+      "silver",
+      "cyan",
+      "purple",
+      "blue",
+      "brown",
+      "green",
+      "red",
+      "black"
+    ],
+    "east": [
+      "false",
+      "true"
+    ],
+    "north": [
+      "false",
+      "true"
+    ],
+    "south": [
+      "false",
+      "true"
+    ],
+    "west": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "color",
+      "bits": 4
+    }
+  ],
+  "model": {
+    "file": "{color}_stained_glass_pane"
+  }
+}

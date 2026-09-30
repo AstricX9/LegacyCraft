@@ -1,0 +1,10 @@
+{
+  "material": "clay",
+  "hardness": 0.0,
+  "opaque": false,
+  "fullCube": true,
+  "cullSame": "block",
+  "items": {
+    "slime": 0
+  }
+}

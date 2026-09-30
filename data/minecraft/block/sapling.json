@@ -1,0 +1,23 @@
+{
+  "class": "bush",
+  "material": "plants",
+  "hardness": 0.0,
+  "opaque": false,
+  "solid": false,
+  "bounds": [
+    1.6,
+    0,
+    1.6,
+    14.4,
+    12.8,
+    14.4
+  ],
+  "items": {
+    "oak_sapling": 0,
+    "spruce_sapling": 1,
+    "birch_sapling": 2,
+    "jungle_sapling": 3,
+    "acacia_sapling": 4,
+    "dark_oak_sapling": 5
+  }
+}

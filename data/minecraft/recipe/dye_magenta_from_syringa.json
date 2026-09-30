@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "minecraft:syringa"
+  ],
+  "result": {
+    "id": "minecraft:dye_magenta",
+    "count": 2
+  }
+}

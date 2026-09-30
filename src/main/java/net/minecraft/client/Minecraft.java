@@ -144,7 +144,13 @@ public final class Minecraft implements GuiContext {
     private PlayerAnimation playerAnimation = new PlayerAnimation();
     private CreativeTabs creativeTabs;
     private net.minecraft.item.crafting.CraftingManager crafting;
+    /** Ticks the renderer has run (EntityRenderer.rendererUpdateCount): drives the portal wobble. */
+    private int rendererUpdateCount;
+    private net.minecraft.item.crafting.FurnaceRecipes smelting;
     private GuiIngame ingameGui;
+    /** The local player's achievements, and the pop-up that announces them. */
+    private net.minecraft.stats.StatFile stats;
+    private final net.minecraft.client.gui.GuiAchievementToast achievementToast = new net.minecraft.client.gui.GuiAchievementToast();
     private BlockDrops blockDrops;
     private BlockDrops.Items blockItems;
     private final PlayerController playerController = new PlayerController();
@@ -163,6 +169,9 @@ public final class Minecraft implements GuiContext {
     private WorldRenderer renderer;
     private SkyRenderer sky;
     private ParticleManager particles;
+    private FontRenderer galacticFont;
+    /** The books over enchanting tables. */
+    private final net.minecraft.client.renderer.EnchantingTableBooks tableBooks = new net.minecraft.client.renderer.EnchantingTableBooks();
     /**
      * The local player's fire ticks (above 0 = burning; players start at
      * -20, their fire resistance).
@@ -275,6 +284,7 @@ public final class Minecraft implements GuiContext {
         firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer);
         creativeTabs = CreativeTabs.load(resourceManager, itemRegistry);
         crafting = net.minecraft.item.crafting.CraftingManager.load(resourceManager, itemRegistry);
+        smelting = net.minecraft.item.crafting.FurnaceRecipes.load(resourceManager, itemRegistry);
         blockItems = BlockDrops.itemsOf(itemRegistry.values());
         blockDrops = BlockDrops.load(resourceManager, blockItems);
         ingameGui = new GuiIngame(this);
@@ -481,16 +491,24 @@ public final class Minecraft implements GuiContext {
         if (world == null || preparing != null) return;
         boolean paused = currentScreen != null && currentScreen.doesGuiPauseGame();
         if (!paused) {
+            world.setDifficulty(levelInfo.difficulty);
+            world.setDoFireTick(!"false".equals(levelInfo.gameRules.get("doFireTick")));
+            world.setRaining(levelInfo.raining);
             world.tick();
             atlas.tickAnimations();
             server.tick();
             tickItemEntities();
             levelInfo.totalTime++;
+            player.difficulty = levelInfo.difficulty;
+            player.naturalRegeneration = Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("naturalRegeneration", "true"));
             if (preparing == null) player.tick(Player.Input.of(gameSettings));
+            updatePortalTime();
+            rendererUpdateCount++;
             playerAnimation.tick(player);
             tickPlayerLiquids();
             tickParticles();
             tickCaveAmbience();
+            updateBiomesExplored();
             if (inventory != null) firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
             if (Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("doDaylightCycle", "true"))) levelInfo.worldTime++;
             tickSky();
@@ -515,9 +533,11 @@ public final class Minecraft implements GuiContext {
         while (gameSettings.keyBindTogglePerspective.isPressed())
             gameSettings.thirdPersonView = (gameSettings.thirdPersonView + 1) % 3;
         for (int i = 0; i < 9; i++) if (gameSettings.keyBindsHotbar[i].isPressed() && !isSpectator()) inventory.currentItem = i;
-        if (gameSettings.keyBindInventory.isPressed())
+        if (gameSettings.keyBindInventory.isPressed()) {
+            // C16PacketClientStatus OPEN_INVENTORY_ACHIEVEMENT, sent in every mode.
+            triggerAchievement("openInventory");
             displayGuiScreen(isCreative() ? new GuiContainerCreative() : new GuiInventory());
-        else {
+        } else {
             while (gameSettings.keyBindDrop.isPressed()) if (!isSpectator()) dropHeldItem(isKeyDown(GLFW_KEY_LEFT_CONTROL) || isKeyDown(GLFW_KEY_RIGHT_CONTROL));
             // Opened from the tick, after the key's own character event has gone by, so "t" or "/" is not typed into the field.
             if (gameSettings.keyBindChat.isPressed()) displayGuiScreen(new GuiChat());
@@ -619,6 +639,10 @@ public final class Minecraft implements GuiContext {
             int before = item.stack().count();
             inventory.addItemStackToInventory(item.stack());
             // EntityItem.onCollideWithPlayer: a pop when anything was picked up.
+            if (item.stack().count() < before) {
+                String earned = net.minecraft.stats.AchievementList.forPickedUp(item.stack().item().name().path());
+                if (earned != null) triggerAchievement(earned);
+            }
             if (item.stack().count() < before)
                 playSound("random.pop", player.x, player.y, player.z, 0.2f,
                     ((random.nextFloat() - random.nextFloat()) * 0.7f + 1f) * 2f);
@@ -688,9 +712,12 @@ public final class Minecraft implements GuiContext {
     }
 
     private World createWorld(LevelInfo info, long seed) {
-        if (info.terrainType == WorldType.FLAT)
-            return new World(blockRegistry, biomeRegistry, seed, FlatGeneratorInfo.parse(info.generatorOptions, blockRegistry));
-        return new World(blockRegistry, biomeRegistry, seed);
+        World created = info.terrainType == WorldType.FLAT
+            ? new World(blockRegistry, biomeRegistry, seed, FlatGeneratorInfo.parse(info.generatorOptions, blockRegistry))
+            : new World(blockRegistry, biomeRegistry, seed);
+        // Before loading, so saved furnaces can resolve their items.
+        created.setSmelting(smelting, this::itemByName);
+        return created;
     }
 
     /** Generates spawn-area chunks for up to ~40ms per frame so the progress screen stays live. */
@@ -727,6 +754,15 @@ public final class Minecraft implements GuiContext {
         deathHandled = false;
         playerController.resetBlockRemoving();
         loadInventory();
+        loadVitals();
+        player.armor = inventory.armorInventory;
+        player.damageListener = new Player.DamageListener() {
+            @Override public void died(net.minecraft.entity.DamageSource source) { announceDeath(source); }
+            @Override public void armorBroke(int slot) {
+                playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+            }
+        };
+        loadStats();
         applyGameMode();
         if (levelInfo.abilities != null && levelInfo.abilities.flying() && player.allowFlying && cliSpawnX == null)
             player.isFlying = true;
@@ -751,6 +787,11 @@ public final class Minecraft implements GuiContext {
                         particles.spawn(ParticleManager.Kind.LARGE_SMOKE, x + Math.random(), y + 1.2, z + Math.random(), 0, 0, 0, null);
             }
             @Override public void popped(int x, int y, int z, BlockState previous) { blockPopped(x, y, z, previous); }
+            @Override public void shattered(int x, int y, int z, BlockState previous) {
+                if (particles != null) particles.addBlockDestroyEffects(x, y, z, previous);
+                playBreakSound(x, y, z, previous);
+            }
+            @Override public void containerBroken(int x, int y, int z, List<ItemStack> contents) { spillContents(x, y, z, contents); }
         });
         gameSettings.difficulty = levelInfo.difficulty;
         if (worldFolder != null) saveWorld();
@@ -787,6 +828,7 @@ public final class Minecraft implements GuiContext {
             levelInfo.player = new LevelInfo.PlayerPosition(player.x, player.y, player.z, player.yaw + 180f, player.pitch, player.onGround);
         if (player != null) {
             saveInventory();
+            saveStats();
             levelInfo.abilities = LevelInfo.Abilities.of(levelInfo.gameType, player.isFlying);
         }
         try {
@@ -824,7 +866,89 @@ public final class Minecraft implements GuiContext {
         preparing = null;
     }
 
+    private void saveStats() {
+        Path file = statsFile();
+        if (file == null || stats == null) return;
+        try {
+            stats.save(file);
+        } catch (IOException error) {
+            System.err.println("Couldn't save statistics: " + error.getMessage());
+        }
+    }
+
     /** Fills the player's inventory from level.dat (unknown item names are dropped with a warning). */
+    /** The world's {@code stats/<player>.json}, or null for a throwaway world. */
+    private Path statsFile() {
+        return worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve("stats").resolve(playerName + ".json");
+    }
+
+    /**
+     * Reads the player's achievements; a player without Taking Inventory is
+     * shown the standing "press E" hint.
+     */
+    private void loadStats() {
+        Path file = statsFile();
+        stats = file == null ? new net.minecraft.stats.StatFile() : net.minecraft.stats.StatFile.load(file);
+        achievementToast.clear();
+        net.minecraft.stats.Achievement open = net.minecraft.stats.AchievementList.get("openInventory");
+        if (!stats.has(open))
+            achievementToast.displayHint(I18n.format(open.nameKey()),
+                I18n.format(open.descriptionKey(), net.minecraft.client.gui.GuiAchievements.inventoryKeyName(this)),
+                itemByName(open.icon()), System.currentTimeMillis());
+    }
+
+    /**
+     * Awards an achievement (EntityPlayerMP.triggerAchievement): only once its
+     * parent is earned and only once; the pop-up slides in and chat says
+     * "<player> has just earned the achievement [name]" (green, purple for
+     * special ones).
+     */
+    public void triggerAchievement(String id) {
+        net.minecraft.stats.Achievement achievement = net.minecraft.stats.AchievementList.get(id);
+        if (stats == null || achievement == null || !stats.unlock(achievement)) return;
+        announceAchievement(achievement);
+    }
+
+    private void announceAchievement(net.minecraft.stats.Achievement achievement) {
+        String name = I18n.format(achievement.nameKey());
+        achievementToast.display(name, itemByName(achievement.icon()), System.currentTimeMillis());
+        String colour = achievement.special() ? "\u00a75" : "\u00a7a";
+        printChatLine(net.minecraft.client.gui.I18n.translateChat("chat.type.achievement", playerName,
+            colour + "[" + name + "]\u00a7r"), 0);
+    }
+
+    @Override public void onItemCrafted(ItemStack stack) {
+        String id = net.minecraft.stats.AchievementList.forCrafted(stack.item().name().path());
+        if (id != null) triggerAchievement(id);
+    }
+
+    /** Every 100 ticks the biome underfoot counts toward Adventuring Time (EntityPlayerMP.updateBiomesExplored). */
+    private void updateBiomesExplored() {
+        net.minecraft.stats.Achievement all = net.minecraft.stats.AchievementList.get("exploreAllBiomes");
+        if (stats == null || stats.has(all) || playerAnimation.ticksExisted % 100 != 0) return;
+        String name = net.minecraft.stats.AchievementList.EXPLORATION_BIOMES.get(
+            world.biomeAt((int) Math.floor(player.x), (int) Math.floor(player.z)).id());
+        if (name == null) return;
+        stats.exploreBiome(name);
+        if (stats.biomesExplored().containsAll(net.minecraft.stats.AchievementList.EXPLORATION_BIOMES.values()))
+            triggerAchievement("exploreAllBiomes");
+    }
+
+    @Override public net.minecraft.stats.StatFile stats() { return stats; }
+    @Override public String playerName() { return playerName; }
+
+    @Override public void drawBlockTexture(String texture, int x, int y, int size) {
+        TextureAtlas.Tile tile = atlas.tile(new net.minecraft.util.ResourceLocation("minecraft:textures/blocks/" + texture + ".png"));
+        if (tile == null) return;
+        atlas.bind();
+        glBegin(GL_QUADS);
+        glTexCoord2f(tile.u0(), tile.v1()); glVertex2f(x, y + size);
+        glTexCoord2f(tile.u1(), tile.v1()); glVertex2f(x + size, y + size);
+        glTexCoord2f(tile.u1(), tile.v0()); glVertex2f(x + size, y);
+        glTexCoord2f(tile.u0(), tile.v0()); glVertex2f(x, y);
+        glEnd();
+    }
+
     private void loadInventory() {
         inventory.clear();
         if (levelInfo.inventory == null) return;
@@ -834,10 +958,27 @@ public final class Minecraft implements GuiContext {
                 System.err.println("Dropping unknown saved item " + saved.id());
                 continue;
             }
-            inventory.setBySaveSlot(saved.slot(), new ItemStack(item, Math.min(saved.count(), item.maxStackSize()),
-                Math.max(0, Math.min(item.maxDamage(), saved.damage()))));
+            ItemStack stack = new ItemStack(item, Math.min(saved.count(), item.maxStackSize()),
+                Math.max(0, Math.min(item.maxDamage(), saved.damage())));
+            stack.readTag(saved.tag());
+            inventory.setBySaveSlot(saved.slot(), stack);
         }
         inventory.currentItem = Math.max(0, Math.min(InventoryPlayer.HOTBAR_SIZE - 1, levelInfo.selectedItemSlot));
+    }
+
+    /** The saved experience, health, air and enchanting seed (a new player keeps its fresh values). */
+    private void loadVitals() {
+        if (levelInfo.experience != null) {
+            player.experienceLevel = levelInfo.experience.level();
+            player.experience = levelInfo.experience.progress();
+            player.experienceTotal = levelInfo.experience.total();
+        }
+        if (levelInfo.vitals != null) {
+            player.health = Math.max(0f, Math.min(20f, levelInfo.vitals.health()));
+            player.air = levelInfo.vitals.air();
+            player.xpSeed = levelInfo.vitals.xpSeed();
+            if (player.health <= 0) player.health = 20f;
+        }
     }
 
     private void saveInventory() {
@@ -846,17 +987,26 @@ public final class Minecraft implements GuiContext {
         for (int slot = 100; slot < 100 + InventoryPlayer.ARMOR_SIZE; slot++) addSaved(saved, slot);
         levelInfo.inventory = saved;
         levelInfo.selectedItemSlot = inventory.currentItem;
+        levelInfo.experience = new LevelInfo.Experience(player.experienceLevel, player.experience, player.experienceTotal);
+        levelInfo.vitals = new LevelInfo.Vitals(player.health, player.air, player.xpSeed);
     }
 
     private void addSaved(List<LevelInfo.SavedStack> saved, int slot) {
         ItemStack stack = inventory.getBySaveSlot(slot);
-        if (stack != null) saved.add(new LevelInfo.SavedStack(slot, stack.item().name().toString(), stack.count(), stack.damage()));
+        if (stack != null)
+            saved.add(new LevelInfo.SavedStack(slot, stack.item().name().toString(), stack.count(), stack.damage(), stack.writeTag()));
     }
 
     /** Gives the player the current game mode's abilities (flight in Creative, noclip flight in Spectator). */
     private void applyGameMode() {
         if (player == null || levelInfo == null) return;
         player.setAbilities(levelInfo.gameType == WorldSettings.GameType.CREATIVE, isSpectator());
+        player.disableDamage = levelInfo.gameType == WorldSettings.GameType.CREATIVE || isSpectator();
+    }
+
+    /** The death message in chat (CombatTracker.getDeathMessage for a death with no attacker). */
+    private void announceDeath(net.minecraft.entity.DamageSource source) {
+        printChatLine(net.minecraft.client.gui.I18n.translateChat(source.deathMessageKey(), playerName), 0);
     }
 
     private boolean isSpectator() { return levelInfo != null && levelInfo.gameType == WorldSettings.GameType.SPECTATOR; }
@@ -898,6 +1048,12 @@ public final class Minecraft implements GuiContext {
     @Override
     public void respawnPlayer() {
         if (player == null) return;
+        // EntityPlayerMP.clonePlayer: experience is lost on death unless keepInventory (no orbs are dropped yet, DEV-029).
+        if (!Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("keepInventory", "false"))) {
+            player.experienceLevel = 0;
+            player.experience = 0;
+            player.experienceTotal = 0;
+        }
         player.respawn();
         deathHandled = false;
         applyGameMode();
@@ -959,6 +1115,12 @@ public final class Minecraft implements GuiContext {
             currentScreen.drawScreen(guiMouseX(), guiMouseY(), partialTicks);
             glColor4f(1, 1, 1, 1);
         }
+        // GuiAchievement.updateAchievementWindow: over everything, screens included.
+        if (player != null && world != null) {
+            glClear(GL_DEPTH_BUFFER_BIT);
+            setupGuiProjection(resolution);
+            achievementToast.draw(this, resolution.getScaledWidth(), System.currentTimeMillis());
+        }
     }
 
     private void setupGuiProjection(ScaledResolution resolution) {
@@ -983,6 +1145,7 @@ public final class Minecraft implements GuiContext {
         particles.setView(gameSettings.particleSetting, player.x, player.eyeY(), player.z);
         particles.tick();
         particles.randomDisplayTicks(player.x, player.y, player.z);
+        tableBooks.tick(world, player.x, player.y, player.z);
         double motionX = player.motionX, motionZ = player.motionZ;
         if (player.sprinting && !player.inWater) {
             int bx = (int) Math.floor(player.x), by = (int) Math.floor(player.y - 0.2), bz = (int) Math.floor(player.z);
@@ -999,9 +1162,10 @@ public final class Minecraft implements GuiContext {
      * The player and liquids, once per unpaused tick (1.8.9
      * Entity.onEntityUpdate, HYPOTHESIS): entering water splashes (bubbles
      * and droplets) and puts out fire; lava sets the player alight for 15
-     * seconds; fire blocks set them alight after 20 ticks inside; burning
-     * counts down. No damage exists yet, so burning only shows as the flames
-     * in first person.
+     * seconds and hurts 4; fire and lava blocks hurt 1 a tick and set them
+     * alight after 20 ticks inside; burning hurts 1 a second and counts
+     * down. Fire Protection shortens how long a fire lasts
+     * (EnchantmentProtection.getFireTimeForEntity).
      */
     private void tickPlayerLiquids() {
         if (player == null || isSpectator()) return;
@@ -1014,21 +1178,35 @@ public final class Minecraft implements GuiContext {
                 playSound("random.fizz", player.x, player.y, player.z, 0.7f, 1.6f + (random.nextFloat() - random.nextFloat()) * 0.4f);
             playerFire = 0;
         }
-        // A Creative player keeps burning until water puts the fire out (reported from vanilla play).
+        // Entity.onEntityUpdate: burning hurts once a second. A Creative player keeps burning until water puts
+        // the fire out (reported from vanilla play).
+        if (playerFire > 0 && playerFire % 20 == 0) player.attack(net.minecraft.entity.DamageSource.ON_FIRE, 1f);
         if (playerFire > 0 && !isCreative()) playerFire--;
         AxisAlignedBB lavaBox = new AxisAlignedBB(box.minX() + 0.1, box.minY() + 0.4, box.minZ() + 0.1,
             box.maxX() - 0.1, box.maxY() - 0.4, box.maxZ() - 0.1);
-        if (world.isMaterialInBox(lavaBox, "lava")) playerFire = Math.max(playerFire, 15 * 20);
+        if (world.isMaterialInBox(lavaBox, "lava")) {
+            // Entity.setOnFireFromLava.
+            player.attack(net.minecraft.entity.DamageSource.LAVA, 4f);
+            setPlayerOnFire(15);
+        }
         AxisAlignedBB inner = new AxisAlignedBB(box.minX() + 0.001, box.minY() + 0.001, box.minZ() + 0.001,
             box.maxX() - 0.001, box.maxY() - 0.001, box.maxZ() - 0.001);
         if (world.isMaterialInBox(inner, "fire") || world.isMaterialInBox(inner, "lava")) {
+            // Entity.moveEntity: dealFireDamage(1), then the fire timer climbs until it catches.
+            player.attack(net.minecraft.entity.DamageSource.IN_FIRE, 1f);
             if (!player.inWater) {
                 playerFire++;
-                if (playerFire == 0) playerFire = 8 * 20;
+                if (playerFire == 0) setPlayerOnFire(8);
             }
         } else if (playerFire <= 0) {
             playerFire = -20;
         }
+    }
+
+    /** Entity.setFire: alight for the seconds given, less with Fire Protection, never shortening a longer fire. */
+    private void setPlayerOnFire(int seconds) {
+        int ticks = net.minecraft.enchantment.EnchantmentHelper.fireDuration(player.armor, seconds * 20);
+        if (playerFire < ticks) playerFire = ticks;
     }
 
     /**
@@ -1132,6 +1310,7 @@ public final class Minecraft implements GuiContext {
         renderer.render(player, renderDistance);
         if (gameSettings.showChunkBorders) DebugRenderer.renderChunkBorders(player.x, player.y, player.z);
         renderItemEntities(renderDistance);
+        tableBooks.render(world, guiTextures, partialTicks, player.x, player.z, Math.min(64.0, renderDistance));
         if (gameSettings.thirdPersonView != 0 && !player.dead) renderPlayerModel();
         WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? renderer.raycast(player, reach()) : null;
         drawDestroyProgress();
@@ -1183,6 +1362,21 @@ public final class Minecraft implements GuiContext {
     }
 
     /**
+     * EntityRenderer.hurtCameraEffect: after a hit the view rolls up to 14
+     * degrees and back over 10 ticks ({@code sin(t^4 x pi)}); a dead player's
+     * view tips over sideways ({@code 40 - 8000 / (deathTime + 200)} degrees).
+     */
+    private void applyHurtEffect() {
+        if (player == null) return;
+        if (player.health <= 0) glRotatef(40f - 8000f / (player.deathTime + partialTicks + 200f), 0f, 0f, 1f);
+        float time = player.hurtTime - partialTicks;
+        if (time < 0f) return;
+        time /= player.maxHurtTime;
+        time = (float) Math.sin(time * time * time * time * Math.PI);
+        glRotatef(-time * 14f, 0f, 0f, 1f);
+    }
+
+    /**
      * The view transform without the world position (1.8.9
      * setupCameraTransform/orientCamera, HYPOTHESIS): the view bob, then in
      * first person the eye pulled back 0.1; behind the player 4 blocks back,
@@ -1190,7 +1384,18 @@ public final class Minecraft implements GuiContext {
      * when a block is in the way; then pitch and yaw.
      */
     private void loadCamera() {
+        applyHurtEffect();
         if (gameSettings.viewBobbing) applyViewBobbing();
+        // The portal's wobble (EntityRenderer.setupCameraTransform): the view squeezed sideways about a turning axis.
+        float portal = PlayerAnimation.lerp(player.prevTimeInPortal, player.timeInPortal, partialTicks);
+        if (portal > 0f) {
+            float squeeze = 5f / (portal * portal + 5f) - portal * 0.04f;
+            squeeze *= squeeze;
+            float turn = (rendererUpdateCount + partialTicks) * 20f;
+            glRotatef(turn, 0f, 1f, 1f);
+            glScalef(1f / squeeze, 1f, 1f);
+            glRotatef(-turn, 0f, 1f, 1f);
+        }
         int view = gameSettings.thirdPersonView;
         if (view == 0) {
             glTranslatef(0f, 0f, -0.1f);
@@ -1259,6 +1464,7 @@ public final class Minecraft implements GuiContext {
         glLoadIdentity();
         if (!gameSettings.hideGUI && !isSpectator()) {
             glPushMatrix();
+            applyHurtEffect();
             if (gameSettings.viewBobbing) applyViewBobbing();
             firstPersonRenderer.render(player, playerAnimation, partialTicks, eyeLight());
             glPopMatrix();
@@ -1380,12 +1586,26 @@ public final class Minecraft implements GuiContext {
         guiTextures.bind(FirstPersonRenderer.STEVE);
         glColor4f(light[0], light[1], light[2], 1f);
         playerModel.render(player.sneaking);
+        if (inventory != null)
+            net.minecraft.client.renderer.ArmorLayer.render(playerModel, inventory.armorInventory, player.sneaking, guiTextures, light,
+                player.ticksExisted() + partialTicks);
+        if (player.hurtTime > 0 || player.deathTime > 0) {
+            // RendererLivingEntity.setBrightness: a hurt entity is mixed 30% toward red.
+            glDisable(GL_TEXTURE_2D);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthFunc(GL_LEQUAL);
+            glColor4f(1f, 0f, 0f, 0.3f);
+            playerModel.render(player.sneaking);
+            glEnable(GL_TEXTURE_2D);
+            glColor4f(1f, 1f, 1f, 1f);
+        }
         if (held != null) {
             glPushMatrix();
             playerModel.rightArm.transform();
             glTranslatef(-0.0625f, 0.4375f, 0.0625f);
             if (player.sneaking) glTranslatef(0f, 0.203125f, 0f);
-            itemRenderer.renderHeld(held.item(), ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
+            itemRenderer.renderHeld(held, ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
             glPopMatrix();
         }
         glPopMatrix();
@@ -1479,7 +1699,7 @@ public final class Minecraft implements GuiContext {
                         (spread.nextFloat() * 2 - 1) * 0.15f * 0.5f);
                     else glTranslatef(0, 0, copy * -0.046875f);
                 }
-                itemRenderer.renderItemInWorld(item.stack().item(), light[0], light[1], light[2]);
+                itemRenderer.renderItemInWorld(item.stack(), light[0], light[1], light[2]);
                 glPopMatrix();
             }
             glPopMatrix();
@@ -1612,10 +1832,14 @@ public final class Minecraft implements GuiContext {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glColor4f(1, 1, 1, 1);
 
+        float portal = PlayerAnimation.lerp(player.prevTimeInPortal, player.timeInPortal, partialTicks);
+        if (portal > 0f) renderPortalOverlay(portal, guiWidth, guiHeight);
+
         boolean showDebug = gameSettings.showDebugInfo;
         boolean axisCrosshair = showDebug && !gameSettings.reducedDebugInfo;
         GuiIngame.Status status = new GuiIngame.Status(survivalHud(), isSpectator(), levelInfo.hardcore, player.health,
-            player.foodLevel, inventory.getTotalArmorValue(), player.experienceLevel, player.experience);
+            player.foodLevel, inventory.getTotalArmorValue(), player.experienceLevel, player.experience,
+            player.headInWater(), player.air, player.hurtResistantTime);
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
@@ -1705,13 +1929,25 @@ public final class Minecraft implements GuiContext {
             if (picked != null) inventory.pickItem(picked, isCreative());
         }
         boolean canBreak = levelInfo.gameType != WorldSettings.GameType.ADVENTURE;
-        if (attackPressed && hit != null && canBreak
-            && playerController.clickBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit)))
-            breakBlock(hit.x(), hit.y(), hit.z());
+        if (attackPressed && hit != null && canBreak) {
+            // Fire on the clicked face goes out first (World.extinguishFire): in Creative that is all the click
+            // does; in Survival the block behind starts being mined as well.
+            boolean extinguished = extinguishFire(hit);
+            if (playerController.clickBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit))
+                && !(extinguished && isCreative()))
+                breakBlock(hit.x(), hit.y(), hit.z());
+        }
         if (gameSettings.keyBindAttack.isKeyDown() && hit != null && canBreak) {
             playerAnimation.swing();
             if (particles != null) particles.addBlockHitEffects(hit.x(), hit.y(), hit.z(), hit.face());
+            // Moving onto a new block in Survival clicks it again, putting out fire on it.
+            int[] current = playerController.currentBlock();
+            boolean newBlock = !isCreative() && !attackPressed
+                && (current == null || current[0] != hit.x() || current[1] != hit.y() || current[2] != hit.z());
+            if (newBlock) extinguishFire(hit);
             boolean broken = playerController.onPlayerDamageBlock(hit.x(), hit.y(), hit.z(), isCreative(), breakProgress(hit));
+            // Creative's repeat break (every 5 ticks while held) also puts fire out instead of breaking.
+            if (broken && isCreative() && extinguishFire(hit)) broken = false;
             if (playerController.takeHitSound()) {
                 // PlayerControllerMP: every fourth mining tick, the step sound at (volume + 1) / 8, frequency x 0.5.
                 net.minecraft.block.BlockSoundType type = net.minecraft.block.BlockSoundType.of(world.get(hit.x(), hit.y(), hit.z()));
@@ -1724,11 +1960,25 @@ public final class Minecraft implements GuiContext {
         if (usePressed || gameSettings.keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0) {
             rightClickDelayTimer = 4;
             if (activateBlock(hit)) playerAnimation.swing();
+            else if (useFlintAndSteel(hit)) playerAnimation.swing();
             else if (!useBucket()) {
                 if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
                 else useHeldItem();
             }
         }
+    }
+
+    /**
+     * World.extinguishFire: fire on the clicked face of a block goes out
+     * with a fizz (0.5 volume, pitch 2.6 +- 0.8). Fire itself can't be
+     * targeted, so this is how it is punched out. Returns whether it was.
+     */
+    private boolean extinguishFire(WorldRenderer.Hit hit) {
+        int x = hit.x() + hit.face().xOffset, y = hit.y() + hit.face().yOffset, z = hit.z() + hit.face().zOffset;
+        if (!world.inBounds(x, y, z) || !world.get(x, y, z).name().path().equals("fire")) return false;
+        playSound("random.fizz", x + 0.5, y + 0.5, z + 0.5, 0.5f, 2.6f + (random.nextFloat() - random.nextFloat()) * 0.8f);
+        world.setStateAndUpdate(x, y, z, BlockState.of(blockRegistry.air(), 0));
+        return true;
     }
 
     /** Fraction of the targeted block broken per tick with the held item. */
@@ -1737,8 +1987,11 @@ public final class Minecraft implements GuiContext {
         ItemStack held = inventory.getCurrentItem();
         int eyeX = (int) Math.floor(player.x), eyeY = (int) Math.floor(player.eyeY()), eyeZ = (int) Math.floor(player.z);
         boolean headInWater = eyeY >= 0 && eyeY < World.HEIGHT && world.get(eyeX, eyeY, eyeZ).material().equals("water");
+        int efficiency = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.EFFICIENCY, held);
+        boolean aquaAffinity = net.minecraft.enchantment.EnchantmentHelper.maxLevel(
+            net.minecraft.enchantment.Enchantment.AQUA_AFFINITY, inventory.armorInventory) > 0;
         return ToolValues.breakProgressPerTick(held == null ? null : held.item(), block.name().path(), block.material(),
-            block.hardness(), player.onGround, headInWater);
+            block.hardness(), player.onGround, headInWater, efficiency, aquaAffinity);
     }
 
     /**
@@ -1770,7 +2023,10 @@ public final class Minecraft implements GuiContext {
                 int meta = state.metadata();
                 if (name.equals("double_plant") && (meta & 8) != 0 && y > 0 && world.get(x, y - 1, z) == block)
                     meta = world.getState(x, y - 1, z).metadata();
-                for (ItemStack drop : blockDrops.drops(name, block.material(), meta, held == null ? null : held.item(), random))
+                int fortune = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.FORTUNE, held);
+                boolean silk = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.SILK_TOUCH, held) > 0;
+                for (ItemStack drop : blockDrops.drops(name, block.material(), meta, held == null ? null : held.item(),
+                        fortune, silk, block.isFullCube(), random))
                     spawnItem(EntityItem.fromBlock(world, x, y, z, drop, random));
             }
             if (name.equals("ice") && y > 0) {
@@ -1780,7 +2036,7 @@ public final class Minecraft implements GuiContext {
             }
             if (held != null) {
                 int wear = ToolValues.damageForBreak(held.item(), name, block.material(), block.hardness());
-                if (held.damage(wear)) {
+                if (net.minecraft.enchantment.EnchantmentHelper.damageItem(held, wear, random)) {
                     inventory.mainInventory[inventory.currentItem] = null;
                     playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
                 }
@@ -1841,29 +2097,141 @@ public final class Minecraft implements GuiContext {
 
     /**
      * Right-click on a block that opens something (Block.onBlockActivated):
-     * a crafting table opens the 3x3 grid, unless the player sneaks with
-     * something in hand (then the item is used or placed instead).
+     * a crafting table opens the 3x3 grid and a furnace (lit or not) its
+     * screen, unless the player sneaks with something in hand (then the item
+     * is used or placed instead).
      */
     private boolean activateBlock(WorldRenderer.Hit hit) {
         if (hit == null || player.sneaking && inventory.getCurrentItem() != null) return false;
-        if (world.get(hit.x(), hit.y(), hit.z()).name().path().equals("crafting_table")) {
+        String name = world.get(hit.x(), hit.y(), hit.z()).name().path();
+        if (name.equals("crafting_table")) {
             displayGuiScreen(new net.minecraft.client.gui.GuiCrafting(hit.x(), hit.y(), hit.z()));
+            return true;
+        }
+        if (name.equals("furnace") || name.equals("lit_furnace")) {
+            displayGuiScreen(new net.minecraft.client.gui.GuiFurnace(hit.x(), hit.y(), hit.z()));
+            return true;
+        }
+        if (name.equals("enchanting_table")) {
+            displayGuiScreen(new net.minecraft.client.gui.GuiEnchantment(hit.x(), hit.y(), hit.z()));
+            return true;
+        }
+        if (name.equals("anvil")) {
+            displayGuiScreen(new net.minecraft.client.gui.GuiRepair(hit.x(), hit.y(), hit.z()));
             return true;
         }
         return false;
     }
 
     /**
-     * Right-click with an item that is used by holding (ItemSword.onItemRightClick):
+     * A broken container's items spill where it stood
+     * (InventoryHelper.dropInventoryItems): each stack at a random point in
+     * the block, in random handfuls of 10 to 30, tossed up and out a little.
+     * They drop even when block drops are off, as in vanilla.
+     */
+    private void spillContents(int x, int y, int z, List<ItemStack> contents) {
+        if (server == null) return;
+        for (ItemStack stack : contents) {
+            double px = x + random.nextFloat() * 0.8 + 0.1, py = y + random.nextFloat() * 0.8 + 0.1;
+            double pz = z + random.nextFloat() * 0.8 + 0.1;
+            while (!stack.isEmpty()) {
+                int handful = Math.min(random.nextInt(21) + 10, stack.count());
+                EntityItem item = new EntityItem(world, px, py, pz, stack.split(handful));
+                item.motionX = random.nextGaussian() * 0.05;
+                item.motionY = random.nextGaussian() * 0.05 + 0.2;
+                item.motionZ = random.nextGaussian() * 0.05;
+                spawnItem(item);
+            }
+        }
+    }
+
+    /**
+     * Flint and steel on a block (ItemFlintAndSteel.onItemUse): fire in the
+     * air beside the face clicked, with the ignite sound, and one use of
+     * durability either way (none in Creative). Fire lit inside an obsidian
+     * frame becomes a portal.
+     */
+    private boolean useFlintAndSteel(WorldRenderer.Hit hit) {
+        ItemStack held = inventory.getCurrentItem();
+        if (hit == null || held == null || !held.item().name().path().equals("flint_and_steel")) return false;
+        if (levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return false;
+        int x = hit.x() + hit.face().xOffset, y = hit.y() + hit.face().yOffset, z = hit.z() + hit.face().zOffset;
+        if (!world.inBounds(x, y, z)) return false;
+        if (world.get(x, y, z).isAir()) {
+            playSound("fire.ignite", x + 0.5, y + 0.5, z + 0.5, 1f, random.nextFloat() * 0.4f + 0.8f);
+            world.setStateAndUpdate(x, y, z, BlockState.of(blockRegistry.get("minecraft:fire"), 0));
+        }
+        if (!isCreative() && net.minecraft.enchantment.EnchantmentHelper.damageItem(held, 1, random)) {
+            inventory.mainInventory[inventory.currentItem] = null;
+            playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+        }
+        return true;
+    }
+
+    /**
+     * Standing in a portal (EntityPlayerSP.onLivingUpdate): the purple haze
+     * builds up by 0.0125 a tick (full after 4 seconds) with the trigger
+     * sound as it starts, and a screen that doesn't pause the game closes;
+     * out of the portal it fades by 0.05 a tick. With no Nether yet nothing
+     * else happens (DEV-026).
+     */
+    private void updatePortalTime() {
+        player.prevTimeInPortal = player.timeInPortal;
+        if (player.inPortal) {
+            if (currentScreen != null && !currentScreen.doesGuiPauseGame()) displayGuiScreen(null);
+            if (player.timeInPortal == 0f && soundHandler != null) soundHandler.playUi("portal.trigger", random.nextFloat() * 0.4f + 0.8f);
+            player.timeInPortal = Math.min(1f, player.timeInPortal + 0.0125f);
+            player.inPortal = false;
+        } else {
+            player.timeInPortal = Math.max(0f, player.timeInPortal - 0.05f);
+        }
+    }
+
+    /**
+     * The portal haze over the view (GuiIngame.renderPortal): the portal
+     * texture stretched over the screen, fading in with the fourth power of
+     * the time spent in the portal from 20% opacity.
+     */
+    private void renderPortalOverlay(float time, int width, int height) {
+        if (time < 1f) {
+            time = time * time;
+            time = time * time;
+            time = time * 0.8f + 0.2f;
+        }
+        TextureAtlas.Tile tile = atlas.tile(new net.minecraft.util.ResourceLocation("minecraft:textures/blocks/portal.png"));
+        glDisable(GL_ALPHA_TEST);
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(false);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_TEXTURE_2D);
+        glColor4f(1f, 1f, 1f, time);
+        atlas.bind();
+        glBegin(GL_QUADS);
+        glTexCoord2f(tile.u0(), tile.v1()); glVertex2f(0, height);
+        glTexCoord2f(tile.u1(), tile.v1()); glVertex2f(width, height);
+        glTexCoord2f(tile.u1(), tile.v0()); glVertex2f(width, 0);
+        glTexCoord2f(tile.u0(), tile.v0()); glVertex2f(0, 0);
+        glEnd();
+        glDepthMask(true);
+        glEnable(GL_ALPHA_TEST);
+        glColor4f(1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * Right-click with an item that is used from the hand (Item.onItemRightClick):
+     * a piece of armour goes on if its slot is empty (ItemArmor, silent in
+     * 1.8.9; also when a block is targeted, since armour has no block use);
      * a sword goes up to block for as long as the key is held (72000 ticks
-     * at most) and the hand dips and rises again (resetEquippedProgress2).
-     * Returns whether anything started.
+     * at most). The hand snaps straight into the block pose with no
+     * dip-and-rise, so blocking is either fully up or fully down.
+     * Returns whether anything happened.
      */
     private boolean useHeldItem() {
+        if (inventory.equipHeldArmor()) return true;
         ItemStack held = inventory.getCurrentItem();
         if (held == null || held.item().useAction() != Item.UseAction.BLOCK) return false;
         player.setItemInUse(held, 72000);
-        firstPersonRenderer.resetEquippedProgress();
         return true;
     }
 
@@ -2083,8 +2451,22 @@ public final class Minecraft implements GuiContext {
             gameSettings.difficulty = difficulty;
         }
         @Override public void kill() {
-            player.health = 0;
-            player.dead = true;
+            // CommandKill: EntityLivingBase.onKillCommand, out-of-world damage of Float.MAX_VALUE.
+            player.attack(net.minecraft.entity.DamageSource.OUT_OF_WORLD, Float.MAX_VALUE);
+        }
+        @Override public ItemStack heldItem() { return inventory.getCurrentItem(); }
+        @Override public void addExperience(int points) { player.addExperience(points); }
+        @Override public void addExperienceLevels(int levels) { player.addExperienceLevel(levels); }
+        @Override public net.minecraft.stats.StatFile achievements() { return stats; }
+        @Override public void awardAchievement(net.minecraft.stats.Achievement achievement) {
+            if (stats != null && stats.unlock(achievement)) announceAchievement(achievement);
+        }
+        @Override public void revokeAchievement(net.minecraft.stats.Achievement achievement) {
+            if (stats == null || !stats.has(achievement)) return;
+            stats.set(achievement, false);
+            String colour = achievement.special() ? "\u00a75" : "\u00a7a";
+            printChatLine(net.minecraft.client.gui.I18n.translateChat("chat.type.achievement.taken", playerName,
+                colour + "[" + I18n.format(achievement.nameKey()) + "]\u00a7r"), 0);
         }
         @Override public int clearInventory() {
             int removed = 0;
@@ -2105,6 +2487,21 @@ public final class Minecraft implements GuiContext {
     @Override public ItemRenderer itemRenderer() { return itemRenderer; }
     @Override public CreativeTabs creativeTabs() { return creativeTabs; }
     @Override public net.minecraft.item.crafting.CraftingManager crafting() { return crafting; }
+    @Override public net.minecraft.item.crafting.FurnaceRecipes smelting() { return smelting; }
+    @Override public net.minecraft.inventory.Furnace furnaceAt(int x, int y, int z) { return world == null ? null : world.furnaceAt(x, y, z); }
+
+    /**
+     * Smelted items were taken out (SlotFurnaceOutput.onCrafting): the
+     * experience goes straight to the player, since experience orbs don't
+     * exist yet (DEV-028), and iron ingots and cooked fish unlock achievements.
+     */
+    @Override public void onItemSmelted(Item item, int count) {
+        if (player == null || count <= 0) return;
+        int xp = net.minecraft.inventory.Furnace.experienceFor(count, smelting == null ? 0f : smelting.experience(new ItemStack(item)), random);
+        if (xp > 0) player.addExperience(xp);
+        String id = net.minecraft.stats.AchievementList.forSmelted(item.name().path());
+        if (id != null) triggerAchievement(id);
+    }
     @Override public Item itemByName(String name) {
         return itemRegistry == null ? null : itemRegistry.get(new net.minecraft.util.ResourceLocation("minecraft", name));
     }
@@ -2112,6 +2509,48 @@ public final class Minecraft implements GuiContext {
         if (world == null || player == null || player.dead || !world.get(x, y, z).name().path().equals(block)) return false;
         double dx = player.x - (x + 0.5), dy = player.y - (y + 0.5), dz = player.z - (z + 0.5);
         return dx * dx + dy * dy + dz * dz <= 64.0;
+    }
+    @Override public FontRenderer galacticFont() {
+        if (galacticFont == null) {
+            try {
+                FontRenderer font = new FontRenderer(resourceManager, new net.minecraft.util.ResourceLocation("minecraft:textures/font/ascii_sga.png"));
+                font.load();
+                galacticFont = font;
+            } catch (RuntimeException missing) {
+                galacticFont = fontRenderer;
+            }
+        }
+        return galacticFont;
+    }
+    @Override public int experienceLevel() { return player == null ? 0 : player.experienceLevel; }
+    @Override public int xpSeed() { return player == null ? 0 : player.xpSeed; }
+    @Override public void removeExperienceLevels(int levels) { if (player != null) player.removeExperienceLevel(levels); }
+    @Override public int bookshelvesAround(int x, int y, int z) {
+        if (world == null) return 0;
+        return net.minecraft.inventory.EnchantingTable.countBookshelves(
+            (bx, by, bz) -> by < 0 || by >= World.HEIGHT ? "air" : world.get(bx, by, bz).name().path(), x, y, z);
+    }
+
+    /**
+     * SlotRepair.onPickupFromSlot: the levels are charged, then outside
+     * Creative a 12% chance wears the anvil a step (slightly, then very
+     * damaged, then gone, with the break sound); otherwise the use sound.
+     */
+    @Override public void onAnvilUsed(int x, int y, int z, int levels) {
+        if (player == null || world == null) return;
+        if (levels > 0) player.addExperienceLevel(-levels);
+        BlockState state = world.getState(x, y, z);
+        float pitch = random.nextFloat() * 0.1f + 0.9f;
+        if (!isCreative() && state.block().name().path().equals("anvil") && random.nextFloat() < 0.12f) {
+            int damage = (state.metadata() >> 2) + 1;
+            if (damage > 2) {
+                world.setStateAndUpdate(x, y, z, BlockState.of(blockRegistry.air(), 0));
+                playSound("random.anvil_break", x + 0.5, y + 0.5, z + 0.5, 1f, pitch);
+                return;
+            }
+            world.setState(x, y, z, BlockState.of(state.block(), (state.metadata() & 3) | damage << 2));
+        }
+        playSound("random.anvil_use", x + 0.5, y + 0.5, z + 0.5, 1f, pitch);
     }
     @Override public InventoryPlayer playerInventory() { return inventory; }
     @Override public boolean isCreative() { return levelInfo != null && levelInfo.gameType == WorldSettings.GameType.CREATIVE; }

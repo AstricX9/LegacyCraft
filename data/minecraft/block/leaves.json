@@ -1,0 +1,15 @@
+{
+  "material": "leaves",
+  "hardness": 0.2,
+  "opaque": false,
+  "fullCube": true,
+  "translucent": true,
+  "tintColor": "#66A83A",
+  "lightOpacity": 1,
+  "items": {
+    "oak_leaves": 4,
+    "spruce_leaves": 5,
+    "birch_leaves": 6,
+    "jungle_leaves": 7
+  }
+}

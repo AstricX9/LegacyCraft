@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "explode": [
+      "false",
+      "true"
+    ]
+  },
+  "meta": [
+    {
+      "property": "explode",
+      "bits": 1
+    }
+  ],
+  "model": {
+    "ignore": [
+      "explode"
+    ]
+  }
+}

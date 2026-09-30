@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "variant": [
+      "prismarine",
+      "prismarine_bricks",
+      "dark_prismarine"
+    ]
+  },
+  "meta": [
+    {
+      "property": "variant",
+      "bits": 2
+    }
+  ],
+  "model": {
+    "file": "{variant}"
+  }
+}

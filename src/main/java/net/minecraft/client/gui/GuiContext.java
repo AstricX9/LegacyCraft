@@ -81,6 +81,40 @@ public interface GuiContext {
      */
     default boolean canInteractWith(int x, int y, int z, String block) { return true; }
 
+    /** The local player's achievements, or null outside a world. */
+    default net.minecraft.stats.StatFile stats() { return null; }
+    /** The local player's name. */
+    default String playerName() { return "Player"; }
+    /** Something was crafted and taken from a crafting result (achievement triggers). */
+    default void onItemCrafted(ItemStack stack) {}
+    /** The furnace recipes, or null when none are loaded (tests). */
+    default net.minecraft.item.crafting.FurnaceRecipes smelting() { return null; }
+    /** The furnace at a block position in the loaded world, or null. */
+    default net.minecraft.inventory.Furnace furnaceAt(int x, int y, int z) { return null; }
+    /** {@code count} smelted items were taken out of a furnace (SlotFurnaceOutput.onCrafting: experience, achievements). */
+    default void onItemSmelted(Item item, int count) {}
+    /** Draws a block texture ("stone" for textures/blocks/stone.png) from the block atlas, {@code size} GUI pixels square. */
+    default void drawBlockTexture(String texture, int x, int y, int size) {}
+
+    /** The enchanting table's Standard Galactic font ({@code font/ascii_sga.png}); the normal font when there is none. */
+    default FontRenderer galacticFont() { return font(); }
+    /** The local player's experience level. */
+    default int experienceLevel() { return 0; }
+    /** The local player's enchanting seed (EntityPlayer.xpSeed), which decides the table's offers. */
+    default int xpSeed() { return 0; }
+    /** Takes levels for an enchantment (EntityPlayer.removeExperienceLevel), which also picks a new seed. */
+    default void removeExperienceLevels(int levels) {}
+    /** How many bookshelves feed the enchanting table at a position. */
+    default int bookshelvesAround(int x, int y, int z) { return 0; }
+    /**
+     * An anvil's result was taken: {@code levels} are charged and the anvil
+     * may wear a step or break (SlotRepair.onPickupFromSlot), with its sound.
+     */
+    default void onAnvilUsed(int x, int y, int z, int levels) {}
+
+    /** A stack's display name (ItemStack.getDisplayName): its anvil name, else the item's name. */
+    default String stackName(ItemStack stack) { return stack.hasCustomName() ? stack.customName() : itemName(stack.item()); }
+
     /** Whether the local player is in Creative mode (instant break, flight, the creative inventory). */
     boolean isCreative();
 

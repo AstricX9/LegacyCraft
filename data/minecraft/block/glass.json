@@ -1,0 +1,11 @@
+{
+  "material": "glass",
+  "hardness": 0.3,
+  "opaque": false,
+  "fullCube": true,
+  "translucent": true,
+  "cullSame": "state",
+  "items": {
+    "glass": 0
+  }
+}

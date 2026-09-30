@@ -1,0 +1,16 @@
+{
+  "id": 8,
+  "translation_key": "enchantment.waterWalker",
+  "weight": 2,
+  "max_level": 3,
+  "supported_items": "armor_feet",
+  "min_cost": {
+    "base": 10,
+    "per_level_above_first": 10
+  },
+  "max_cost": {
+    "base": 25,
+    "per_level_above_first": 10
+  },
+  "incompatible": []
+}

@@ -1,0 +1,12 @@
+{
+  "material": "clay",
+  "hardness": 0.75,
+  "items": {
+    "stone_monster_egg": 0,
+    "cobblestone_monster_egg": 1,
+    "stone_brick_monster_egg": 2,
+    "mossy_brick_monster_egg": 3,
+    "cracked_brick_monster_egg": 4,
+    "chiseled_brick_monster_egg": 5
+  }
+}

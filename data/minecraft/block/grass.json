@@ -1,0 +1,9 @@
+{
+  "class": "grass",
+  "material": "grass",
+  "hardness": 0.6,
+  "tintColor": "#7CBD6B",
+  "items": {
+    "grass": 0
+  }
+}

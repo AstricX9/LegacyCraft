@@ -1,0 +1,8 @@
+{
+  "block": "minecraft:web",
+  "drops": [
+    {
+      "item": "minecraft:string"
+    }
+  ]
+}

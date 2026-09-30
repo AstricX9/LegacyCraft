@@ -27,8 +27,19 @@ public final class CreativeTabs {
     public static final int SEARCH = 5, INVENTORY = 11;
     private static final ResourceLocation DATA = new ResourceLocation("legacycraft:creative_tabs.json");
 
-    /** One listed item: the LegacyCraft item, its vanilla ID/data value (for ordering) and its name key. */
-    public record Entry(Item item, int id, int meta, String nameKey) {}
+    /**
+     * One listed item: the LegacyCraft item, its vanilla ID/data value (for
+     * ordering) and its name key, and for an enchanted book the stack to hand
+     * out (null for a plain item).
+     */
+    public record Entry(Item item, int id, int meta, String nameKey, ItemStack stack) {
+        public Entry(Item item, int id, int meta, String nameKey) { this(item, id, meta, nameKey, null); }
+
+        /** What the creative inventory gives for this entry: one of the item, or a copy of its stack. */
+        public ItemStack newStack() { return stack != null ? stack.copy() : new ItemStack(item, 1); }
+    }
+
+    public static final int TOOLS = 7, COMBAT = 8;
 
     /** A tab: its index (0-5 top row, 6-11 bottom row), label key suffix, icon item and background texture name. */
     public record Tab(int index, String label, Item icon, String background, List<Entry> entries) {
@@ -73,10 +84,29 @@ public final class CreativeTabs {
                 entries.add(new Entry(item, object.get("id").getAsInt(), object.get("meta").getAsInt(), object.get("key").getAsString()));
             }
             everything.addAll(entries);
+            int index = tab.get("index").getAsInt();
+            Item book = lookup.apply("enchanted_book");
+            // CreativeTabs.addEnchantmentBooksToList: tools and combat end with a book of each of their enchantments at its top level.
+            if (book != null && (index == TOOLS || index == COMBAT)) {
+                for (net.minecraft.enchantment.Enchantment enchantment : net.minecraft.enchantment.Enchantment.ALL) {
+                    var type = enchantment.type;
+                    boolean tools = type == net.minecraft.enchantment.Enchantment.Type.DIGGER
+                        || type == net.minecraft.enchantment.Enchantment.Type.FISHING_ROD
+                        || type == net.minecraft.enchantment.Enchantment.Type.BREAKABLE;
+                    if (tools == (index == TOOLS)) entries.add(bookEntry(book, enchantment, enchantment.maxLevel));
+                }
+            }
             tabs.add(new Tab(tab.get("index").getAsInt(), tab.get("label").getAsString(),
                 lookup.apply(tab.get("icon").getAsString()), tab.get("background").getAsString(), entries));
         }
+        everything.removeIf(entry -> entry.stack() != null);
         everything.sort(Comparator.comparingInt(Entry::id).thenComparingInt(Entry::meta));
+        // The search tab ends with every level of every enchantment on a book (ItemEnchantedBook.getAll).
+        Item book = lookup.apply("enchanted_book");
+        if (book != null)
+            for (net.minecraft.enchantment.Enchantment enchantment : net.minecraft.enchantment.Enchantment.ALL)
+                for (int level = enchantment.minLevel(); level <= enchantment.maxLevel; level++)
+                    everything.add(bookEntry(book, enchantment, level));
         Tab search = tabs.get(SEARCH);
         tabs.set(SEARCH, new Tab(search.index(), search.label(), search.icon(), search.background(), List.copyOf(everything)));
         CreativeTabs result = new CreativeTabs(List.copyOf(tabs));
@@ -91,6 +121,12 @@ public final class CreativeTabs {
         }
         if (!missing.isEmpty()) System.err.println("Creative tabs list items the resource pack lacks: " + missing);
         return result;
+    }
+
+    private static Entry bookEntry(Item book, net.minecraft.enchantment.Enchantment enchantment, int level) {
+        ItemStack stack = new ItemStack(book);
+        stack.addStoredEnchantment(enchantment.id, level);
+        return new Entry(book, 403, 0, "item.enchantedBook.name", stack);
     }
 
     public List<Tab> tabs() { return tabs; }

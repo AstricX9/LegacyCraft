@@ -9,7 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** The player data in level.dat: inventory, abilities and game modes. */
+/** The player data in level.dat: inventory, abilities, experience and game modes. */
 final class LevelInfoPlayerTest {
     @Test
     void inventoryAndAbilitiesRoundTrip() {
@@ -47,6 +47,20 @@ final class LevelInfoPlayerTest {
         assertTrue(spectator.flying());
         assertFalse(spectator.mayBuild());
         assertFalse(LevelInfo.Abilities.of(WorldSettings.GameType.ADVENTURE, false).mayBuild());
+    }
+
+    @Test
+    void experienceRoundTripsUnderVanillaTagNames() {
+        LevelInfo info = LevelInfo.create("Test", new WorldSettings(1L, WorldSettings.GameType.SURVIVAL, true, false,
+            WorldType.DEFAULT, false, false, ""));
+        info.player = new LevelInfo.PlayerPosition(1, 70, 2, 0, 0, true);
+        info.experience = new LevelInfo.Experience(3, 0.25f, 30);
+        NbtTag.Compound root = info.toNbt();
+        NbtTag.Compound player = root.getCompound("Data").getCompound("Player");
+        assertEquals(new NbtTag.Int(3), player.get("XpLevel"));
+        assertEquals(new NbtTag.Float(0.25f), player.get("XpP"));
+        assertEquals(new NbtTag.Int(30), player.get("XpTotal"));
+        assertEquals(info.experience, LevelInfo.fromNbt(root).experience);
     }
 
     @Test
