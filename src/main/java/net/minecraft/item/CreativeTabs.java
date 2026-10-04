@@ -65,11 +65,47 @@ public final class CreativeTabs {
         } catch (IOException error) {
             throw new IllegalStateException("Could not read " + DATA, error);
         }
-        return parse(root, name -> items.get(new ResourceLocation("minecraft", name)));
+        return parse(root, name -> items.get(new ResourceLocation("minecraft", name)), name -> variants(items, name));
+    }
+
+    /**
+     * Where one listed model stands for several vanilla items
+     * (Item.getSubItems): the golden apples, a spawn egg per entity, the
+     * banner colours (white first) and the potions; splash water isn't listed.
+     */
+    private static List<Item> variants(ItemRegistry items, String name) {
+        java.util.function.Function<String, Item> get = path -> items.get(new ResourceLocation("minecraft", path));
+        List<Item> result = new ArrayList<>();
+        switch (name) {
+            case "golden_apple" -> {
+                result.add(get.apply("golden_apple"));
+                result.add(get.apply("enchanted_golden_apple"));
+            }
+            case "spawn_egg" -> {
+                for (VanillaItems.Egg egg : VanillaItems.EGGS) result.add(get.apply("spawn_egg_" + egg.entity().toLowerCase(Locale.ROOT)));
+            }
+            case "banner" -> {
+                for (int color = 15; color >= 0; color--)
+                    result.add(color == 0 ? get.apply("banner") : get.apply("banner_" + VanillaItems.DYE_COLORS[color].toLowerCase(Locale.ROOT)));
+            }
+            case "bottle_drinkable" -> {
+                result.add(get.apply("bottle_drinkable"));
+                for (int data : Potions.creativeList()) result.add(items.potion(data));
+            }
+            case "bottle_splash" -> { return List.of(); }
+            default -> { return null; }
+        }
+        result.removeIf(java.util.Objects::isNull);
+        return result;
+    }
+
+    public static CreativeTabs parse(JsonObject root, java.util.function.Function<String, Item> lookup) {
+        return parse(root, lookup, name -> null);
     }
 
     /** Builds the tabs from the JSON document, resolving item names with {@code lookup} (null when unknown). */
-    public static CreativeTabs parse(JsonObject root, java.util.function.Function<String, Item> lookup) {
+    public static CreativeTabs parse(JsonObject root, java.util.function.Function<String, Item> lookup,
+                                     java.util.function.Function<String, List<Item>> expand) {
         List<Tab> tabs = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         List<Entry> everything = new ArrayList<>();
@@ -79,6 +115,12 @@ public final class CreativeTabs {
             for (JsonElement rawItem : tab.getAsJsonArray("items")) {
                 JsonObject object = rawItem.getAsJsonObject();
                 String name = object.get("item").getAsString();
+                List<Item> expanded = expand.apply(name);
+                if (expanded != null) {
+                    for (Item variant : expanded)
+                        entries.add(new Entry(variant, object.get("id").getAsInt(), variant.vanillaData(), object.get("key").getAsString()));
+                    continue;
+                }
                 Item item = lookup.apply(name);
                 if (item == null) { missing.add(name); continue; }
                 entries.add(new Entry(item, object.get("id").getAsInt(), object.get("meta").getAsInt(), object.get("key").getAsString()));
@@ -100,7 +142,8 @@ public final class CreativeTabs {
                 lookup.apply(tab.get("icon").getAsString()), tab.get("background").getAsString(), entries));
         }
         everything.removeIf(entry -> entry.stack() != null);
-        everything.sort(Comparator.comparingInt(Entry::id).thenComparingInt(Entry::meta));
+        // Item by item in ID order, each with its sub-items in their own order (the search tab's getSubItems pass).
+        everything.sort(Comparator.comparingInt(Entry::id));
         // The search tab ends with every level of every enchantment on a book (ItemEnchantedBook.getAll).
         Item book = lookup.apply("enchanted_book");
         if (book != null)

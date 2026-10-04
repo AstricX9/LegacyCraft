@@ -16,11 +16,13 @@ public class GuiVideoSettings extends GuiScreen {
 
     private final GuiScreen parent;
     private GuiOptionsRowList list;
+    private int mipmapLevels = -1;
 
     public GuiVideoSettings(GuiScreen parent) { this.parent = parent; }
 
     @Override
     public void initGui() {
+        if (mipmapLevels < 0) mipmapLevels = mc.settings().mipmapLevels;
         buttonList.add(new GuiButton(200, width / 2 - 100, height - 27, I18n.format("gui.done")));
         list = new GuiOptionsRowList(mc, width, height, 32, height - 32, 25, this::optionChanged, OPTIONS);
     }
@@ -47,6 +49,12 @@ public class GuiVideoSettings extends GuiScreen {
         list.releaseControls(mouseX, mouseY);
         list.mouseReleased();
         super.mouseReleased(mouseX, mouseY, button);
+        // A new mipmap level rebuilds the block atlas (GameSettings.setOptionFloatValue → scheduleResourcesRefresh);
+        // done once the slider is let go rather than on every step of the drag.
+        if (mc.settings().mipmapLevels != mipmapLevels) {
+            mipmapLevels = mc.settings().mipmapLevels;
+            mc.refreshResources();
+        }
     }
 
     @Override public void mouseDragged(int mouseX, int mouseY, int button, long time) { list.mouseDragged(mouseX, mouseY); }

@@ -127,8 +127,25 @@ public final class BlockDrops {
      */
     public List<ItemStack> drops(String block, String material, int metadata, Item tool, int fortune, boolean silkTouch,
                                  boolean fullCube, Random random) {
+        if (!ToolValues.canHarvest(tool, block, material)) return new ArrayList<>();
+        return dropsOf(block, material, metadata, tool, fortune, silkTouch, fullCube, random);
+    }
+
+    /**
+     * What an explosion knocks loose (Block.dropBlockAsItemWithChance via
+     * Explosion.doExplosionB): the block's normal drops whatever tool would
+     * be needed, each kept with {@code chance} (1 / explosion size).
+     */
+    public List<ItemStack> explosionDrops(String block, String material, int metadata, float chance, Random random) {
         List<ItemStack> result = new ArrayList<>();
-        if (!ToolValues.canHarvest(tool, block, material)) return result;
+        for (ItemStack stack : dropsOf(block, material, metadata, null, 0, false, false, random))
+            if (random.nextFloat() <= chance) result.add(stack);
+        return result;
+    }
+
+    private List<ItemStack> dropsOf(String block, String material, int metadata, Item tool, int fortune, boolean silkTouch,
+                                    boolean fullCube, Random random) {
+        List<ItemStack> result = new ArrayList<>();
         if (silkTouch && canSilkHarvest(block, fullCube)) {
             Item whole = switch (block) {
                 case "lit_redstone_ore" -> items.placing("redstone_ore", 0);

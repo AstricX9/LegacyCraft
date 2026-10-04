@@ -6,7 +6,10 @@ import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.DamageSource;
 import net.minecraft.item.ItemStack;
+import net.minecraft.potion.Potion;
+import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.FoodStats;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
@@ -55,6 +58,11 @@ public final class Player {
     public double motionX, motionY, motionZ;
     public float yaw = 25.0f;
     public float pitch = 8.0f;
+    /** The stack in the player's hand, for mobs that notice it (tempting food); set by the game. */
+    public java.util.function.Supplier<net.minecraft.item.ItemStack> heldItem = () -> null;
+    /** Sets the player alight for at least this many seconds (Entity.setFire); the game keeps the player's fire. */
+    public java.util.function.IntConsumer fireListener = seconds -> {};
+    public void setFire(int seconds) { fireListener.accept(seconds); }
     public boolean onGround, collidedHorizontally, collidedVertically;
     /** Set when the player falls out of the world; the client shows the death screen until {@link #respawn()}. */
     public boolean dead;
@@ -70,9 +78,17 @@ public final class Player {
 
     // Player abilities (level.dat "abilities"): Creative may fly; Spectator always flies through blocks.
     public boolean allowFlying, isFlying, noClip;
-    /** Health (0-20). Food never drops yet (no hunger); experience comes only from furnaces (DEV-028). */
+    /** Health (0-20); experience comes only from furnaces (DEV-028). */
     public float health = 20f;
-    public int foodLevel = 20, experienceLevel;
+    public int experienceLevel;
+    /** The hunger bar (EntityPlayer.foodStats). */
+    public final FoodStats foodStats = new FoodStats();
+    /** Extra golden hearts from Absorption (EntityPlayer.getAbsorptionAmount), used up before health. */
+    public float absorptionAmount;
+    /** Active effects by potion id, in the order they were added (EntityLivingBase.activePotionsMap). */
+    private final java.util.LinkedHashMap<Integer, PotionEffect> activeEffects = new java.util.LinkedHashMap<>();
+
+    public int foodLevel() { return foodStats.getFoodLevel(); }
     /** The seed the enchanting table offers from (EntityPlayer.xpSeed), rerolled whenever levels are spent on it. */
     public int xpSeed;
     /** Progress to the next level (0-1), and every point ever gained (EntityPlayer.experience / experienceTotal). */
@@ -135,7 +151,7 @@ public final class Player {
     /** The difficulty (0 peaceful .. 3 hard) and the naturalRegeneration game rule, copied in by the client. */
     public int difficulty = 2;
     public boolean naturalRegeneration = true;
-    private int foodTimer, ticksExisted;
+    private int ticksExisted;
     /** Ticks this player has lived (drives the armour glint scroll). */
     public int ticksExisted() { return ticksExisted; }
 
@@ -167,6 +183,14 @@ public final class Player {
     public boolean attack(DamageSource source, float amount) {
         if (disableDamage && !source.canHarmInCreative()) return false;
         if (dead || health <= 0) return false;
+        // EntityPlayer.attackEntityFrom: mobs and explosions hit harder on Hard, softer on Easy, not at all on Peaceful.
+        if (source.isDifficultyScaled()) {
+            if (difficulty == 0) amount = 0f;
+            else if (difficulty == 1) amount = amount / 2f + 1f;
+            else if (difficulty == 3) amount = amount * 3f / 2f;
+        }
+        if (amount == 0f) return false;
+        if (source.isFire() && isPotionActive(Potion.FIRE_RESISTANCE)) return false;
         boolean fresh = true;
         if (hurtResistantTime > 20 / 2.0f) {
             if (amount <= lastDamage) return false;
@@ -194,8 +218,11 @@ public final class Player {
     /**
      * EntityPlayer.damageEntity: blocking with a sword halves blockable damage
      * ((1 + d) / 2); armour points take {@code d x (25 - armour) / 25} off
-     * blockable damage and wear each piece by d/4 (at least 1); protection
-     * enchantments take up to 20/25 more off anything but void damage.
+     * blockable damage and wear each piece by d/4 (at least 1); then, unless
+     * the damage is absolute (starving), Resistance takes 20% per level off
+     * anything but void damage and protection enchantments up to 20/25 more.
+     * Absorption hearts soak up what is left first; a hit that still gets
+     * through adds its exhaustion (0.3 unless it bypasses armour).
      */
     private void damageEntity(DamageSource source, float damage) {
         if (!source.isUnblockable() && isBlocking() && damage > 0) damage = (1f + damage) * 0.5f;
@@ -203,11 +230,160 @@ public final class Player {
             damageArmor(damage);
             damage = damage * (25 - armorValue()) / 25f;
         }
-        if (damage <= 0) return;
+        damage = applyPotionDamageCalculations(source, damage);
+        float before = damage;
+        damage = Math.max(damage - absorptionAmount, 0f);
+        absorptionAmount = Math.max(0f, absorptionAmount - (before - damage));
+        if (damage != 0) {
+            addExhaustion(source.hungerDamage());
+            health = Math.max(0f, health - damage);
+        }
+    }
+
+    /** EntityLivingBase.applyPotionDamageCalculations: Resistance, then protection enchantments. */
+    private float applyPotionDamageCalculations(DamageSource source, float damage) {
+        if (source.isAbsolute()) return damage;
+        PotionEffect resistance = activeEffects.get(Potion.RESISTANCE.id);
+        if (resistance != null && source != DamageSource.OUT_OF_WORLD) {
+            int reduction = (resistance.amplifier() + 1) * 5;
+            damage = damage * (25 - reduction) / 25f;
+        }
+        if (damage <= 0) return 0f;
         int protection = EnchantmentHelper.protectionPoints(armor, source, random);
         if (protection > 20) protection = 20;
         if (protection > 0) damage = damage * (25 - protection) / 25f;
-        if (damage != 0) health = Math.max(0f, health - damage);
+        return damage;
+    }
+
+    // ---- hunger (EntityPlayer, HYPOTHESIS: recalled) -----------------------------------------
+
+    /** Adds exhaustion (EntityPlayer.addExhaustion); nothing while damage is disabled (Creative). */
+    public void addExhaustion(float amount) {
+        if (!disableDamage) foodStats.addExhaustion(amount);
+    }
+
+    /** Whether eating is allowed (EntityPlayer.canEat): hungry or {@code ignoreHunger}, and not in Creative. */
+    public boolean canEat(boolean ignoreHunger) {
+        return (ignoreHunger || foodStats.needFood()) && !disableDamage;
+    }
+
+    private final FoodStats.Owner foodOwner = new FoodStats.Owner() {
+        @Override public int difficulty() { return difficulty; }
+        @Override public boolean naturalRegeneration() { return naturalRegeneration; }
+        @Override public boolean shouldHeal() { return health > 0 && health < 20f; }
+        @Override public float health() { return health; }
+        @Override public void heal(float amount) { Player.this.heal(amount); }
+        @Override public void starve(float amount) { attack(DamageSource.STARVE, amount); }
+    };
+
+    /**
+     * EntityPlayer.addMovementStat: moving costs exhaustion per metre, 0.015
+     * swimming (through the water when the eyes are under, across it
+     * otherwise), 0.1 sprinting and 0.01 walking or sneaking on the ground;
+     * climbing and moving through the air cost nothing.
+     */
+    private void addMovementExhaustion(double dx, double dy, double dz) {
+        if (headInWater()) {
+            int cm = Math.round((float) Math.sqrt(dx * dx + dy * dy + dz * dz) * 100f);
+            if (cm > 0) addExhaustion(0.015f * cm * 0.01f);
+        } else if (inWater) {
+            int cm = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100f);
+            if (cm > 0) addExhaustion(0.015f * cm * 0.01f);
+        } else if (onLadder()) {
+            // climbing: a statistic only
+        } else if (onGround) {
+            int cm = Math.round((float) Math.sqrt(dx * dx + dz * dz) * 100f);
+            if (cm > 0) addExhaustion((sprinting ? 0.099999994f : 0.01f) * cm * 0.01f);
+        }
+    }
+
+    // ---- potion effects (EntityLivingBase, HYPOTHESIS: recalled) -------------------------------
+
+    /** What the client does when effects change (nothing needs it yet beyond redrawing). */
+    public interface EffectListener {
+        default void added(PotionEffect effect) {}
+        default void finished(PotionEffect effect) {}
+    }
+    public EffectListener effectListener = new EffectListener() {};
+
+    public boolean isPotionActive(Potion potion) { return activeEffects.containsKey(potion.id); }
+    public PotionEffect getActivePotionEffect(Potion potion) { return activeEffects.get(potion.id); }
+    public java.util.Collection<PotionEffect> getActivePotionEffects() { return java.util.Collections.unmodifiableCollection(activeEffects.values()); }
+
+    /**
+     * Adds an effect (EntityLivingBase.addPotionEffect): merged into an active
+     * one of the same type (and its attribute part reapplied, which refills
+     * Absorption), otherwise started.
+     */
+    public void addPotionEffect(PotionEffect effect) {
+        if (effect.potion().isInstant()) return;
+        PotionEffect active = activeEffects.get(effect.potion().id);
+        if (active != null) {
+            active.combine(effect);
+            removeModifiers(active);
+            applyModifiers(active);
+        } else {
+            PotionEffect copy = effect.copy();
+            activeEffects.put(effect.potion().id, copy);
+            applyModifiers(copy);
+            effectListener.added(copy);
+        }
+    }
+
+    /** Removes one effect (EntityLivingBase.removePotionEffect); false if it wasn't active. */
+    public boolean removePotionEffect(Potion potion) {
+        PotionEffect effect = activeEffects.remove(potion.id);
+        if (effect == null) return false;
+        finishEffect(effect);
+        return true;
+    }
+
+    /** Removes every effect (EntityLivingBase.clearActivePotions), as drinking milk does. */
+    public void clearActivePotions() {
+        for (java.util.Iterator<PotionEffect> it = activeEffects.values().iterator(); it.hasNext(); ) {
+            PotionEffect effect = it.next();
+            it.remove();
+            finishEffect(effect);
+        }
+    }
+
+    private void finishEffect(PotionEffect effect) {
+        removeModifiers(effect);
+        effectListener.finished(effect);
+    }
+
+    /** Potion.applyAttributesModifiersToEntity: Absorption adds 4 per level. */
+    private void applyModifiers(PotionEffect effect) {
+        if (effect.potion() == Potion.ABSORPTION) absorptionAmount += 4 * (effect.amplifier() + 1);
+    }
+
+    private void removeModifiers(PotionEffect effect) {
+        if (effect.potion() == Potion.ABSORPTION) absorptionAmount = Math.max(0f, absorptionAmount - 4 * (effect.amplifier() + 1));
+    }
+
+    private final PotionEffect.Target effectTarget = new PotionEffect.Target() {
+        @Override public float health() { return health; }
+        @Override public float maxHealth() { return 20f; }
+        @Override public void heal(float amount) { Player.this.heal(amount); }
+        @Override public void magicDamage(float amount) { attack(DamageSource.MAGIC, amount); }
+        @Override public void witherDamage(float amount) { attack(DamageSource.WITHER, amount); }
+        @Override public void addExhaustion(float amount) { Player.this.addExhaustion(amount); }
+    };
+
+    /** EntityLivingBase.updatePotionEffects: each effect acts and counts down; spent ones finish. */
+    private void updatePotionEffects() {
+        if (activeEffects.isEmpty()) return;
+        for (Integer id : new ArrayList<>(activeEffects.keySet())) {
+            PotionEffect effect = activeEffects.get(id);
+            if (effect == null) continue;
+            if (!effect.tick(effectTarget) && activeEffects.remove(id) != null) finishEffect(effect);
+        }
+    }
+
+    /** Restores saved effects without the start-up side effects (absorption is loaded on its own). */
+    public void loadPotionEffect(PotionEffect effect) {
+        if (effect.potion().isInstant()) return;
+        activeEffects.put(effect.potion().id, effect.copy());
     }
 
     /** InventoryPlayer.damageArmor: every worn piece loses d/4 durability (at least 1), Unbreaking allowing. */
@@ -224,6 +400,53 @@ public final class Player {
         }
     }
 
+    /** Who the last hit with an attacker came from (a translation key or name), for the death message. */
+    public String lastAttacker;
+    /** Ticks before the next experience orb can be picked up (EntityPlayer.xpCooldown). */
+    public int xpCooldown;
+
+    /**
+     * A mob's hit (EntityLivingBase.attackEntityFrom with an attacker): the
+     * damage, and on a fresh hit the knockback away from the mob at (fromX, fromZ).
+     */
+    public boolean attackByMob(float amount, double fromX, double fromZ, String attacker) {
+        return attackBy(DamageSource.MOB, amount, fromX, fromZ, attacker);
+    }
+
+    /** A hit from someone at (fromX, fromZ) with this source (an arrow, a fireball): knocked back away from them. */
+    public boolean attackBy(DamageSource source, float amount, double fromX, double fromZ, String attacker) {
+        int before = hurtResistantTime;
+        lastAttacker = attacker;
+        boolean hurt = attack(source, amount);
+        if (hurt && before <= 10) {
+            double dx = fromX - x, dz = fromZ - z;
+            while (dx * dx + dz * dz < 1.0E-4) {
+                dx = (Math.random() - Math.random()) * 0.01;
+                dz = (Math.random() - Math.random()) * 0.01;
+            }
+            knockBack(dx, dz);
+        }
+        return hurt;
+    }
+
+    /** An explosion's damage: "blew up", or "was blown up by" when someone set it off. */
+    public boolean attackByExplosion(float amount, String attacker) {
+        lastAttacker = attacker;
+        return attack(attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER, amount);
+    }
+
+    /** EntityLivingBase.knockBack: halve the motion, push 0.4 away from (dx, dz) and 0.4 up. */
+    public void knockBack(double dx, double dz) {
+        double length = Math.sqrt(dx * dx + dz * dz);
+        motionX /= 2.0;
+        motionY /= 2.0;
+        motionZ /= 2.0;
+        motionX -= dx / length * 0.4;
+        motionY += 0.4;
+        motionZ -= dz / length * 0.4;
+        if (motionY > 0.4) motionY = 0.4;
+    }
+
     /** Heals, up to 20 (EntityLivingBase.heal). */
     public void heal(float amount) { if (health > 0) health = Math.min(20f, health + amount); }
 
@@ -235,7 +458,10 @@ public final class Player {
      */
     private void fall(float distance, float multiplier) {
         if (allowFlying || noClip) return;
-        int damage = (int) Math.ceil((distance - 3f) * multiplier);
+        // EntityLivingBase.fall: Jump Boost lets you fall one block further per level unhurt.
+        PotionEffect jumpBoost = activeEffects.get(Potion.JUMP.id);
+        float safe = 3f + (jumpBoost == null ? 0f : jumpBoost.amplifier() + 1);
+        int damage = (int) Math.ceil((distance - safe) * multiplier);
         if (damage <= 0) return;
         sounds.play(damage > 4 ? "game.player.hurt.fall.big" : "game.player.hurt.fall.small", 1f, 1f);
         attack(DamageSource.FALL, damage);
@@ -261,7 +487,8 @@ public final class Player {
         if (headInWater() && !noClip) {
             if (!disableDamage) {
                 int respiration = EnchantmentHelper.maxLevel(Enchantment.RESPIRATION, armor);
-                if (!(respiration > 0 && random.nextInt(respiration + 1) > 0)) air--;
+                // Water Breathing stops the air running out (EntityLivingBase.onEntityUpdate).
+                if (!isPotionActive(Potion.WATER_BREATHING) && !(respiration > 0 && random.nextInt(respiration + 1) > 0)) air--;
                 if (air == -20) {
                     air = 0;
                     attack(DamageSource.DROWN, 2f);
@@ -273,16 +500,16 @@ public final class Player {
         if (y < -64) attack(DamageSource.OUT_OF_WORLD, 4f);
         if (hurtTime > 0) hurtTime--;
         if (hurtResistantTime > 0) hurtResistantTime--;
+        if (xpCooldown > 0) xpCooldown--;
         if (dead) return;
-        if (difficulty == 0 && naturalRegeneration && health < 20f && ticksExisted % 20 == 0) heal(1f);
-        if (naturalRegeneration && foodLevel >= 18 && health > 0 && health < 20f) {
-            if (++foodTimer >= 80) {
-                heal(1f);
-                foodTimer = 0;
-            }
-        } else {
-            foodTimer = 0;
+        updatePotionEffects();
+        if (dead) return;
+        // EntityPlayer.onLivingUpdate: Peaceful heals 1 a second and refills food 1 every 10 ticks.
+        if (difficulty == 0 && naturalRegeneration) {
+            if (health < 20f && ticksExisted % 20 == 0) heal(1f);
+            if (foodStats.needFood() && ticksExisted % 10 == 0) foodStats.setFoodLevel(foodStats.getFoodLevel() + 1);
         }
+        foodStats.tick(foodOwner);
     }
 
     /** Eyes under a water surface (Entity.isInsideOfMaterial(water)): the surface sits a ninth under the liquid's height. */
@@ -329,6 +556,15 @@ public final class Player {
         itemInUseCount = duration;
     }
 
+    /** What happens as an item is used up (EntityPlayer.updateItemUse / onItemUseFinish), done by the client. */
+    public interface ItemUseListener {
+        /** Eating crumbs and sound or the drinking sound, {@code particles} crumbs for eating. */
+        default void update(ItemStack stack, int particles) {}
+        /** The use ran its full time: the client applies the item and replaces the held stack. */
+        default void finish(ItemStack stack) {}
+    }
+    public ItemUseListener itemUseListener = new ItemUseListener() {};
+
     public void clearItemInUse() {
         itemInUse = null;
         itemInUseCount = 0;
@@ -350,7 +586,11 @@ public final class Player {
     private float distanceWalkedOnStep;
     private int nextStepDistance = 1;
 
-    private final World world;
+    private World world;
+
+    /** Moves the player into another dimension's world (Entity.travelToDimension; the caller places them). */
+    public void setWorld(World world) { this.world = world; }
+    public World world() { return world; }
     private final double spawnX, spawnZ;
     private int jumpTicks, flyToggleTimer, sprintToggleTimer;
     private boolean jumpWasDown, sneakWasDown, inWeb, firstUpdate = true;
@@ -389,7 +629,16 @@ public final class Player {
             deathTime++;
             return;
         }
-        if (itemInUse != null && --itemInUseCount <= 0) clearItemInUse();
+        // EntityPlayer.onUpdate: crumbs and sounds every 4 ticks over the last 25, then the item is used up.
+        if (itemInUse != null) {
+            ItemStack using = itemInUse;
+            if (itemInUseCount <= 25 && itemInUseCount % 4 == 0) itemUseListener.update(using, 5);
+            if (--itemInUseCount <= 0) {
+                clearItemInUse();
+                itemUseListener.update(using, 16);
+                itemUseListener.finish(using);
+            }
+        }
         updateWater();
 
         // EntityPlayerSP: the input, sprinting and the flight toggle.
@@ -408,7 +657,7 @@ public final class Player {
             forward *= 0.2f;
             sprintToggleTimer = 0;
         }
-        boolean canSprint = foodLevel > 6 || allowFlying;
+        boolean canSprint = foodStats.getFoodLevel() > 6 || allowFlying;
         if (onGround && !wasSneaking && !wasForward && forward >= 0.8f && !sprinting && canSprint && !isUsingItem()) {
             if (sprintToggleTimer <= 0 && !input.sprint()) sprintToggleTimer = 7;
             else sprinting = true;
@@ -453,19 +702,25 @@ public final class Player {
         strafe *= 0.98f;
         forward *= 0.98f;
         float airSpeed = 0.02f + (sprinting ? 0.02f * 0.3f : 0f);
+        double beforeX = x, beforeY = y, beforeZ = z;
         moveWithHeading(strafe, forward, airSpeed);
+        addMovementExhaustion(x - beforeX, y - beforeY, z - beforeZ);
         if (onGround && isFlying && !noClip) isFlying = false;
         livingUpdate();
         firstUpdate = false;
     }
 
+    /** EntityLivingBase.jump plus EntityPlayer's cost: 0.8 exhaustion sprinting, 0.2 otherwise. */
     private void jump() {
-        motionY = 0.42;
+        // EntityLivingBase.jump: Jump Boost adds 0.1 per level.
+        PotionEffect jumpBoost = activeEffects.get(Potion.JUMP.id);
+        motionY = 0.42 + (jumpBoost == null ? 0 : (jumpBoost.amplifier() + 1) * 0.1f);
         if (sprinting) {
             double angle = Math.toRadians(yaw + 180f);
             motionX -= Math.sin(angle) * 0.2;
             motionZ += Math.cos(angle) * 0.2;
         }
+        addExhaustion(sprinting ? 0.8f : 0.2f);
     }
 
     private void moveWithHeading(float strafe, float forward, float airSpeed) {
@@ -517,8 +772,40 @@ public final class Player {
         if (isFlying) motionY = flyingMotionY * 0.6;
     }
 
-    /** Walking speed: 0.1, times 1.3 while sprinting (the movement speed attribute). */
-    private float moveSpeed() { return sprinting ? 0.13f : 0.1f; }
+    /**
+     * Walking speed (the movement speed attribute): 0.1, times 1.3 while
+     * sprinting, 1 + 0.2 per level of Speed and 1 - 0.15 per level of
+     * Slowness (all "multiply total" modifiers).
+     */
+    public float moveSpeed() {
+        float speed = sprinting ? 0.13f : 0.1f;
+        PotionEffect fast = activeEffects.get(Potion.MOVE_SPEED.id);
+        if (fast != null) speed *= 1f + 0.2f * (fast.amplifier() + 1);
+        PotionEffect slow = activeEffects.get(Potion.MOVE_SLOWDOWN.id);
+        if (slow != null) speed *= Math.max(0f, 1f - 0.15f * (slow.amplifier() + 1));
+        return speed;
+    }
+
+    /**
+     * The attack damage attribute for a weapon's {@code base} damage
+     * (PotionAttackDamage, 1.8.9): Weakness takes 0.5 per level off, then
+     * Strength multiplies by 1 + 1.3 per level.
+     */
+    public float attackDamage(float base) {
+        PotionEffect weakness = activeEffects.get(Potion.WEAKNESS.id);
+        if (weakness != null) base -= 0.5f * (weakness.amplifier() + 1);
+        PotionEffect strength = activeEffects.get(Potion.DAMAGE_BOOST.id);
+        if (strength != null) base *= 1f + 1.3f * (strength.amplifier() + 1);
+        return Math.max(0f, base);
+    }
+
+    /** EntityRenderer.getNightVisionBrightness: 1, flickering in the last 10 seconds; 0 without the effect. */
+    public float nightVisionBrightness(float partialTicks) {
+        PotionEffect effect = activeEffects.get(Potion.NIGHT_VISION.id);
+        if (effect == null) return 0f;
+        int ticks = effect.duration();
+        return ticks > 200 ? 1f : 0.7f + (float) Math.sin((ticks - partialTicks) * Math.PI * 0.2) * 0.3f;
+    }
 
     /** Turns input into motion along the facing (Entity.moveFlying). */
     private void moveFlying(float strafe, float forward, float amount) {
@@ -579,7 +866,7 @@ public final class Player {
         return !world.isMaterialInBox(moved, "water") && !world.isMaterialInBox(moved, "lava");
     }
 
-    private boolean onLadder() {
+    public boolean onLadder() {
         String name = blockName(floor(x), floor(boundingBox().minY()), floor(z));
         return name.equals("ladder") || name.equals("vine");
     }
@@ -830,7 +1117,9 @@ public final class Player {
         fallDistance = 0;
         if (!noClip) isFlying = false;
         health = 20f;
-        foodLevel = 20;
+        foodStats.reset();
+        activeEffects.clear();
+        absorptionAmount = 0f;
         air = 300;
         hurtTime = hurtResistantTime = deathTime = 0;
         lastDamage = 0;

@@ -36,7 +36,10 @@ public final class ParticleManager {
     public static final ResourceLocation PARTICLES = new ResourceLocation("minecraft:textures/particle/particles.png");
     private static final int MAX_PER_LAYER = 4000;
 
-    public enum Kind { SMOKE, LARGE_SMOKE, FLAME, LAVA, DRIP_WATER, DRIP_LAVA, SUSPENDED, TOWN_AURA, REDDUST, BLOCK_CRACK, BUBBLE, SPLASH, PORTAL, ENCHANTMENT_TABLE }
+    public enum Kind { SMOKE, LARGE_SMOKE, FLAME, LAVA, DRIP_WATER, DRIP_LAVA, SUSPENDED, TOWN_AURA, REDDUST, BLOCK_CRACK, BUBBLE, SPLASH,
+        PORTAL, ENCHANTMENT_TABLE, EXPLODE, LARGE_EXPLODE, HUGE_EXPLOSION, CRIT, MAGIC_CRIT, HEART, HAPPY_VILLAGER }
+
+    public static final ResourceLocation EXPLOSION = new ResourceLocation("minecraft:textures/entity/explosion.png");
 
     private final World world;
     private final TextureAtlas atlas;
@@ -49,7 +52,7 @@ public final class ParticleManager {
     public interface Sounds { void play(String event, double x, double y, double z, float volume, float pitch); }
     public Sounds sounds = (event, x, y, z, volume, pitch) -> {};
     @SuppressWarnings("unchecked")
-    private final ArrayDeque<Particle>[] layers = new ArrayDeque[]{new ArrayDeque<>(), new ArrayDeque<>()};
+    private final ArrayDeque<Particle>[] layers = new ArrayDeque[]{new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>()};
     private final List<Particle> added = new ArrayList<>();
     /** Particle option (0 all, 1 decreased, 2 minimal) and camera position, updated before each tick. */
     private int setting;
@@ -68,7 +71,7 @@ public final class ParticleManager {
         cameraX = x; cameraY = y; cameraZ = z;
     }
 
-    public int count() { return layers[0].size() + layers[1].size(); }
+    public int count() { return layers[0].size() + layers[1].size() + layers[2].size() + layers[3].size(); }
 
     public void add(Particle particle) { added.add(particle); }
 
@@ -83,7 +86,9 @@ public final class ParticleManager {
         int level = setting;
         if (level == 1 && random.nextInt(3) == 0) level = 2;
         double dx = cameraX - x, dy = cameraY - y, dz = cameraZ - z;
-        if (dx * dx + dy * dy + dz * dz > 256.0 || level > 1) return;
+        // Explosion particles ignore both the range and the Particles option (EnumParticleTypes.shouldIgnoreRange).
+        boolean ignoreRange = kind == Kind.EXPLODE || kind == Kind.LARGE_EXPLODE || kind == Kind.HUGE_EXPLOSION;
+        if (!ignoreRange && (dx * dx + dy * dy + dz * dz > 256.0 || level > 1)) return;
         Particle particle = switch (kind) {
             case SMOKE -> new Particles.Smoke(world, random, x, y, z, vx, vy, vz, 1f);
             case LARGE_SMOKE -> new Particles.Smoke(world, random, x, y, z, vx, vy, vz, 2.5f);
@@ -99,8 +104,46 @@ public final class ParticleManager {
             case SPLASH -> new Particles.Splash(world, random, x, y, z, vx, vy, vz);
             case PORTAL -> new Particles.Portal(world, random, x, y, z, vx, vy, vz);
             case ENCHANTMENT_TABLE -> new Particles.EnchantmentTable(world, random, x, y, z, vx, vy, vz);
+            case EXPLODE -> new Particles.Explode(world, random, x, y, z, vx, vy, vz);
+            case LARGE_EXPLODE -> new Particles.LargeExplode(world, random, x, y, z, vx);
+            case HUGE_EXPLOSION -> new Particles.HugeExplosion(world, random, x, y, z, this);
+            case CRIT -> new Particles.Crit(world, random, x, y, z, vx, vy, vz, false);
+            case MAGIC_CRIT -> new Particles.Crit(world, random, x, y, z, vx, vy, vz, true);
+            case HEART -> new Particles.Heart(world, random, x, y, z, vx, vy, vz);
+            case HAPPY_VILLAGER -> new Particles.HappyVillager(world, random, x, y, z, vx, vy, vz);
         };
         if (particle != null) add(particle);
+    }
+
+    /**
+     * A spell swirl (SPELL, or INSTANT_SPELL with {@code instant}) from the
+     * world, tinted; null when the Particles option or the range culls it.
+     */
+    public Particles.Spell spawnSpell(boolean instant, double x, double y, double z, double vx, double vy, double vz,
+                                      float red, float green, float blue) {
+        int level = setting;
+        if (level == 1 && random.nextInt(3) == 0) level = 2;
+        double dx = cameraX - x, dy = cameraY - y, dz = cameraZ - z;
+        if (dx * dx + dy * dy + dz * dz > 256.0 || level > 1) return null;
+        Particles.Spell spell = new Particles.Spell(world, random, x, y, z, vx, vy, vz, instant).color(red, green, blue);
+        add(spell);
+        return spell;
+    }
+
+    /**
+     * A crumb of an item (EntityBreakingFX, the ITEM_CRACK particle) from the
+     * world: subject to the Particles option and the 16-block range like
+     * {@link #spawn}. {@code texture} is the item's sprite.
+     */
+    public void spawnItemCrack(ResourceLocation texture, double x, double y, double z, double vx, double vy, double vz) {
+        if (texture == null) return;
+        int level = setting;
+        if (level == 1 && random.nextInt(3) == 0) level = 2;
+        double dx = cameraX - x, dy = cameraY - y, dz = cameraZ - z;
+        if (dx * dx + dy * dy + dz * dz > 256.0 || level > 1) return;
+        int[] size = textures.size(texture);
+        float frame = size != null && size[1] > size[0] ? (float) size[0] / size[1] : 1f;
+        add(new Particles.ItemCrack(world, random, x, y, z, vx, vy, vz, texture, frame));
     }
 
     /**
@@ -192,7 +235,25 @@ public final class ParticleManager {
 
     // ---- ticking ------------------------------------------------------------------------------
 
+    /** An emitter around an entity (EntityParticleEmitter): 3 ticks of 16 sparks thrown out from its middle. */
+    private record Emitter(net.minecraft.entity.MovingEntity entity, Kind kind, int[] age) {}
+    private final List<Emitter> emitters = new ArrayList<>();
+
+    public void emitAtEntity(net.minecraft.entity.MovingEntity entity, Kind kind) { emitters.add(new Emitter(entity, kind, new int[1])); }
+
     public void tick() {
+        for (java.util.Iterator<Emitter> it = emitters.iterator(); it.hasNext(); ) {
+            Emitter emitter = it.next();
+            net.minecraft.entity.MovingEntity e = emitter.entity();
+            for (int i = 0; i < 16; i++) {
+                double dx = random.nextFloat() * 2f - 1f, dy = random.nextFloat() * 2f - 1f, dz = random.nextFloat() * 2f - 1f;
+                if (dx * dx + dy * dy + dz * dz > 1.0) continue;
+                double px = e.x() + dx * e.width / 4.0, py = e.boundingBox().minY() + e.height / 2f + dy * e.height / 4.0;
+                double pz = e.z() + dz * e.width / 4.0;
+                spawn(emitter.kind(), px, py, pz, dx, dy + 0.2, dz, null);
+            }
+            if (++emitter.age()[0] >= 3) it.remove();
+        }
         for (ArrayDeque<Particle> layer : layers) {
             for (Iterator<Particle> it = layer.iterator(); it.hasNext(); ) {
                 Particle particle = it.next();
@@ -391,6 +452,27 @@ public final class ParticleManager {
             }
             glEnd();
         }
+        // Explosion flashes: explosion.png, drawn at full brightness.
+        if (!layers[3].isEmpty()) {
+            textures.bind(EXPLOSION);
+            glBegin(GL_QUADS);
+            for (Particle particle : layers[3]) particle.render(partialTicks, left, up, null);
+            glEnd();
+        }
+        // Item crumbs: each item's sprite is its own texture here (vanilla has them in the block atlas).
+        ResourceLocation bound = null;
+        for (Particle particle : layers[2]) {
+            ResourceLocation texture = ((Particles.ItemCrack) particle).texture();
+            if (!texture.equals(bound)) {
+                if (bound != null) glEnd();
+                textures.bind(texture);
+                bound = texture;
+                glBegin(GL_QUADS);
+            }
+            int[] light = particle.light(partialTicks);
+            particle.render(partialTicks, left, up, LightMap.color(light[0], light[1]));
+        }
+        if (bound != null) glEnd();
         glColor4f(1, 1, 1, 1);
         glAlphaFunc(GL_GREATER, 0.1f);
     }
@@ -398,6 +480,7 @@ public final class ParticleManager {
     public void clear() {
         for (ArrayDeque<Particle> layer : layers) layer.clear();
         added.clear();
+        emitters.clear();
     }
 
     private static int floor(double value) { return (int) Math.floor(value); }

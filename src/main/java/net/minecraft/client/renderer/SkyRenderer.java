@@ -40,6 +40,19 @@ public final class SkyRenderer {
 
     public SkyRenderer(GuiTextures textures) { this.textures = textures; }
 
+    /**
+     * The Nether (WorldProviderHell): no sky, sun, stars or clouds; the
+     * clock stands at midnight (celestial angle 0.5); the fog is a dull red
+     * (0.2, 0.03, 0.03) darkened by the light at the player through a
+     * brightness table that never drops below 0.1.
+     */
+    private boolean nether;
+    public void setNether(boolean nether) { this.nether = nether; }
+    public boolean isNether() { return nether; }
+
+    /** WorldProviderHell.generateLightBrightnessTable: the overworld curve lifted to a 0.1 floor. */
+    public static float netherBrightness(int level) { return brightness(level) * 0.9f + 0.1f; }
+
     // ---- time of day ------------------------------------------------------------------------
 
     /** 0 at noon, 0.25 at sunset, 0.5 at midnight, 0.75 at sunrise; eased so days are slightly longer than nights. */
@@ -146,6 +159,23 @@ public final class SkyRenderer {
         return fog;
     }
 
+    /** EntityRenderer.updateFogColor in the Nether: the hell fog colour, faded toward the (black) sky with distance. */
+    public static float[] netherFog(float[] sky, int renderDistanceChunks, float lightFactor, double feetY, String liquid) {
+        float[] fog = {0.2f, 0.03f, 0.03f};
+        float toSky = 1f - (float) Math.pow(0.25f + 0.75f * renderDistanceChunks / 32f, 0.25);
+        for (int c = 0; c < 3; c++) fog[c] = fog[c] + (sky[c] - fog[c]) * toSky;
+        if ("water".equals(liquid)) fog = new float[]{0.02f, 0.02f, 0.2f};
+        else if ("lava".equals(liquid)) fog = new float[]{0.6f, 0.1f, 0.0f};
+        for (int c = 0; c < 3; c++) fog[c] *= lightFactor;
+        double voidFactor = feetY * 0.03125;
+        if (voidFactor < 1.0) {
+            if (voidFactor < 0) voidFactor = 0;
+            voidFactor *= voidFactor;
+            for (int c = 0; c < 3; c++) fog[c] *= (float) voidFactor;
+        }
+        return fog;
+    }
+
     /** Brightness 0-1 of a combined light level (the overworld's lightBrightnessTable). */
     public static float brightness(int level) {
         float darkness = 1f - level / 15f;
@@ -160,9 +190,10 @@ public final class SkyRenderer {
      */
     public void tick(long worldTime, int skyLight, int blockLight, int renderDistanceChunks) {
         cloudTicks++;
-        int light = Math.max(skyLight - skylightSubtracted(celestialAngle(worldTime, 1f)), blockLight);
+        int light = nether ? blockLight : Math.max(skyLight - skylightSubtracted(celestialAngle(worldTime, 1f)), blockLight);
         float far = renderDistanceChunks / 32f;
-        float target = brightness(Math.max(0, light)) * (1f - far) + far;
+        float lit = nether ? netherBrightness(Math.max(0, light)) : brightness(Math.max(0, light));
+        float target = lit * (1f - far) + far;
         previousFogLight = fogLight;
         fogLight += (target - fogLight) * 0.1f;
     }
@@ -170,12 +201,13 @@ public final class SkyRenderer {
     /** Computes this frame's sky and fog colours; returns the fog colour, which is also the clear colour. */
     public float[] prepare(long worldTime, float partialTicks, float temperature, double lookX, double lookY, double lookZ,
                            int renderDistanceChunks, double feetY, boolean flat, String liquid) {
-        angle = celestialAngle(worldTime, partialTicks);
-        sunrise = sunriseColor(angle);
+        angle = nether ? 0.5f : celestialAngle(worldTime, partialTicks);
+        sunrise = nether ? null : sunriseColor(angle);
         float[] sky = skyColor(angle, temperature);
         skyR = sky[0]; skyG = sky[1]; skyB = sky[2];
         float light = previousFogLight + (fogLight - previousFogLight) * partialTicks;
-        float[] fog = fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, light, feetY, flat, liquid);
+        float[] fog = nether ? netherFog(sky, renderDistanceChunks, light, feetY, liquid)
+            : fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, light, feetY, flat, liquid);
         fogR = fog[0]; fogG = fog[1]; fogB = fog[2];
         return fog;
     }
@@ -188,6 +220,7 @@ public final class SkyRenderer {
      * far distance) and the projection's far plane twice the render distance.
      */
     public void renderSky(long worldTime, double eyeY) {
+        if (nether) return;
         if (skyList < 0) buildLists();
         glDisable(GL_TEXTURE_2D);
         // Culled as in vanilla: the sky and void planes are one-sided, so the
@@ -298,6 +331,7 @@ public final class SkyRenderer {
      * distance.
      */
     public void renderClouds(double eyeX, double eyeY, double eyeZ, float partialTicks, boolean fancy) {
+        if (nether) return;
         float[] color = cloudColor(angle);
         textures.bind(CLOUDS);
         glEnable(GL_TEXTURE_2D);

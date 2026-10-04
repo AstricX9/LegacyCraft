@@ -46,6 +46,8 @@ public final class LevelInfo {
     public final Map<String, String> gameRules = defaultGameRules();
     /** The player's saved position; null until the world has been played. */
     public PlayerPosition player;
+    /** The dimension the player is in (Player.Dimension: 0 overworld, -1 the Nether). */
+    public int playerDimension;
     private NbtTag.Compound original = new NbtTag.Compound();
 
     public record PlayerPosition(double x, double y, double z, float yaw, float pitch, boolean onGround) {}
@@ -85,6 +87,16 @@ public final class LevelInfo {
     public record Vitals(float health, int air, int xpSeed) {}
     /** The player's saved health, air and table seed; null when level.dat has none. */
     public Vitals vitals;
+    /** 1.8.9's {@code foodLevel}, {@code foodSaturationLevel}, {@code foodExhaustionLevel} and {@code foodTickTimer}. */
+    public record Food(int level, float saturation, float exhaustion, int timer) {}
+    /** The player's saved hunger; null when level.dat has none. */
+    public Food food;
+    /** One entry of 1.8.9's {@code ActiveEffects}: Id, Amplifier, Duration, Ambient, ShowParticles. */
+    public record SavedEffect(int id, int amplifier, int duration, boolean ambient, boolean showParticles) {}
+    /** The player's saved effects; null when level.dat has none. */
+    public List<SavedEffect> effects;
+    /** 1.8.9's {@code AbsorptionAmount}. */
+    public float absorption;
 
     /** The 1.8.9 game rules and their defaults (VERIFIED_HISTORY: /gamerule list for 1.8). */
     public static Map<String, String> defaultGameRules() {
@@ -171,7 +183,7 @@ public final class LevelInfo {
             playerTag.put("Pos", doubles(player.x(), player.y(), player.z()));
             playerTag.put("Rotation", floats(player.yaw(), player.pitch()));
             playerTag.put("OnGround", bool(player.onGround()));
-            playerTag.put("Dimension", new NbtTag.Int(0));
+            playerTag.put("Dimension", new NbtTag.Int(playerDimension));
             playerTag.put("playerGameType", new NbtTag.Int(gameType.getID()));
             if (inventory != null) {
                 List<NbtTag> stacks = new ArrayList<>();
@@ -203,6 +215,30 @@ public final class LevelInfo {
                 playerTag.put("Health", new NbtTag.Short((short) Math.ceil(vitals.health())));
                 playerTag.put("Air", new NbtTag.Short((short) vitals.air()));
                 playerTag.put("XpSeed", new NbtTag.Int(vitals.xpSeed()));
+            }
+            if (food != null) {
+                playerTag.put("foodLevel", new NbtTag.Int(food.level()));
+                playerTag.put("foodTickTimer", new NbtTag.Int(food.timer()));
+                playerTag.put("foodSaturationLevel", new NbtTag.Float(food.saturation()));
+                playerTag.put("foodExhaustionLevel", new NbtTag.Float(food.exhaustion()));
+            }
+            playerTag.put("AbsorptionAmount", new NbtTag.Float(absorption));
+            if (effects != null) {
+                // EntityLivingBase.writeEntityToNBT writes the list only when something is active.
+                playerTag.entries().remove("ActiveEffects");
+                if (!effects.isEmpty()) {
+                    List<NbtTag> list = new ArrayList<>();
+                    for (SavedEffect effect : effects) {
+                        NbtTag.Compound tag = new NbtTag.Compound();
+                        tag.put("Id", new NbtTag.Byte((byte) effect.id()));
+                        tag.put("Amplifier", new NbtTag.Byte((byte) effect.amplifier()));
+                        tag.put("Duration", new NbtTag.Int(effect.duration()));
+                        tag.put("Ambient", bool(effect.ambient()));
+                        tag.put("ShowParticles", bool(effect.showParticles()));
+                        list.add(tag);
+                    }
+                    playerTag.put("ActiveEffects", new NbtTag.NbtList(NbtTag.COMPOUND, list));
+                }
             }
             if (experience != null) {
                 playerTag.put("XpLevel", new NbtTag.Int(experience.level()));
@@ -261,6 +297,7 @@ public final class LevelInfo {
             info.player = new PlayerPosition(((NbtTag.Double) pos.values().get(0)).value(),
                 ((NbtTag.Double) pos.values().get(1)).value(), ((NbtTag.Double) pos.values().get(2)).value(),
                 yaw, pitch, byteOr(playerTag, "OnGround", 0) != 0);
+            if (playerTag.get("Dimension") instanceof NbtTag.Int dimension) info.playerDimension = dimension.value() == -1 ? -1 : 0;
         }
         if (data.get("Player") instanceof NbtTag.Compound playerTag) {
             if (playerTag.get("Inventory") instanceof NbtTag.NbtList list) {
@@ -284,6 +321,20 @@ public final class LevelInfo {
                     : playerTag.get("Health") instanceof NbtTag.Short shortHealth ? shortHealth.value() : 20f;
                 int air = playerTag.get("Air") instanceof NbtTag.Short value ? value.value() : 300;
                 info.vitals = new Vitals(health, air, intOr(playerTag, "XpSeed", 0));
+            }
+            if (playerTag.has("foodLevel"))
+                info.food = new Food(intOr(playerTag, "foodLevel", 20),
+                    playerTag.get("foodSaturationLevel") instanceof NbtTag.Float sat ? sat.value() : 5f,
+                    playerTag.get("foodExhaustionLevel") instanceof NbtTag.Float ex ? ex.value() : 0f,
+                    intOr(playerTag, "foodTickTimer", 0));
+            if (playerTag.get("AbsorptionAmount") instanceof NbtTag.Float absorb) info.absorption = absorb.value();
+            if (playerTag.get("ActiveEffects") instanceof NbtTag.NbtList list) {
+                info.effects = new ArrayList<>();
+                for (NbtTag element : list.values()) {
+                    if (!(element instanceof NbtTag.Compound tag)) continue;
+                    info.effects.add(new SavedEffect(byteOr(tag, "Id", 0) & 0xFF, byteOr(tag, "Amplifier", 0),
+                        intOr(tag, "Duration", 0), byteOr(tag, "Ambient", 0) != 0, byteOr(tag, "ShowParticles", 1) != 0));
+                }
             }
             if (playerTag.has("XpLevel"))
                 info.experience = new Experience(intOr(playerTag, "XpLevel", 0),

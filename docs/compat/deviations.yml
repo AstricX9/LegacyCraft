@@ -194,7 +194,8 @@
     neighbour flammability, repeaters locked by a powered side repeater, and
     biome-dependent grass/foliage/water colours (master context §56).
   replica_behavior: >
-    Tile-entity blocks draw the missing-model cube; fluids use FluidMesher
+    Tile-entity blocks draw the missing-model cube, except mob heads, which
+    TileEntitySkullRenderer draws (DEV-037); fluids use FluidMesher
     (sloped corners, flow-oriented texture, DEV-022); flower pots always look empty; fire picks its
     shape from its flammable neighbours (DEV-026); repeater `locked` is always false; grass/foliage
     colours are the fixed `tintColor` constants (spruce/birch leaves, lily
@@ -254,8 +255,8 @@
     for the sun's brightness (day/night) and the gamma slider, sampled per
     vertex like vanilla's (HYPOTHESIS formula). STILL DIFFERENT: no torch
     flicker, lightning or night vision, vanilla's relighting glitches are
-    not reproduced (ours is the exact field), and light is recomputed on
-    load instead of being saved.
+    not reproduced (ours is the exact field). Light is saved with each chunk
+    (chunk format 3); chunks saved by older builds are relit when they load.
   reason: >
     The visible lighting model first; time of day, settings and save
     format are their own slices.
@@ -358,11 +359,9 @@
     work, but pings show "Can't connect to server", joining ends on
     "Failed to connect to the server" with a note that the protocol-47
     client is not implemented, Open to LAN is disabled, Realms shows a
-    notice screen, and packs in resourcepacks/ are listed but cannot be
-    selected because the resource manager only reads the base pack.
+    notice screen. Resource packs now work (DEV-031).
   reason: >
-    Networking and the resource-pack stack are separate milestones (§94
-    Milestone 8, §53).
+    Networking is a separate milestone (§94 Milestone 8).
   compatibility_effect: >
     P0 for multiplayer until protocol 47 lands; the menus themselves follow
     1.8.9.
@@ -408,15 +407,15 @@
     shift-double-click follow the recalled GuiContainer rules (HYPOTHESIS;
     the second press of a shift-double-click keeps the first press's item,
     which the recalled code would clear). But: builtin/entity items
-    draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
+    other than mob heads (DEV-037) draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
     flat double-sided quads; names use the enchantment rarity colours
     (aqua enchanted, yellow enchanted books, white otherwise; other
     rarities are not modelled) and the registry-name tooltip line is
-    omitted; saved inventories use LegacyCraft item names as ids (with
-    vanilla-shaped item tags) and dropped items are not saved with the
-    world; spawn eggs, banners and the enchanted golden apple are listed
-    once each; hearts blink and shake and the air bar shows under water,
-    but there are no mount or boss bars and food never drains (DEV-029).
+    omitted; saved inventories use vanilla item ids and data values
+    (DEV-034) and dropped items are not saved with the world; spawn eggs,
+    banner colours, the enchanted golden apple and the potions are listed
+    as in vanilla (DEV-034; banner patterns are not); hearts blink and shake and the air bar shows under water,
+    the wither's boss bar shows (DEV-037) but there is no mount bar; hunger and effects: DEV-032.
     Enchantments, Fortune and Silk Touch: DEV-029. Worn armour is drawn on
     the player and right-click puts it on (silent, as in 1.8.9), but
     leather can't be dyed (always the default brown).
@@ -441,10 +440,11 @@
     last (0 on the first world of a session), and a biome's top block as last
     set by the surface builder is what caves put back over dirt.
   replica_behavior: >
-    No structures; dungeon chests are empty and spawners have no mob (the
+    No overworld structures (Nether fortresses exist, DEV-036); dungeon chests are empty and spawners have no mob (the
     Random draws spent on the loot are skipped, so the rest of that chunk's
     decoration diverges after a dungeon with a chest); springs are a single
-    still source; no animals; population writes without per-block relighting
+    still source; animals are placed after decoration but only sheep, pigs,
+    chickens and cows appear (DEV-035); population writes without per-block relighting
     and the touched chunks are relit afterwards (mushroom shade, lake grass
     and freezing read a light estimate or the light from before population).
     Big oaks roll their height each tree; mesa spires always use seed 0;
@@ -484,8 +484,8 @@
     session. With the camera in water or lava (surface height included)
     the fog turns dark blue or red and exponential (density 0.1 / 2.0) and
     the view narrows to 60/70 in water. NOT DONE: weather tinting,
-    lightning, blindness, Respiration/Water Breathing, other dimensions'
-    skies, the neighbour-brightness rule (slabs, stairs) for the cave fog
+    lightning, blindness, Respiration/Water Breathing, the End sky (the
+    Nether's flat fog-coloured sky is done, DEV-036), the neighbour-brightness rule (slabs, stairs) for the cave fog
     darkening.
   reason: >
     Weather, status effects and dimensions do not exist yet; the sky is
@@ -509,7 +509,8 @@
     sendCommandFeedback rule, and cheats-off allowing only help, me and
     seed. Selectors (@p/@a/@r/@e) only ever mean the local player. Tab
     completion is local and cycles through matches after listing them.
-    NOT DONE: give, effect, xp, enchant, summon, spawnpoint, defaultgamemode,
+    /summon (Creeper, PrimedTnt, XPOrb; no data tags) and /effect exist (DEV-033).
+    NOT DONE: give, spawnpoint, defaultgamemode,
     tell, scoreboard, setblock/fill/clone and the rest; clear's item
     filters; "gameMode.changed"/death messages for other players;
     /weather changes only the saved weather state (no rain yet).
@@ -548,10 +549,10 @@
     arm raised 3/10 of a half turn and turned 30 degrees in), slows the input
     to a fifth, stops sprinting and pauses mining and clicks until released
     or the held stack changes; it reduces no damage yet (no damage system).
-    Always the default Steve skin. NOT DONE: item use poses (eating,
+    Skin, arm model and cape come from the launcher (DEV-030). NOT DONE: item use poses (eating,
     drinking, bow), maps, the in-block screen overlay, hurt
-    shake and death roll (no damage yet), cape, armour layers,
-    shadow, name tags, the slim (Alex) model and enchantment glint.
+    shake and death roll (no damage yet), armour layers,
+    shadow, name tags and enchantment glint.
   reason: >
     Item use, damage, armour rendering and skins are separate systems not
     built yet.
@@ -605,11 +606,13 @@
     walking, 5.612 sprinting, 1.31 sneaking, about 7 sprint-jumping, a
     1.2492-block jump (1.8 zeroes motion under 0.005), and 10.9 m/s flight
     (PlayerMovementTest); the world is drawn between ticks; water currents
-    push a player who is not flying by 0.014 a tick (DEV-022). NOT DONE:
-    fall damage and hunger (no damage system),
-    potion and enchantment speed changes, and the low-ceiling step path.
+    push a player who is not flying by 0.014 a tick (DEV-022). Speed and
+    Slowness scale walking speed, Jump Boost raises jumps and safe falls
+    (DEV-034), but the view doesn't widen or narrow with speed. NOT DONE:
+    the low-ceiling step path. Fall damage and hunger exhaustion are done
+    (DEV-029, DEV-032).
   reason: >
-    Damage, hunger, potions and water flow do not exist yet.
+    The FOV change waits for the renderer's FOV modifier; the step path is rare.
   compatibility_effect: P2 until damage, hunger and water flow exist.
   user_visible: true
 
@@ -635,7 +638,7 @@
     world rather than per chunk. In Creative the player's fire never burns
     down, only water puts it out (reported from vanilla 1.8.9 play; the
     mechanism is UNKNOWN). NOT DONE: lava igniting blocks (no random
-    block ticks yet; fire itself spreads and burns out, DEV-026), Nether lava speed, springs flowing at generation (DEV-016), and the liquid
+    block ticks yet; fire itself spreads and burns out, DEV-026), springs flowing at generation (DEV-016), and the liquid
     tick skipping chunks whose neighbours are not loaded (only the tick's
     own chunk is checked, so a flow reaching the edge can generate new
     chunks).
@@ -664,10 +667,10 @@
     sneaking or flying) and swimming; splashes of the player and items;
     fizzing (lava meeting water, items hopping in lava, fire put out by
     water); item pickup pops; tool breaking; fire, flowing water, lava and
-    portal ambience; cave ambience; and title, survival and creative music
+    portal ambience; cave ambience; and title, survival, creative and Nether music
     (MusicTicker). NOT DONE: sounds of systems that don't exist yet (mobs,
     damage and falls, doors, chests, buttons and levers, pistons, note
-    blocks, records, weather, explosions, eating, bows, XP), Nether and End
+    blocks, records, weather, explosions, eating, bows, XP), End
     music, the "Unsupported sound" warnings, and sound events whose files
     have capital letters (resource names are lower-cased).
   reason: >
@@ -752,13 +755,15 @@
     Creative) takes the player to the Nether with portal.travel.
   replica_behavior: >
     All of that (HYPOTHESIS: recalled constants and the Size algorithm)
-    except the journey: there is no Nether, so the haze fills and stays
-    while the player stands in the portal and nothing else happens. Burnt
-    TNT just disappears (no TNT entity), items and other entities ignore
+    and the journey works (DEV-036): after the haze fills the player
+    travels to the Nether or back, coordinates divided or multiplied by 8,
+    arriving in the nearest portal within 128 blocks of existing chunks or
+    a newly built one. Burnt
+    TNT lights (DEV-033); items and other entities ignore
     portals, and rain only counts as the level.dat raining flag (no
     weather strength or rendering).
-  reason: The Nether dimension, entities and weather are not built yet.
-  compatibility_effect: P2 until the Nether exists.
+  reason: Entity portal travel and weather are not built yet.
+  compatibility_effect: P2.
   user_visible: true
 
 - id: DEV-027
@@ -837,11 +842,11 @@
   replica_behavior: >
     All of the above with recalled constants (HYPOTHESIS), with these
     differences. Sharpness, Smite, Bane of Arthropods, Knockback, Fire
-    Aspect, Looting, Thorns, Power, Punch, Flame, Infinity, Luck of the Sea
-    and Lure can be rolled, combined and shown but do nothing (no mobs,
-    bows or fishing yet). Blast and Projectile Protection never apply (no
-    explosions or projectiles). Anvils don't fall. Food never drains, so
-    hunger never harms (peaceful and full-food regeneration work). The
+    Aspect and Looting work on mobs (DEV-033); Thorns, Power, Punch, Flame,
+    Infinity, Luck of the Sea and Lure can be rolled, combined and shown
+    but do nothing (no bows, fishing or mobs that hit through armour yet).
+    Projectile Protection never applies (no projectiles). Anvils don't fall. Hunger and starving:
+    DEV-032. The
     enchanting table's book and tables are found by scanning loaded chunks
     rather than kept as tile entities, and the in-world book is lit by the
     table's light with glColor rather than the lightmap. Closing the table
@@ -858,4 +863,339 @@
   compatibility_effect: >
     P2: enchanting, anvils and armour enchantments play like vanilla;
     weapon and tool-less enchantments are cosmetic for now.
+  user_visible: true
+- id: DEV-030
+  subsystem: launcher, skins and capes
+  vanilla_behavior: >
+    Launcher 1.6.x (Update Notes from the Tumblr page, Launcher Log, Profile
+    Editor, the profile/Play/player bottom bar) logs in to a Mojang account;
+    the client downloads the account's skin (64x64, or 64x32 converted by
+    ImageBufferDownload), its model (classic or slim "Alex" arms) and, for
+    the few accounts that have one, a Mojang cape. LayerCape hangs the cape
+    from the shoulders and swings it from the chasing position. Skin
+    Customization toggles the cape and each outer-layer part.
+  replica_behavior: >
+    The launcher (launcher/) recreates the 1.6 layout offline: no login,
+    Switch User only sets the name, and a new "Skins & Capes" tab keeps a
+    local library of skins (Steve and Alex built in) and user-supplied capes.
+    Play passes --username, --skin (converted to 64x64 the 1.8 way),
+    --skinModel and --cape. The client draws the chosen skin, slim arms when
+    asked, and the cape with recalled LayerCape maths (HYPOTHESIS), and now
+    honours the Skin Customization toggles. The launcher's own news page,
+    default "hide launcher" visibility and JVM-argument passing
+    (LEGACYCRAFT_JVM_ARGS read by build.gradle) are listed in launcher/README.md.
+  reason: >
+    Mojang's account, skin and cape services can't be used offline
+    (master context section 112); choosing a cape is a requested addition.
+  compatibility_effect: >
+    P3: in vanilla any account can change its skin but only some have
+    capes; here anyone can wear any cape locally. Nothing is sent anywhere.
+  user_visible: true
+
+- id: DEV-031
+  subsystem: resource packs and mipmaps
+  vanilla_behavior: >
+    ResourcePackRepository lists the zip files and pack folders in
+    resourcepacks/; the Select Resource Packs screen moves them between
+    Available and Selected and reorders them with the resource_packs.png
+    arrows, asks before loading a pack whose pack_format isn't 1, and on Done
+    refreshResources() reloads every resource behind the Mojang loading
+    screen. Each resource comes from the highest pack that has it, its
+    .mcmeta from the highest pack at or above that one; lang files and
+    sounds.json are merged across packs ("replace" in sounds.json). F3+T
+    reloads too. The block atlas (blocks and items) is stitched by Stitcher
+    with sprites rounded up to 2^mipmapLevels, the level is lowered until
+    every sprite halves evenly, and TextureUtil.generateMipmapData builds the
+    levels in linear light, dropping alpha below 96 when a sprite has
+    transparent pixels; changing Mipmap Levels schedules a full reload.
+  replica_behavior: >
+    All of the above (HYPOTHESIS: recalled mip blending and GUI layout), with
+    these differences: the Mojang screen (from the built-in pack) shows while
+    the game starts and while resources reload; Mipmap Levels reloads when the slider is let go rather than on
+    every step; the atlas is shelf-packed in listing order (sprite positions
+    differ, nothing visible) and holds every textures/blocks PNG from all
+    packs rather than only those models use; item sprites are separate
+    textures with the same mip chain instead of sharing the block atlas;
+    packs can't replace files in the legacycraft namespace (game data); file
+    names are matched without regard to case; server resource packs don't
+    exist (no multiplayer, DEV-013).
+  reason: >
+    The rest of the reload machinery (loading screen, scheduled refresh) and
+    a vanilla Stitcher add nothing a player sees; game data stays
+    authoritative so a pack can only change looks and sounds.
+  compatibility_effect: >
+    P3: packs load, stack and look as in 1.8.9.
+  user_visible: true
+- id: DEV-032
+  subsystem: hunger, eating and potion effects
+  vanilla_behavior: >
+    FoodStats: 20 food and 5 saturation to start; exhaustion (jumping 0.2,
+    sprint-jumping 0.8, sprinting 0.1/m, walking 0.01/m, swimming 0.015/m,
+    breaking a harvestable block 0.025, taking armour-blockable damage 0.3,
+    healing 3, Hunger 0.025 per level a tick) takes 1 saturation, then 1
+    food, per 4 points; at 18+ food a hurt player heals 1 every 80 ticks; at
+    0 food starvation deals 1 every 80 ticks down to 10 health (Easy), 1
+    (Normal) or death (Hard); Peaceful heals 1 a second and refills 1 food
+    every 10 ticks; sprinting needs more than 6 food. Food takes 32 ticks
+    to eat (only when hungry, golden apples always, never in Creative) with
+    crumbs and munching every 4 ticks over the last 25, a burp and the food
+    and saturation added at the end; stews leave a bowl; milk clears every
+    effect and leaves the bucket; cake gives 2 food and 0.4 saturation a
+    slice in 7 bites. Food effects: golden apple Absorption 2:00 and
+    Regeneration II 0:05, raw chicken 30% and rotten flesh 80% Hunger 0:30,
+    spider eye Poison 0:05, poisonous potato 60% Poison 0:05, pufferfish
+    Poison IV 1:00, Hunger III 0:15, Nausea II 0:15. Effects tick, combine
+    (stronger replaces, equal extends) and save in ActiveEffects with
+    AbsorptionAmount and the food tags; Resistance takes 20% per level,
+    Fire Resistance blocks fire, Absorption soaks damage first. The HUD
+    shows golden, poison and wither hearts, the regeneration wave, green
+    Hunger shanks and the shaking bar when saturation is gone; the
+    inventory lists active effects at its left; Nausea warps the view.
+    Effects also swirl particles around the player and their colour tints
+    them.
+  replica_behavior: >
+    All of the above with recalled constants (HYPOTHESIS; walking's 0.01/m
+    especially), with these differences: no effect particles yet (they come
+    with the entity renderer in the animals milestone); potions and the
+    enchanted golden apple now exist (DEV-034) but there is no brewing;
+    item crumbs are cut from the item's own sprite
+    texture (vanilla: the block atlas, same pixels); the effect list draws
+    under item tooltips instead of over them; eating, drinking and the
+    effect icons have no statistics or achievements.
+  reason: >
+    Effect particles need entity rendering; potions need brewing.
+  compatibility_effect: >
+    P2: survival food, starving and food effects play like 1.8.9.
+  user_visible: true
+- id: DEV-033
+  subsystem: mobs (creeper), lit TNT, explosions and experience orbs
+  vanilla_behavior: >
+    EntityLivingBase/EntityLiving: health, the 10-tick red flash and
+    20-tick protection window, 0.4 knockback away from an attacker,
+    burning, lava, drowning, suffocation and fall damage, dying (tipping
+    over 20 ticks, a puff of smoke, drops, experience orbs when the player
+    killed it), the AI task lists (EntityAITasks, mutex bits, every 3rd
+    tick), PathNavigateGround with WalkNodeProcessor/PathFinder, move,
+    look, jump and body helpers, pushing, despawning (128 at once, 32 after
+    600 idle ticks at 1/800) and the hostile spawn cycle
+    (SpawnerAnimals). The creeper: 20 health, speed 0.25, hunts a visible
+    player within 16, swells for 30 ticks within 3 blocks (stops beyond 7
+    or out of sight), explodes with strength 3 (blocks only with
+    mobGriefing), falls shorten the fuse, flint and steel lights it, drops
+    0-2 gunpowder, 5 XP, swelling and flashing white when drawn. TNT is
+    lit by flint and steel, fire, redstone and explosions (10-29 tick
+    fuse), hops, smokes and after 80 ticks explodes with strength 4.
+    Explosions: 1352 rays losing 0.225 a 0.3-block step and (resistance +
+    0.3) x 0.3 per block; entities within 2x strength take
+    (i^2+i)/2 x 7 x 2 x strength + 1 (i = closeness x exposure), are pushed
+    by i, the player's damage scaled by difficulty; broken blocks drop
+    with chance 1/strength; the sound, flashes and puffs. Players hit mobs
+    with their weapon's attack damage, critical hits while falling,
+    Sharpness, Knockback/sprint knockback, Fire Aspect and Looting, swords
+    wearing 1 and tools 2. Orbs drift to the player and add experience.
+    /summon and /effect.
+  replica_behavior: >
+    All of the above (HYPOTHESIS: recalled constants), with these
+    differences. In the overworld only creepers and skeletons exist: the
+    spawn cycle still draws from the whole biome monster list (other draws
+    spawn nothing) and the cap of 70 is cut to their share so they are as
+    common as in vanilla. Nether mobs are DEV-036. Spawning starts at most 7 chunks away only where chunks are
+    loaded. Entities are saved together in entities.dat (vanilla keeps them
+    in their chunks) and only tick in loaded chunks; dropped items are
+    still not saved. The pathfinder searches at most 2000 points, its
+    shortcut check (isDirectPathBetweenPoints) is simplified, doors and
+    trapdoors are treated by their collision boxes, and wandering ignores
+    homes. TNT isn't lit by redstone (no redstone power yet). Creepers
+    aren't charged by lightning and don't flee ocelots (neither exists).
+    Spawn eggs hatch creepers (DEV-034); eggs of other mobs do nothing.
+    /summon takes no data tag. Effect particles still don't swirl (DEV-032).
+  reason: >
+    The first mob and explosions, built as the base the other mobs will
+    share; redstone, lightning and other mobs are later milestones.
+  compatibility_effect: >
+    P2: creepers, TNT and explosions play like 1.8.9 in survival.
+  user_visible: true
+
+- id: DEV-034
+  subsystem: item IDs, data values and variants (potions, spawn eggs, Notch apple, /give)
+  vanilla_behavior: >
+    1.8.9 items are an ID plus a data value: red dye is minecraft:dye 1,
+    charcoal coal 1, salmon fish 1, wool its block with the colour. Saves,
+    /give and the advanced tooltip use these. The golden apple has an
+    enchanted variant (data 1, crafted from 8 gold blocks, pink name,
+    glint, Absorption 2:00, Regeneration V 0:30, Resistance and Fire
+    Resistance 5:00). Spawn eggs (data = entity id) hatch their mob on a
+    block or a liquid source, used up outside Creative. Potions are
+    data values: the low bits pick the effect, 32 is level II, 64 extended,
+    8192 drinkable, 16384 splash (3/4 time). Drinking gives the effects and
+    an empty bottle; splash potions are thrown (0.5 velocity, 20 degrees up,
+    0.05 gravity) and affect everything within 4 blocks by nearness, with
+    a coloured burst of spell particles and the smash sound. Glass bottles
+    fill from water sources. The drawn bow and the cast rod are model
+    states, not items. /give player item [amount] [data].
+  replica_behavior: >
+    LegacyCraft keeps one item per vanilla model (dye_red, charcoal...) and
+    ties each to its vanilla ID and data value from the creative tab data;
+    the enchanted golden apple, 27 spawn eggs, 16 banner colours and the
+    potions are variants made on load (other potion data values on demand),
+    named, tinted, glinted and coloured like vanilla. Saves write the
+    vanilla ID and data; old saves with LegacyCraft names still load. All
+    of the above works (HYPOTHESIS: recalled constants), with these
+    differences: only the creeper, pig, cow, sheep and chicken hatch
+    (DEV-035; other eggs swing but do nothing; spawners aren't eggable); mobs only feel instant Healing and
+    Harming from splashes (they have no other effects); only living things
+    stop a thrown potion (not TNT or items); brewing doesn't exist (potions
+    come from Creative or /give); Speed, Slowness, Jump Boost, Strength,
+    Weakness, Water Breathing and Night Vision work, Invisibility does
+    nothing yet (the third-person player isn't hidden and creepers still
+    see you) and Night Vision doesn't brighten fog; there are no
+    effect swirl particles around the player (DEV-032); the bow has no
+    drawing yet, so its pulling models are wired but never shown, and the
+    cast rod needs fishing. /give takes no data tag; unknown data values
+    fall back to the item's base (vanilla gives a broken-looking item);
+    Creative /give into a full inventory drops instead of deleting.
+  reason: >
+    Vanilla data values make saves, commands and the creative inventory
+    line up with 1.8.9 without merging LegacyCraft's per-model items.
+  compatibility_effect: >
+    P2: /give, potions, spawn eggs and the Notch apple behave like 1.8.9.
+  user_visible: true
+
+- id: DEV-035
+  subsystem: farm animals (pig, cow, sheep, chicken), thrown eggs and snowballs
+  vanilla_behavior: >
+    EntityAnimal/EntityAgeable: babies start at -24000 and grow up, adults
+    wait 6000 ticks after breeding; feeding an adult its food (pigs carrots,
+    cows and sheep wheat, chickens seeds) puts it in love for 600 ticks and
+    two in love within 8 blocks have a baby (1-7 experience, Repopulation);
+    feeding a baby takes 10% off its wait; a spawn egg on an animal of its
+    kind hatches a baby. AI: swim, panic when hurt or burning, mate, follow
+    a player holding their food, babies follow adults, wander, watch the
+    player, look around; sheep eat tall grass or grass (to dirt) to regrow
+    wool. Pig 10 health 0.25 speed; cow 10/0.2 (milk with a bucket); sheep
+    8/0.23 (shears give 1-3 wool, dye recolours, natural colours mostly
+    white, lambs mix their parents' dyes); chicken 4/0.25 (flaps, falls
+    slowly, never takes fall damage, lays an egg every 5-10 minutes). Drops
+    with looting, cooked when burning, none from babies; 1-3 experience.
+    Animals never despawn. World generation places groups from the biome's
+    creature list after decoration (10% chance repeated); natural spawning
+    runs every 400 ticks with a cap of 10, on grass in light above 8.
+    Models: ModelPig, ModelCow, ModelSheep1/2 with the tinted fleece layer,
+    ModelChicken; babies have full-size heads; shadows 0.7 (chicken 0.3),
+    half for babies. Hearts when in love, green sparkles when a baby is fed.
+    Thrown eggs (1 in 8 hatch a chick, 1 in 32 of those four) and snowballs
+    do no damage but knock back.
+  replica_behavior: >
+    All of the above (HYPOTHESIS: recalled constants), with these
+    differences: only these four animals exist, so creature-list entries
+    for horses, wolves, rabbits, ocelots and mooshrooms keep their weight
+    but spawn nothing (mushroom islands stay empty); pigs can't be saddled
+    or ridden and lightning doesn't make pigmen; a lamb's colour uses a
+    fixed table of two-dye recipes; chicken jockeys don't exist; animals in
+    chunks generated before this update weren't placed, so old areas only
+    fill slowly through natural spawning. Animals are saved in entities.dat
+    with the rest (vanilla keeps them per chunk) and only tick in loaded
+    chunks; snowballs hit nothing that takes damage from them (no blazes).
+  reason: >
+    The passive mobs bring the world to life and share EntityAnimal for the
+    horses, wolves and rabbits that come later.
+  compatibility_effect: >
+    P2: farming, breeding and animal drops play like 1.8.9.
+  user_visible: true
+
+- id: DEV-036
+  subsystem: the Nether (dimension, travel, terrain, fortresses, Nether mobs, skeletons, bows)
+  vanilla_behavior: >
+    The Nether (dimension -1, saved in DIM-1) has no sky light, no weather,
+    a flat fog-coloured sky, red fog that thickens with distance, a light
+    floor of 0.1, water that evaporates and lava that flows every 10 ticks
+    up to 7 blocks. ChunkProviderHell builds it from seven octave noises on
+    a 5x17x5 grid: netherrack, lava seas below y 32, soul sand and gravel
+    bands near y 64, bedrock at both ends, wide Nether caves; population
+    adds lava springs, fire, glowstone clusters, mushrooms, quartz ore and
+    hidden lava. Portals scale coordinates by 8 and the Teleporter reuses
+    the nearest portal within 128 blocks or builds a new 2x3 portal with an
+    obsidian platform. Nether fortresses (MapGenNetherBridge, StructureNetherBridgePieces)
+    grow from a start piece by weighted piece lists within 112 blocks,
+    with a blaze spawner in the throne room, a lava well and nether wart in
+    the stalk rooms; started fortresses are saved in DIM-1/data/Fortress.dat
+    (MapGenStructureData NBT: Features keyed "[x,z]", each start with its
+    BB and Children pieces NeStart, NeBS, NeMT and so on). Mobs: ghasts (fly, shoot explosive fireballs that can
+    be batted back), zombie pigmen (golden swords, anger shared with nearby
+    pigmen), magma cubes (split on death, jump in lava),
+    blazes (hover, three small fireballs per volley) and wither skeletons
+    in fortresses; skeletons in the overworld with bows. The Nether spawn
+    lists are ghast 50, zombie pigman 100, magma cube 1 (fortress: blaze
+    10, zombie pigman 5, magma cube 3, skeleton 10). Arrows fly with 0.05
+    gravity, stick in blocks and can be picked up; bows draw over 20 ticks
+    and zoom the view.
+  replica_behavior: >
+    All of the above (HYPOTHESIS: recalled constants, noise and piece
+    layouts, NetherTest, NetherMobTest), with these differences: Nether
+    decoration seeds its Random per chunk instead of carrying it over from
+    terrain generation, so ore and glowstone placement differs from
+    vanilla for the same seed; the Teleporter only searches chunks that
+    are loaded or saved (vanilla generates chunks while searching); only
+    the dimension the player is in ticks; entities other than the player
+    don't use portals and portals don't spawn zombie pigmen; beds don't
+    explode in the Nether (no beds yet); fortress chests are empty and
+    spawners don't show the spinning mob; fortress generation is clipped
+    to the chunk being populated, so pieces only appear in chunks
+    generated after this update (the whole Nether is new, so all of it);
+    the ghast model follows the recalled geometry and may float a little
+    above its hitbox. The overworld spawn cap is cut to the share of the
+    monsters that exist (creeper and skeleton).
+  reason: >
+    The user asked for the Nether with its mobs, fortresses included;
+    the entity and projectile base (arrows, fireballs) carries over to
+    later mobs.
+  compatibility_effect: >
+    P2: Nether travel, terrain, fortresses and its mobs play like 1.8.9;
+    seeds produce the same terrain shape but different decoration.
+  user_visible: true
+
+- id: DEV-037
+  subsystem: mob heads and the wither
+  vanilla_behavior: >
+    Mob heads (item skull 0 skeleton, 1 wither skeleton, 2 zombie, 3 player,
+    4 creeper) are placed on the floor (turned to the nearest sixteenth of
+    the player's facing) or on a wall, never under a block, and keep their
+    type and rotation in TileEntitySkull (SkullType, Rot); they drop
+    themselves unless broken in Creative (the nodrop bit) and fit the helmet
+    slot, drawn on the wearer's head 1.1875x. TileEntitySkullRenderer draws
+    ModelSkeletonHead (64x32) or ModelHumanoidHead (64x64 with the hat);
+    items use TileEntityItemStackRenderer with the item model's display
+    transforms. Placing a wither skeleton skull that completes the pattern
+    "^^^" / "###" / "~#~" (skulls, soul sand, air; any orientation; y of
+    at least 2; not on Peaceful) removes it and builds the wither (spawnWither
+    for players within 50). The wither: 300 health, 4 armour, speed 0.6,
+    0.9 x 3.5, fire-immune, undead, always lit, never despawns; it swells
+    for 220 ticks from a third of its health (invulnerable, healing 10 every
+    10 ticks), then explodes with strength 7 and the spawn roar is heard
+    everywhere. The middle head shoots its target every 40 ticks within 20
+    blocks (EntityAIArrowAttack); the side heads pick any non-undead living
+    thing within 20 blocks (8 vertical), shoot every 40-59 ticks within 30,
+    and on Normal/Hard fire a blue skull at a random spot after 16 idle
+    looks. It climbs toward its target and hovers 5 blocks above it until,
+    below half health, it is armoured (arrows bounce off, the scrolling
+    aura). Hurt, it breaks the 3x4x3 blocks around it after 20 ticks; it
+    heals 1 a second; drops a nether star that lasts 10 minutes and survives
+    explosions, and 50 experience (killWither). Wither skulls: 8 damage
+    (heal the wither 5 on a kill), Wither II for 10 s (Normal) or 40 s
+    (Hard), explosion 1; blue skulls are slower (0.73) and cap block
+    resistance at 0.8. The boss bar shows its health and name at the top.
+  replica_behavior: >
+    All of the above (HYPOTHESIS: recalled constants and model geometry,
+    WitherTest), with these differences: player heads are always Steve
+    (no SkullOwner); placing a head is silent; heads are saved in
+    skulls.lcs (vanilla keeps TileEntitySkull per chunk); mobs other than
+    the player can't take potion effects, so skulls only wither the
+    player; the middle head only targets the player (side heads target
+    any living thing); charged creepers don't exist, so only wither
+    skeleton skulls drop naturally; dispensers can't build a wither.
+  reason: >
+    The user asked for the wither and mob heads; heads are needed to build
+    the wither either way.
+  compatibility_effect: >
+    P2: heads and the wither play like 1.8.9.
   user_visible: true

@@ -9,6 +9,13 @@ public record AxisAlignedBB(double minX, double minY, double minZ, double maxX, 
         return new AxisAlignedBB(minX / 16, minY / 16, minZ / 16, maxX / 16, maxY / 16, maxZ / 16);
     }
 
+    /** AxisAlignedBB.expand: grown by these amounts on both sides of each axis. */
+    public AxisAlignedBB grow(double x, double y, double z) {
+        return new AxisAlignedBB(minX - x, minY - y, minZ - z, maxX + x, maxY + y, maxZ + z);
+    }
+
+    public AxisAlignedBB grow(double amount) { return grow(amount, amount, amount); }
+
     public AxisAlignedBB offset(double x, double y, double z) {
         return new AxisAlignedBB(minX + x, minY + y, minZ + z, maxX + x, maxY + y, maxZ + z);
     }

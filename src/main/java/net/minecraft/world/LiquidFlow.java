@@ -42,7 +42,11 @@ final class LiquidFlow {
         air = registry.air();
     }
 
-    static int tickRate(String material) { return material.equals("lava") ? LAVA_TICKS : WATER_TICKS; }
+    /** BlockLiquid.tickRate: water 5, lava 30 (10 in the Nether). */
+    int tickRate(String material) {
+        if (!material.equals("lava")) return WATER_TICKS;
+        return world.dimension() == Dimension.NETHER ? 10 : LAVA_TICKS;
+    }
 
     boolean isFlowing(Block block) { return block == flowingWater || block == flowingLava; }
 
@@ -95,7 +99,8 @@ final class LiquidFlow {
     void tick(int x, int y, int z, BlockState state, Random random) {
         String material = Liquids.liquid(state.block());
         int level = state.metadata();
-        int step = material.equals("lava") ? 2 : 1;
+        // BlockDynamicLiquid: lava loses 2 levels a block, only 1 in the Nether.
+        int step = material.equals("lava") && world.dimension() != Dimension.NETHER ? 2 : 1;
         int delay = tickRate(material);
         if (level > 0) {
             int lowest = -100;

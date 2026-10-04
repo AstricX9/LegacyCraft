@@ -83,7 +83,7 @@ public class Particle {
 
     public boolean isDead() { return dead; }
 
-    /** 0: particles.png; 1: the block atlas. */
+    /** 0: particles.png; 1: the block atlas; 2: an item's own sprite. */
     public int layer() { return 0; }
 
     public void tick() {

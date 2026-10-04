@@ -32,6 +32,13 @@ import static org.lwjgl.opengl.GL11.*;
  * HYPOTHESIS for the timing rules: "frametime" ticks per frame, default 1;
  * "frames" entries are indices or {"index", "time"}; "interpolate" blends
  * towards the next frame on the ticks in between).
+ *
+ * <p>Mipmaps (Video Settings "Mipmap Levels", 0-4) follow TextureMap: the
+ * level is lowered until every sprite halves evenly down to one pixel, each
+ * sprite gets its own mip chain ({@link Mipmaps}), slots are aligned to
+ * 2^levels so no level samples a neighbour, and animated sprites re-upload
+ * every level of the frame they switch to. The atlas grows past 512 pixels
+ * wide when a high-resolution resource pack needs the room.
  */
 public final class TextureAtlas {
     public record Tile(float u0, float v0, float u1, float v1) {}
@@ -99,11 +106,14 @@ public final class TextureAtlas {
     /** Where a sprite sits in the atlas, in pixels. */
     public record Slot(int x, int y, int width, int height) {}
 
-    private record Animated(Slot slot, BufferedImage strip, Animation animation) {}
+    private record Animated(Slot slot, BufferedImage strip, Animation animation, Map<Integer, int[][]> frameMips) {}
 
     private static final int ATLAS_WIDTH = 512;
+    private int requestedLevels = 4;
+    private int levels;
 
-    private final Map<ResourceLocation, Tile> tiles = new HashMap<>();
+    /** Replaced whole on (re)load: chunk meshes read it from worker threads. */
+    private volatile Map<ResourceLocation, Tile> tiles = new HashMap<>();
     private final List<Animated> animated = new ArrayList<>();
     private final IResourceManager resources;
     private int textureId;
@@ -119,11 +129,14 @@ public final class TextureAtlas {
      * is as tall as its tallest sprite. Returns the slots and, as the last
      * element, the atlas size (x = width, y = height).
      */
-    public static List<Slot> pack(List<int[]> sizes) {
+    public static List<Slot> pack(List<int[]> sizes) { return pack(sizes, ATLAS_WIDTH); }
+
+    /** {@link #pack(List)} into an atlas {@code atlasWidth} pixels wide. */
+    public static List<Slot> pack(List<int[]> sizes, int atlasWidth) {
         List<Slot> slots = new ArrayList<>();
         int x = 0, y = 0, rowHeight = 0;
         for (int[] size : sizes) {
-            if (x + size[0] > ATLAS_WIDTH) {
+            if (x + size[0] > atlasWidth) {
                 x = 0;
                 y += rowHeight;
                 rowHeight = 0;
@@ -134,8 +147,22 @@ public final class TextureAtlas {
         }
         int height = Integer.highestOneBit(Math.max(1, y + rowHeight));
         if (height < y + rowHeight) height <<= 1;
-        slots.add(new Slot(ATLAS_WIDTH, height, 0, 0));
+        slots.add(new Slot(atlasWidth, height, 0, 0));
         return slots;
+    }
+
+    /** Sets the wanted mipmap level (0 = off); takes effect on the next {@link #load} or {@link #reload}. */
+    public void setMipmapLevels(int requested) { this.requestedLevels = Math.max(0, Math.min(4, requested)); }
+
+    /** The mipmap level actually in use (may be lower than requested, see the class comment). */
+    public int mipmapLevels() { return levels; }
+
+    /** Throws the textures away and builds the atlas again from the current resource packs. */
+    public void reload() {
+        destroy();
+        textureId = widgetsTextureId = iconsTextureId = 0;
+        animated.clear();
+        load();
     }
 
     public void load() {
@@ -149,7 +176,8 @@ public final class TextureAtlas {
         if (ordered.isEmpty()) throw new IllegalStateException("The 1.8.9 block texture pack is empty");
         List<BufferedImage> images = new ArrayList<>();
         List<Animation> animations = new ArrayList<>();
-        List<int[]> sizes = new ArrayList<>();
+        List<int[]> frameSizes = new ArrayList<>();
+        int levels = requestedLevels;
         for (ResourceLocation name : ordered) {
             BufferedImage image = read(name);
             int width = image.getWidth(), height = image.getHeight();
@@ -157,39 +185,64 @@ public final class TextureAtlas {
             if (height > width && height % width == 0) animation = Animation.parse(readMeta(name), height / width);
             images.add(image);
             animations.add(animation);
-            sizes.add(new int[]{width, animation != null ? width : height});
+            int frameHeight = animation != null ? width : height;
+            frameSizes.add(new int[]{width, frameHeight});
+            int limit = Mipmaps.maxLevels(width, frameHeight, levels);
+            if (limit < levels) {
+                System.err.println("Texture " + name + " with size " + width + "x" + frameHeight
+                    + " limits mip level from " + levels + " to " + limit);
+                levels = limit;
+            }
         }
-        List<Slot> slots = pack(sizes);
+        this.levels = levels;
+        int align = 1 << levels;
+        List<int[]> sizes = new ArrayList<>();
+        long area = 0;
+        for (int[] frame : frameSizes) {
+            int w = (frame[0] + align - 1) / align * align, h = (frame[1] + align - 1) / align * align;
+            sizes.add(new int[]{w, h});
+            area += (long) w * h;
+        }
+        int maxSize = Math.max(ATLAS_WIDTH, glGetInteger(GL_MAX_TEXTURE_SIZE));
+        int atlasWidth = ATLAS_WIDTH;
+        while (atlasWidth < maxSize && (long) atlasWidth * atlasWidth < area) atlasWidth <<= 1;
+        List<Slot> slots = pack(sizes, atlasWidth);
+        while (atlasWidth < maxSize && slots.get(slots.size() - 1).y() > atlasWidth) slots = pack(sizes, atlasWidth <<= 1);
         Slot size = slots.get(slots.size() - 1);
         int width = size.x(), height = size.y();
-        BufferedImage atlas = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        if (height > maxSize) System.err.println("Block atlas " + width + "x" + height + " exceeds the GPU's " + maxSize + " limit");
+
+        Map<ResourceLocation, Tile> tiles = new HashMap<>();
+        int[][] atlasLevels = new int[levels + 1][];
+        for (int level = 0; level <= levels; level++) atlasLevels[level] = new int[(width >> level) * (height >> level)];
         for (int i = 0; i < ordered.size(); i++) {
-            Slot slot = slots.get(i);
+            Slot packed = slots.get(i);
+            int[] frame = frameSizes.get(i);
+            Slot slot = new Slot(packed.x(), packed.y(), frame[0], frame[1]);
             BufferedImage image = images.get(i);
             Animation animation = animations.get(i);
-            int frameY = animation != null ? animation.current() * slot.height() : 0;
-            for (int py = 0; py < slot.height(); py++)
-                for (int px = 0; px < slot.width(); px++)
-                    atlas.setRGB(slot.x() + px, slot.y() + py, image.getRGB(px, frameY + py));
+            int[][] mips = Mipmaps.generate(framePixels(image, animation != null ? animation.current() : 0, slot),
+                slot.width(), levels);
+            for (int level = 0; level <= levels; level++) {
+                int w = slot.width() >> level, h = slot.height() >> level, atlasW = width >> level;
+                int ox = slot.x() >> level, oy = slot.y() >> level;
+                for (int py = 0; py < h; py++)
+                    System.arraycopy(mips[level], py * w, atlasLevels[level], (oy + py) * atlasW + ox, w);
+            }
             float inset = 0.02f;
             tiles.put(ordered.get(i), new Tile(
                 (slot.x() + inset) / width, (slot.y() + inset) / height,
                 (slot.x() + slot.width() - inset) / width, (slot.y() + slot.height() - inset) / height));
-            if (animation != null) animated.add(new Animated(slot, image, animation));
+            if (animation != null) animated.add(new Animated(slot, image, animation, new HashMap<>()));
         }
-
-        ByteBuffer pixels = BufferUtils.createByteBuffer(width * height * 4);
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++) put(pixels, atlas.getRGB(x, y));
-        pixels.flip();
 
         textureId = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, textureId);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        Mipmaps.setFiltering(levels);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        Mipmaps.upload(atlasLevels, width, height);
+        this.tiles = tiles;
         widgetsTextureId = loadGuiTexture(new ResourceLocation("minecraft:textures/gui/widgets.png"));
         iconsTextureId = loadGuiTexture(new ResourceLocation("minecraft:textures/gui/icons.png"));
     }
@@ -210,20 +263,29 @@ public final class TextureAtlas {
         }
     }
 
-    private static void upload(Animated sprite, Animation animation) {
+    private void upload(Animated sprite, Animation animation) {
         Slot slot = sprite.slot();
-        int w = slot.width(), h = slot.height();
-        int from = animation.current() * h, to = animation.next() * h;
+        int w = slot.width();
         double blend = animation.interpolate ? animation.blend() : 0;
-        ByteBuffer pixels = BufferUtils.createByteBuffer(w * h * 4);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                int argb = sprite.strip().getRGB(x, from + y);
-                if (blend > 0) argb = mix(argb, sprite.strip().getRGB(x, to + y), blend);
-                put(pixels, argb);
-            }
-        pixels.flip();
-        glTexSubImage2D(GL_TEXTURE_2D, 0, slot.x(), slot.y(), w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        int[][] mips;
+        if (blend > 0) {
+            int[] pixels = framePixels(sprite.strip(), animation.current(), slot);
+            int[] next = framePixels(sprite.strip(), animation.next(), slot);
+            for (int i = 0; i < pixels.length; i++) pixels[i] = mix(pixels[i], next[i], blend);
+            mips = Mipmaps.generate(pixels, w, levels);
+        } else {
+            mips = sprite.frameMips().computeIfAbsent(animation.current(),
+                frame -> Mipmaps.generate(framePixels(sprite.strip(), frame, slot), w, levels));
+        }
+        Mipmaps.uploadSub(mips, slot.x(), slot.y(), w, slot.height());
+    }
+
+    /** One frame of a sprite strip as ARGB pixels, row by row. */
+    private static int[] framePixels(BufferedImage strip, int frame, Slot slot) {
+        int w = slot.width(), h = slot.height();
+        int[] pixels = new int[w * h];
+        strip.getRGB(0, frame * h, w, h, pixels, 0, w);
+        return pixels;
     }
 
     /** Colour channels blended towards {@code next}; alpha stays the current frame's (TextureAtlasSprite.interpolateColor). */
@@ -244,9 +306,8 @@ public final class TextureAtlas {
     }
 
     private JsonObject readMeta(ResourceLocation texture) {
-        ResourceLocation meta = new ResourceLocation(texture.toString() + ".mcmeta");
-        if (!resources.exists(meta)) return null;
-        try (InputStream stream = resources.open(meta)) {
+        try (InputStream stream = resources.openMetadata(texture)) {
+            if (stream == null) return null;
             return JsonParser.parseReader(new InputStreamReader(stream, StandardCharsets.UTF_8)).getAsJsonObject();
         } catch (IOException | RuntimeException error) {
             return null;

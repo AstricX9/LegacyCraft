@@ -69,7 +69,21 @@ public final class EnchantmentHelper {
     }
 
     /** Whether the stack shows the enchantment glint (Item.hasEffect): enchanted, or an enchanted book. */
-    public static boolean hasGlint(ItemStack stack) { return stack != null && (stack.isEnchanted() || isEnchantedBook(stack)); }
+    public static boolean hasGlint(ItemStack stack) {
+        return stack != null && (stack.isEnchanted() || isEnchantedBook(stack) || hasEffect(stack.item()));
+    }
+
+    /**
+     * Items that always shine (Item.hasEffect overrides): the enchanted golden
+     * apple, potions with effects, bottles o' enchanting, nether stars and
+     * written books.
+     */
+    public static boolean hasEffect(net.minecraft.item.Item item) {
+        if (item.kind() == net.minecraft.item.Item.Kind.ENCHANTED_APPLE) return true;
+        String id = item.vanillaId().path();
+        if (id.equals("potion")) return !net.minecraft.item.Potions.effects(item.vanillaData()).isEmpty();
+        return id.equals("experience_bottle") || id.equals("nether_star") || id.equals("written_book");
+    }
 
     // ---- the enchanting table ---------------------------------------------------------------
 

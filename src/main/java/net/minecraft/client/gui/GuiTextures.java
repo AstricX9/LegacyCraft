@@ -20,6 +20,10 @@ import static org.lwjgl.opengl.GL11.*;
  * from the resource pack and kept until {@link #destroy()}. Sampling is
  * nearest-neighbour and repeating, which is what 1.8.9 uses for these sheets
  * (the tiled dirt background depends on the repeat).
+ *
+ * <p>Item and block sprites bound one by one through here (held and dropped
+ * items) get the same mipmaps as the block atlas, since in vanilla they share
+ * that atlas; GUI sheets never do.
  */
 public final class GuiTextures {
     public static final ResourceLocation WIDGETS = new ResourceLocation("minecraft:textures/gui/widgets.png");
@@ -30,6 +34,7 @@ public final class GuiTextures {
     private final Map<ResourceLocation, Integer> textures = new HashMap<>();
     private final Map<ResourceLocation, int[]> sizes = new HashMap<>();
     private int missing;
+    private int spriteMipmapLevels;
 
     public GuiTextures(IResourceManager resources) { this.resources = resources; }
 
@@ -46,6 +51,9 @@ public final class GuiTextures {
     public int[] size(ResourceLocation location) { return sizes.getOrDefault(location, new int[]{256, 256}); }
 
     public boolean exists(ResourceLocation location) { return resources.exists(location); }
+
+    /** Mipmap level for item/block sprites; call {@link #reload()} afterwards for it to apply to loaded ones. */
+    public void setSpriteMipmapLevels(int levels) { this.spriteMipmapLevels = Math.max(0, levels); }
 
     /** Drops every cached texture so the next bind reloads it (F3+T). */
     public void reload() {
@@ -66,7 +74,43 @@ public final class GuiTextures {
             return missingTexture();
         }
         sizes.put(location, new int[]{image.getWidth(), image.getHeight()});
-        return upload(image, true);
+        String path = location.path();
+        boolean sprite = path.startsWith("textures/items/") || path.startsWith("textures/blocks/");
+        int levels = sprite ? net.minecraft.client.renderer.texture.Mipmaps.maxLevels(image.getWidth(), image.getHeight(),
+            spriteMipmapLevels) : 0;
+        if (levels <= 0) return upload(image, !clamped(location));
+        int width = image.getWidth(), height = image.getHeight();
+        int[] pixels = new int[width * height];
+        image.getRGB(0, 0, width, height, pixels, 0, width);
+        int id = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, id);
+        net.minecraft.client.renderer.texture.Mipmaps.setFiltering(levels);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        net.minecraft.client.renderer.texture.Mipmaps.upload(
+            net.minecraft.client.renderer.texture.Mipmaps.generate(pixels, width, levels), width, height);
+        return id;
+    }
+
+    /**
+     * Whether a texture is clamped instead of repeating (SimpleTexture with
+     * TextureMetadataSection: "texture": {"clamp": true} in its .mcmeta).
+     * The entity shadow is always clamped, so the circle is drawn once
+     * across the blocks under it instead of tiling on each one.
+     */
+    private boolean clamped(ResourceLocation location) {
+        if (location.path().equals("textures/misc/shadow.png")) return true;
+        ResourceLocation meta = new ResourceLocation(location.namespace(), location.path() + ".mcmeta");
+        try {
+            if (!resources.exists(meta)) return false;
+            try (var reader = new java.io.InputStreamReader(resources.open(meta), java.nio.charset.StandardCharsets.UTF_8)) {
+                var root = com.google.gson.JsonParser.parseReader(reader).getAsJsonObject();
+                var texture = root.has("texture") ? root.getAsJsonObject("texture") : null;
+                return texture != null && texture.has("clamp") && texture.get("clamp").getAsBoolean();
+            }
+        } catch (IOException | RuntimeException error) {
+            return false;
+        }
     }
 
     /** Uploads an image as a new nearest-filtered texture. */

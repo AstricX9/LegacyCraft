@@ -10,6 +10,10 @@ public final class Chunk {
     private boolean generated;
     private boolean populated;
     private long generationIndex = -1;
+    /** Changed since it was last saved or loaded; only dirty chunks are written. */
+    private boolean dirty;
+    /** The light array came from the save file, so loading need not relight it. */
+    private boolean lightStored;
 
     public Chunk(int chunkX, int chunkZ) { this.chunkX = chunkX; this.chunkZ = chunkZ; }
     public int chunkX() { return chunkX; }
@@ -21,11 +25,22 @@ public final class Chunk {
         if (generated) throw new IllegalStateException("Chunk is already generated");
         generated = true;
         generationIndex = index;
+        dirty = true;
     }
+
+    public boolean isDirty() { return dirty; }
+    public void markDirty() { dirty = true; }
+    public void markClean() { dirty = false; }
+
+    public boolean isLightStored() { return lightStored; }
+    public void setLightStored(boolean stored) { lightStored = stored; }
+
+    /** The packed sky/block light array (y, z, x order), for saving and loading. */
+    public byte[] lightData() { return light; }
 
     /** Whether population (lakes, ores, trees, plants, snow...) has run for this chunk. */
     public boolean isPopulated() { return populated; }
-    public void markPopulated() { populated = true; }
+    public void markPopulated() { populated = true; dirty = true; }
 
     public int get(int x, int y, int z) {
         if (y < 0 || y >= HEIGHT) return 0;
@@ -42,6 +57,7 @@ public final class Chunk {
             section = sections[sectionIndex] = new ChunkSection();
         }
         section.set(x, y & 15, z, blockId);
+        dirty = true;
     }
 
     public ChunkSection section(int index) { return sections[index]; }
@@ -51,13 +67,16 @@ public final class Chunk {
     public int skyLight(int x, int y, int z) { return (light[lightIndex(x, y, z)] >> 4) & 15; }
     public int blockLight(int x, int y, int z) { return light[lightIndex(x, y, z)] & 15; }
 
+    // Light is saved with the chunk, so a change (light spreading in from a neighbour too) needs a save.
     public void setSkyLight(int x, int y, int z, int level) {
         int index = lightIndex(x, y, z);
-        light[index] = (byte) ((level << 4) | (light[index] & 15));
+        byte value = (byte) ((level << 4) | (light[index] & 15));
+        if (light[index] != value) { light[index] = value; dirty = true; }
     }
 
     public void setBlockLight(int x, int y, int z, int level) {
         int index = lightIndex(x, y, z);
-        light[index] = (byte) ((light[index] & 0xf0) | level);
+        byte value = (byte) ((light[index] & 0xf0) | level);
+        if (light[index] != value) { light[index] = value; dirty = true; }
     }
 }

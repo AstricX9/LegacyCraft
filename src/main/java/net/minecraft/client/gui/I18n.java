@@ -41,11 +41,15 @@ public final class I18n {
 
     public static String currentLanguage() { return currentLanguage; }
 
+    /** Every pack's copy of the language file, lowest priority first, so packs override single keys (Locale.loadLocaleDataFiles). */
     private static void read(IResourceManager resources, String code, Map<String, String> into) {
         ResourceLocation location = new ResourceLocation("minecraft", "lang/" + code + ".lang");
-        if (!resources.exists(location)) return;
-        try (InputStream stream = resources.open(location)) {
-            parse(stream, into);
+        try {
+            for (InputStream stream : resources.openAll(location)) {
+                try (stream) {
+                    parse(stream, into);
+                }
+            }
         } catch (IOException error) {
             System.err.println("Could not read " + location + ": " + error.getMessage());
         }

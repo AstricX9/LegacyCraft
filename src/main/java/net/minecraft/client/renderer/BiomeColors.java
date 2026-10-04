@@ -18,7 +18,7 @@ import java.io.InputStream;
  * so biome borders fade instead of cutting.
  */
 public final class BiomeColors {
-    private final int[] grassMap, foliageMap;
+    private int[] grassMap, foliageMap;
 
     private BiomeColors(int[] grassMap, int[] foliageMap) {
         this.grassMap = grassMap;
@@ -30,9 +30,23 @@ public final class BiomeColors {
             read(resources, "minecraft:textures/colormap/foliage.png"));
     }
 
+    /** Reads the colour maps again in place (a resource pack can recolour them). */
+    public void reload(IResourceManager resources) {
+        BiomeColors fresh = load(resources);
+        grassMap = fresh.grassMap;
+        foliageMap = fresh.foliageMap;
+    }
+
     private static int[] read(IResourceManager resources, String location) {
         try (InputStream stream = resources.open(new ResourceLocation(location))) {
             BufferedImage image = ImageIO.read(stream);
+            if (image.getWidth() != 256 || image.getHeight() != 256) {
+                BufferedImage scaled = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+                java.awt.Graphics g = scaled.getGraphics();
+                g.drawImage(image, 0, 0, 256, 256, null);
+                g.dispose();
+                image = scaled;
+            }
             int[] pixels = new int[256 * 256];
             image.getRGB(0, 0, 256, 256, pixels, 0, 256);
             return pixels;

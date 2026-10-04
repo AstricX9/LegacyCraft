@@ -39,9 +39,9 @@ import static org.lwjgl.opengl.GL11.*;
  *   <li>the overlay is the stack count bottom-right and the durability bar.</li>
  * </ul>
  * Chests, banners and mob heads use {@code builtin/entity} models that need
- * tile-entity renderers, which do not exist yet; they show their block model
- * when there is one and nothing otherwise (DEV-015). HYPOTHESIS until
- * screenshot-compared.
+ * tile-entity renderers (TileEntityItemStackRenderer): mob heads are drawn
+ * by {@link #builtin}; chests and banners show their block model when there
+ * is one and nothing otherwise (DEV-015). HYPOTHESIS until screenshot-compared.
  */
 public final class ItemRenderer {
     /** Resolved item model: flat layers, or a block rendered in 3D with an extra GUI rotation. */
@@ -58,6 +58,80 @@ public final class ItemRenderer {
     private final BlockModelManager blockModels;
     private final int grassColor, foliageColor;
     private final Map<Item, ItemModel> models = new HashMap<>();
+    /** Models of item states that aren't items of their own (the drawn bow), by model location. */
+    private final Map<ResourceLocation, ItemModel> stateModels = new HashMap<>();
+    /**
+     * The model a held item is drawn with right now instead of its own
+     * (Item.getModel in 1.8.9: the bow's three pulling stages while drawn,
+     * the cast fishing rod), or null; set by the game.
+     */
+    public java.util.function.Function<Item, ResourceLocation> modelState = item -> null;
+
+    /** What draws {@code builtin/entity} items (TileEntityItemStackRenderer): in the unit block at the origin, coloured. */
+    public interface Builtin {
+        boolean handles(Item item);
+        void draw(Item item, float red, float green, float blue);
+    }
+
+    /** Set by the game; mob heads so far. */
+    public Builtin builtin;
+    private final Map<Item, float[]> guiTransforms = new HashMap<>();
+
+    private boolean drawsBuiltin(Item item, ItemModel model) { return model.builtinEntity() && builtin != null && builtin.handles(item); }
+
+    /**
+     * RenderItem.renderItemIntoGUI for a built-in model: the GUI's 3D frame
+     * (40x, 210 degrees about X, -135 about Y), the model's "gui" display
+     * transform, then the half-size model turned round and centred, under
+     * the GUI item lighting.
+     */
+    private void renderBuiltinGui(Item item, int x, int y) {
+        float[] t = guiTransforms.computeIfAbsent(item, this::guiTransform);
+        glPushMatrix();
+        glTranslatef(x, y, 100);
+        glTranslatef(8, 8, 0);
+        glScalef(1, 1, -1);
+        glScalef(0.5f, 0.5f, 0.5f);
+        glScalef(40, 40, 40);
+        glRotatef(210, 1, 0, 0);
+        glRotatef(-135, 0, 1, 0);
+        glPushMatrix();
+        glRotatef(-30f, 0f, 1f, 0f);
+        glRotatef(165f, 1f, 0f, 0f);
+        StandardLighting.enable();
+        glPopMatrix();
+        glTranslatef(t[3], t[4], t[5]);
+        glRotatef(t[1], 0, 1, 0);
+        glRotatef(t[0], 1, 0, 0);
+        glRotatef(t[2], 0, 0, 1);
+        glScalef(t[6], t[7], t[8]);
+        glScalef(0.5f, 0.5f, 0.5f);
+        glRotatef(180f, 0f, 1f, 0f);
+        glTranslatef(-0.5f, -0.5f, -0.5f);
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+        builtin.draw(item, guiBrightness, guiBrightness, guiBrightness);
+        StandardLighting.disable();
+        glDisable(GL_DEPTH_TEST);
+        glColor4f(1, 1, 1, 1);
+        glPopMatrix();
+    }
+
+    /** The item model's full "gui" display transform (rotation, translation, scale), following parents. */
+    private float[] guiTransform(Item item) {
+        String location = item.model().toString();
+        for (int depth = 0; depth < 8 && location != null; depth++) {
+            ResourceLocation id = new ResourceLocation(location);
+            if (id.path().startsWith("builtin/")) break;
+            JsonObject json = read(new ResourceLocation(id.namespace(), "models/" + id.path() + ".json"));
+            if (json == null) break;
+            if (json.has("display") && json.getAsJsonObject("display").has("gui"))
+                return displayTransform(json.getAsJsonObject("display").getAsJsonObject("gui"));
+            JsonElement parent = json.get("parent");
+            location = parent == null ? null : parent.getAsString().contains(":") ? parent.getAsString() : "minecraft:" + parent.getAsString();
+        }
+        return new float[] {0, 0, 0, 0, 0, 0, 1, 1, 1};
+    }
 
     public ItemRenderer(IResourceManager resources, GuiTextures textures, TextureAtlas atlas, BlockModelManager blockModels,
                         BiomeColors colors) {
@@ -80,6 +154,10 @@ public final class ItemRenderer {
         ItemModel model = models.computeIfAbsent(item, this::resolve);
         boolean glint = net.minecraft.enchantment.EnchantmentHelper.hasGlint(stack);
         BlockState state = item.placedState();
+        if (drawsBuiltin(item, model)) {
+            renderBuiltinGui(item, x, y);
+            return;
+        }
         if ((model.block() || model.builtinEntity()) && state != null && renderBlock(state, model.guiRotation(), x, y)) return;
         if (model.layers().isEmpty()) return;
         if (!glint) {
@@ -107,6 +185,10 @@ public final class ItemRenderer {
         if (item == null) return;
         ItemModel model = models.computeIfAbsent(item, this::resolve);
         BlockState state = item.placedState();
+        if (drawsBuiltin(item, model)) {
+            renderBuiltinGui(item, x, y);
+            return;
+        }
         if ((model.block() || model.builtinEntity()) && state != null && renderBlock(state, model.guiRotation(), x, y)) return;
         if (!model.layers().isEmpty()) renderFlat(item, model.layers(), x, y);
     }
@@ -169,10 +251,15 @@ public final class ItemRenderer {
 
     /** Colour multiplier for a flat item's layer (1.8.9 getColorFromItemStack, HYPOTHESIS values). */
     private int layerTint(Item item, int layer) {
+        // ItemMonsterPlacer.getColorFromItemStack: the egg's base colour, then its spots.
+        if (item.kind() == Item.Kind.SPAWN_EGG) {
+            net.minecraft.item.VanillaItems.Egg egg = net.minecraft.item.VanillaItems.egg(item.vanillaData());
+            return egg == null ? 0xFFFFFF : layer == 0 ? egg.primary() : egg.secondary();
+        }
         if (layer != 0) return 0xFFFFFF;
         String path = item.name().path();
         if (path.startsWith("leather_")) return 0xA06540;
-        if (path.equals("bottle_drinkable") || path.equals("bottle_splash")) return 0x385DC6;
+        if (item.vanillaId().path().equals("potion")) return net.minecraft.item.Potions.color(item.vanillaData());
         if (path.equals("tall_grass") || path.equals("fern") || path.equals("double_grass") || path.equals("double_fern")) return grassColor;
         if (path.equals("vine")) return foliageColor;
         if (path.equals("waterlily")) return 0x208030;
@@ -263,6 +350,16 @@ public final class ItemRenderer {
         if (item == null) return;
         ItemModel model = models.computeIfAbsent(item, this::resolve);
         BlockState state = item.placedState();
+        if (drawsBuiltin(item, model)) {
+            // RenderEntityItem (half size for 3D models) then RenderItem.renderItem (half again, turned round, centred).
+            glPushMatrix();
+            glScalef(0.25f, 0.25f, 0.25f);
+            glRotatef(180f, 0f, 1f, 0f);
+            glTranslatef(-0.5f, -0.5f, -0.5f);
+            builtin.draw(item, red, green, blue);
+            glPopMatrix();
+            return;
+        }
         if ((model.block() || model.builtinEntity()) && state != null && renderBlockInWorld(state, red, green, blue)) return;
         if (model.layers().isEmpty()) return;
         glDisable(GL_CULL_FACE);
@@ -285,6 +382,19 @@ public final class ItemRenderer {
             glEnd();
         }
         glColor4f(1, 1, 1, 1);
+    }
+
+    /**
+     * A block's model filling the unit cube at the current origin, shaded
+     * per face and tinted by the colour (BlockRendererDispatcher.renderBlockBrightness,
+     * as primed TNT is drawn).
+     */
+    public void renderBlockModel(BlockState state, float red, float green, float blue) {
+        glPushMatrix();
+        glScalef(4f, 4f, 4f);
+        glTranslatef(0.125f, 0.125f, 0.125f);
+        renderBlockInWorld(state, red, green, blue);
+        glPopMatrix();
     }
 
     private boolean renderBlockInWorld(BlockState state, float red, float green, float blue) {
@@ -320,18 +430,36 @@ public final class ItemRenderer {
         return true;
     }
 
+    /** The sprite an item's crumbs are cut from (its first layer), or null for block-shaped items. */
+    public ResourceLocation particleTexture(Item item) {
+        if (item == null) return null;
+        ItemModel model = models.computeIfAbsent(item, this::resolve);
+        if (model.layers().isEmpty()) return null;
+        // ItemPotion.getIconFromDamage: potion crumbs are the glass bottle, not the coloured contents.
+        if (item.vanillaId().path().equals("potion")) return model.layers().get(model.layers().size() - 1);
+        return model.layers().get(0);
+    }
+
     /** Whether the item shows as a small block (true) or a flat sprite when dropped. */
     public boolean isBlockModel(Item item) {
         ItemModel model = models.computeIfAbsent(item, this::resolve);
-        return (model.block() || model.builtinEntity()) && item.placedState() != null;
+        return (model.block() || model.builtinEntity()) && item.placedState() != null || drawsBuiltin(item, model);
     }
 
     /** Follows the item model's parent chain to builtin/generated (layers), a block model, or builtin/entity. */
-    private ItemModel resolve(Item item) {
+    private ItemModel resolve(Item item) { return resolve(item, item.model()); }
+
+    private ItemModel heldModel(Item item) {
+        ResourceLocation state = modelState.apply(item);
+        if (state == null) return models.computeIfAbsent(item, this::resolve);
+        return stateModels.computeIfAbsent(state, location -> resolve(item, location));
+    }
+
+    private ItemModel resolve(Item item, ResourceLocation model) {
         List<ResourceLocation> layers = new ArrayList<>();
         float[] rotation = null;
         float[][] display = new float[2][];
-        String location = item.model().toString();
+        String location = model.toString();
         for (int depth = 0; depth < 8 && location != null; depth++) {
             ResourceLocation id = new ResourceLocation(location);
             if (id.path().startsWith("builtin/generated")) return new ItemModel(layers, false, false, orDefault(rotation), display[0], display[1]);
@@ -403,11 +531,12 @@ public final class ItemRenderer {
 
     private void renderHeld(Item item, Held view, float red, float green, float blue, boolean glint) {
         if (item == null) return;
-        ItemModel model = models.computeIfAbsent(item, this::resolve);
+        ItemModel model = heldModel(item);
         BlockState state = item.placedState();
         BakedModel blockModel = (model.block() || model.builtinEntity()) && state != null ? blockModels.getModel(state) : null;
         boolean block = blockModel != null && !blockModel.quads().isEmpty();
-        if (!block && model.layers().isEmpty()) return;
+        boolean builtinModel = drawsBuiltin(item, model);
+        if (!block && !builtinModel && model.layers().isEmpty()) return;
         float[] transform = view == Held.FIRST_PERSON ? model.firstPerson() : model.thirdPerson();
         glPushMatrix();
         // Held items are drawn at twice the size of their model's half-block frame, flat items included
@@ -427,7 +556,13 @@ public final class ItemRenderer {
         glEnable(GL_TEXTURE_2D);
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
-        if (block) drawBlockQuads(blockModel, state, red, green, blue);
+        if (builtinModel) {
+            // RenderItem.renderItem for a built-in model: turned round about the block's middle first.
+            glTranslatef(0.5f, 0.5f, 0.5f);
+            glRotatef(180f, 0f, 1f, 0f);
+            glTranslatef(-0.5f, -0.5f, -0.5f);
+            builtin.draw(item, red, green, blue);
+        } else if (block) drawBlockQuads(blockModel, state, red, green, blue);
         else {
             for (int layer = 0; layer < model.layers().size(); layer++) {
                 ResourceLocation texture = model.layers().get(layer);

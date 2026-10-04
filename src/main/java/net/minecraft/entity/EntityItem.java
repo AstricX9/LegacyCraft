@@ -151,6 +151,13 @@ public final class EntityItem extends Entity {
         firstUpdate = false;
     }
 
+    /** Hurt by an explosion (EntityItem.attackEntityFrom): with 5 health, most blasts destroy it. */
+    public void explosionDamage(float amount) {
+        // EntityItem.attackEntityFrom: a nether star survives explosions.
+        if (stack != null && stack.item().name().path().equals("nether_star")) return;
+        damage((int) amount);
+    }
+
     private void damage(int amount) {
         health -= amount;
         if (health <= 0) remove();

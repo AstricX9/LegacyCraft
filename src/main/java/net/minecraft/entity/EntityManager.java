@@ -12,7 +12,11 @@ public final class EntityManager {
     private final Map<UUID, Integer> idsByUuid = new HashMap<>();
     private int nextId = 1;
 
+    /** The entity list as last read, shared until something is added or removed (every mob reads it every tick). */
+    private List<Entity> snapshot;
+
     public int add(Entity entity) {
+        snapshot = null;
         if (idsByUuid.containsKey(entity.uuid())) throw new IllegalArgumentException("Duplicate entity UUID");
         int id = nextId++;
         byId.put(id, entity);
@@ -21,13 +25,18 @@ public final class EntityManager {
     }
     public Entity get(int id) { return byId.get(id); }
     public int idOf(UUID uuid) { return idsByUuid.getOrDefault(uuid, -1); }
-    public List<Entity> values() { return List.copyOf(byId.values()); }
+    public List<Entity> values() {
+        List<Entity> current = snapshot;
+        if (current == null) snapshot = current = List.copyOf(byId.values());
+        return current;
+    }
     public void tick() {
         for (Entity entity : new ArrayList<>(byId.values())) if (!entity.isRemoved()) entity.tick();
-        byId.entrySet().removeIf(entry -> {
+        boolean removedAny = byId.entrySet().removeIf(entry -> {
             if (!entry.getValue().isRemoved()) return false;
             idsByUuid.remove(entry.getValue().uuid());
             return true;
         });
+        if (removedAny) snapshot = null;
     }
 }

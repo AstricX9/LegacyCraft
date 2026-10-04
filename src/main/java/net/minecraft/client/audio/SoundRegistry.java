@@ -20,15 +20,43 @@ public final class SoundRegistry {
     private static final ResourceLocation SOUNDS = new ResourceLocation("minecraft:sounds.json");
     private final Map<ResourceLocation, SoundEvent> events = new LinkedHashMap<>();
 
+    /**
+     * Reads sounds.json from the base pack and then from every resource pack
+     * above it (SoundHandler.onResourceManagerReload): a pack's event adds its
+     * sounds to the existing event unless it says {@code "replace": true}.
+     */
     public static SoundRegistry load(IResourceManager resources) {
         SoundRegistry registry = new SoundRegistry();
-        try (var reader = new InputStreamReader(resources.open(SOUNDS), StandardCharsets.UTF_8)) {
-            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+        List<java.io.InputStream> files;
+        try {
+            files = resources.openAll(SOUNDS);
+        } catch (IOException error) {
+            throw new IllegalStateException("Could not load sounds.json", error);
+        }
+        if (files.isEmpty()) throw new IllegalStateException("Could not load sounds.json: missing");
+        for (int i = 0; i < files.size(); i++) {
+            try (var reader = new InputStreamReader(files.get(i), StandardCharsets.UTF_8)) {
+                registry.read(JsonParser.parseReader(reader).getAsJsonObject());
+            } catch (IOException | RuntimeException error) {
+                if (i == 0) throw new IllegalStateException("Could not load sounds.json", error);
+                System.err.println("Invalid sounds.json in a resource pack: " + error.getMessage());
+            }
+        }
+        return registry;
+    }
+
+    private void read(JsonObject root) {
+        SoundRegistry registry = this;
+        {
             root.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 ResourceLocation name = new ResourceLocation("minecraft", entry.getKey());
                 JsonObject value = entry.getValue().getAsJsonObject();
-                String category = value.has("category") ? value.get("category").getAsString() : "master";
+                SoundEvent existing = registry.events.get(name);
+                boolean replace = value.has("replace") && value.get("replace").getAsBoolean();
+                String category = value.has("category") ? value.get("category").getAsString()
+                    : existing != null ? existing.category() : "master";
                 List<SoundEvent.Variant> variants = new ArrayList<>();
+                if (existing != null && !replace) variants.addAll(existing.variants());
                 for (JsonElement raw : value.getAsJsonArray("sounds")) {
                     if (raw.isJsonPrimitive()) variants.add(variant(raw.getAsString(), 1, 1, 1, false));
                     else {
@@ -38,11 +66,8 @@ public final class SoundRegistry {
                             (int) number(object, "weight", 1), bool(object, "stream", false)));
                     }
                 }
-                registry.events.put(name, new SoundEvent(name, category, variants));
+                if (!variants.isEmpty()) registry.events.put(name, new SoundEvent(name, category, variants));
             });
-            return registry;
-        } catch (IOException error) {
-            throw new IllegalStateException("Could not load sounds.json", error);
         }
     }
     private static SoundEvent.Variant variant(String name, float volume, float pitch, int weight, boolean stream) {

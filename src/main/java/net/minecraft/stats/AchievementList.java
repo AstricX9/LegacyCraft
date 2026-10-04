@@ -46,7 +46,7 @@ public final class AchievementList {
         new Achievement("killWither", 7, 10, "nether_star", "spawnWither", false),
         new Achievement("fullBeacon", 7, 8, "beacon", "killWither", true),
         new Achievement("exploreAllBiomes", 4, 8, "diamond_boots", "theEnd", true),
-        new Achievement("overpowered", 6, 4, "golden_apple", "buildBetterPickaxe", true));
+        new Achievement("overpowered", 6, 4, "enchanted_golden_apple", "buildBetterPickaxe", true));
 
     private static final Map<String, Achievement> BY_ID = new LinkedHashMap<>();
     static { for (Achievement achievement : ALL) BY_ID.put(achievement.id(), achievement); }
@@ -80,6 +80,7 @@ public final class AchievementList {
             case "wooden_sword" -> "buildSword";
             case "enchanting_table" -> "enchantments";
             case "bookshelf" -> "bookcase";
+            case "enchanted_golden_apple" -> "overpowered";
             default -> null;
         };
     }

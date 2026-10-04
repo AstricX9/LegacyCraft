@@ -276,11 +276,19 @@ public final class SoundSystem {
             }
     }
 
+    /** Stops everything and forgets the decoded sounds so the next play reads them from the new resource packs. */
+    public void flushCache() {
+        if (!ready) return;
+        stopAll();
+        for (Integer buffer : buffers.values()) if (buffer != null) alDeleteBuffers(buffer);
+        buffers.clear();
+    }
+
     public void destroy() {
         if (!ready) return;
         stopAll();
         for (Channel channel : channels) alDeleteSources(channel.source);
-        for (int buffer : buffers.values()) alDeleteBuffers(buffer);
+        for (Integer buffer : buffers.values()) if (buffer != null) alDeleteBuffers(buffer);
         buffers.clear();
         alcMakeContextCurrent(MemoryUtil.NULL);
         alcDestroyContext(context);

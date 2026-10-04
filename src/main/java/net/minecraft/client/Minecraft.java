@@ -37,6 +37,8 @@ import net.minecraft.client.renderer.PlayerModel;
 import net.minecraft.client.renderer.StandardLighting;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.client.renderer.LightMap;
+import net.minecraft.client.renderer.LocalCape;
+import net.minecraft.client.renderer.LocalSkin;
 import net.minecraft.client.renderer.SkyRenderer;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.block.model.BakedModel;
@@ -49,6 +51,11 @@ import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.client.settings.KeyCodes;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityItem;
+import net.minecraft.entity.EntityLiving;
+import net.minecraft.entity.EntityTNTPrimed;
+import net.minecraft.entity.EntityXPOrb;
+import net.minecraft.entity.MovingEntity;
+import net.minecraft.entity.monster.EntityCreeper;
 import net.minecraft.inventory.InventoryPlayer;
 import net.minecraft.item.CreativeTabs;
 import net.minecraft.item.Item;
@@ -106,6 +113,9 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  *   <li>{@code --capture=<file.png>} renders one in-game frame to a PNG and quits (implies a throwaway world).</li>
  *   <li>{@code --debug} opens the F3 screen immediately.</li>
  *   <li>{@code --gamedir=<path>} moves saves/options/servers.dat (defaults to the working directory).</li>
+ *   <li>{@code --skin=<file.png>} uses a local 64x64 skin supplied by an offline launcher.</li>
+ *   <li>{@code --skinModel=slim|classic} picks the arm width for that skin (slim = ModelPlayer's small arms).</li>
+ *   <li>{@code --cape=<file.png>} gives the player a local 64x32 cape.</li>
  * </ul>
  */
 public final class Minecraft implements GuiContext {
@@ -121,7 +131,9 @@ public final class Minecraft implements GuiContext {
     private Path gameDirectory = Path.of(".");
     private SaveFormat saveFormat;
     private final GameSettings gameSettings = new GameSettings();
-    private final IResourceManager resourceManager = new ClasspathResourceManager();
+    /** The built-in 1.8.9 pack with the selected resource packs layered over it. */
+    private final net.minecraft.client.resources.ResourcePackRepository resourceManager =
+        new net.minecraft.client.resources.ResourcePackRepository(new ClasspathResourceManager());
     private BlockRegistry blockRegistry;
     private BiomeRegistry biomeRegistry;
     private BiomeColors biomeColors;
@@ -140,7 +152,9 @@ public final class Minecraft implements GuiContext {
     private GuiTextures guiTextures;
     private ItemRenderer itemRenderer;
     private FirstPersonRenderer firstPersonRenderer;
-    private final PlayerModel playerModel = new PlayerModel();
+    private LocalSkin localSkin;
+    private LocalCape localCape;
+    private PlayerModel playerModel = new PlayerModel();
     private PlayerAnimation playerAnimation = new PlayerAnimation();
     private CreativeTabs creativeTabs;
     private net.minecraft.item.crafting.CraftingManager crafting;
@@ -164,11 +178,104 @@ public final class Minecraft implements GuiContext {
 
     // The singleplayer session; all null on the title screen.
     private World world;
+    /** The dimensions' worlds and entity lists this session ({@link #world}/{@link #server} are the current ones). */
+    private World overworld, netherWorld;
+    private IntegratedServer overworldServer, netherServer;
+    private net.minecraft.world.Dimension dimension = net.minecraft.world.Dimension.OVERWORLD;
+    /** Portal travel (Entity.portalCounter / timeUntilPortal): ticks spent in a portal, and the cooldown after travelling. */
+    private int portalCounter, timeUntilPortal;
+    private boolean eventsInstalled;
     private Player player;
     private IntegratedServer server;
     private WorldRenderer renderer;
     private SkyRenderer sky;
     private ParticleManager particles;
+    private net.minecraft.client.renderer.entity.MobRenderer mobRenderer;
+    /** The mob or lit TNT under the crosshair, nearer than any block (objectMouseOver ENTITY), or null. */
+    private MovingEntity pointedEntity;
+
+    /** What entities may ask of the game (the World/WorldServer calls they make). */
+    private final net.minecraft.entity.EntityHost entityHost = new net.minecraft.entity.EntityHost() {
+        @Override public Player player() { return player; }
+        @Override public List<Entity> entities() { return server == null ? List.of() : server.entities().values(); }
+        @Override public void spawn(Entity entity) { spawnEntity(entity); }
+        @Override public void playSound(String event, double x, double y, double z, float volume, float pitch) {
+            Minecraft.this.playSound(event, x, y, z, volume, pitch);
+        }
+        @Override public void particle(String kind, double x, double y, double z, double vx, double vy, double vz) {
+            if (particles == null) return;
+            // EnumParticleTypes.SPELL_MOB: the "velocity" is the swirl's colour.
+            if (kind.equals("mobSpell")) {
+                particles.spawnSpell(false, x, y, z, 0, 0, 0, (float) vx, (float) vy, (float) vz);
+                return;
+            }
+            ParticleManager.Kind type = switch (kind) {
+                case "explode" -> ParticleManager.Kind.EXPLODE;
+                case "largeexplode" -> ParticleManager.Kind.LARGE_EXPLODE;
+                case "hugeexplosion" -> ParticleManager.Kind.HUGE_EXPLOSION;
+                case "smoke" -> ParticleManager.Kind.SMOKE;
+                case "crit" -> ParticleManager.Kind.CRIT;
+                case "magicCrit" -> ParticleManager.Kind.MAGIC_CRIT;
+                case "bubble" -> ParticleManager.Kind.BUBBLE;
+                case "splash" -> ParticleManager.Kind.SPLASH;
+                case "heart" -> ParticleManager.Kind.HEART;
+                case "largesmoke" -> ParticleManager.Kind.LARGE_SMOKE;
+                case "flame" -> ParticleManager.Kind.FLAME;
+                case "happyVillager" -> ParticleManager.Kind.HAPPY_VILLAGER;
+                default -> null;
+            };
+            if (type != null) particles.spawn(type, x, y, z, vx, vy, vz, null);
+        }
+        @Override public void explode(Entity exploder, double x, double y, double z, float size, boolean smoking, String attacker) {
+            Minecraft.this.explode(exploder, x, y, z, size, false, smoking, attacker);
+        }
+        @Override public void explode(Entity exploder, double x, double y, double z, float size, boolean flaming, boolean smoking, String attacker) {
+            Minecraft.this.explode(exploder, x, y, z, size, flaming, smoking, attacker);
+        }
+        @Override public int difficulty() { return levelInfo == null ? 2 : levelInfo.difficulty; }
+        @Override public boolean gameRule(String name) {
+            return levelInfo == null || Boolean.parseBoolean(levelInfo.gameRules.getOrDefault(name, "true"));
+        }
+        @Override public long worldTime() { return levelInfo == null ? 6000 : levelInfo.worldTime; }
+        @Override public void giveExperience(int amount) { if (player != null) player.addExperience(amount); }
+        @Override public void globalSound(String event, double x, double y, double z) {
+            // RenderGlobal.broadcastSound: 2 blocks from the camera toward the source.
+            if (player == null) return;
+            double dx = x - player.x, dy = y - player.eyeY(), dz = z - player.z;
+            double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            double px = player.x, py = player.eyeY(), pz = player.z;
+            if (length > 0) { px += dx / length * 2.0; py += dy / length * 2.0; pz += dz / length * 2.0; }
+            Minecraft.this.playSound(event, px, py, pz, 1f, 1f);
+        }
+        @Override public void potionSmash(int x, int y, int z, int potionData) { Minecraft.this.potionSmash(x, y, z, potionData); }
+        @Override public void achievement(String id) { triggerAchievement(id); }
+        @Override public void breakBlock(int x, int y, int z, boolean drop) {
+            if (world == null || y < 0 || y >= World.HEIGHT) return;
+            BlockState previous = world.getState(x, y, z);
+            if (previous.block().isAir()) return;
+            if (particles != null) particles.addBlockDestroyEffects(x, y, z, previous);
+            playBreakSound(x, y, z, previous);
+            world.setStateAndUpdate(x, y, z, BlockState.of(blockRegistry.air(), 0));
+            if (drop) dropBlock(x, y, z, previous);
+        }
+        @Override public void blockBreakEffects(int x, int y, int z, BlockState state) {
+            if (particles != null) particles.addBlockDestroyEffects(x, y, z, state);
+            playBreakSound(x, y, z, state);
+        }
+        @Override public void setBlock(int x, int y, int z, String block, int metadata) {
+            Block type = blockRegistry.get("minecraft:" + block);
+            if (world != null && type != null && y >= 0 && y < World.HEIGHT) world.setStateAndUpdate(x, y, z, BlockState.of(type, metadata));
+        }
+        @Override public void itemCrack(String item, double x, double y, double z, double vx, double vy, double vz) {
+            if (particles == null || itemRenderer == null) return;
+            Item type = itemByName(item);
+            if (type != null) particles.spawnItemCrack(itemRenderer.particleTexture(type), x, y, z, vx, vy, vz);
+        }
+        @Override public void waterSplash(MovingEntity entity) {
+            if (particles != null)
+                particles.addWaterSplash(entity.x(), entity.y(), entity.z(), entity.width, entity.motionX, entity.motionY, entity.motionZ);
+        }
+    };
     private FontRenderer galacticFont;
     /** The books over enchanting tables. */
     private final net.minecraft.client.renderer.EnchantingTableBooks tableBooks = new net.minecraft.client.renderer.EnchantingTableBooks();
@@ -203,6 +310,9 @@ public final class Minecraft implements GuiContext {
     private boolean cliThrowawayWorld;
     /** The local player's name (offline; {@code --username=} sets it). */
     private String playerName = "Player";
+    /** Set by the standalone launcher; intentionally not persisted by the game. */
+    private Path launcherSkin, launcherCape;
+    private boolean launcherSlim;
     private final CommandHandler commands = new CommandHandler();
     private final ChatSender chatSender = new ChatSender();
     private String cliWorld;
@@ -230,7 +340,10 @@ public final class Minecraft implements GuiContext {
             if (fontRenderer != null) fontRenderer.destroy();
             if (atlas != null) atlas.destroy();
             if (guiTextures != null) guiTextures.destroy();
+            if (localSkin != null) localSkin.destroy();
+            if (localCape != null) localCape.destroy();
             if (soundSystem != null) soundSystem.destroy();
+            resourceManager.close();
             if (window != NULL) {
                 glfwFreeCallbacks(window);
                 glfwDestroyWindow(window);
@@ -263,7 +376,11 @@ public final class Minecraft implements GuiContext {
         glRenderer = String.valueOf(glGetString(GL_RENDERER));
         glVersion = String.valueOf(glGetString(GL_VERSION));
         installCallbacks();
+        glfwShowWindow(window);
+        drawSplashScreen();
 
+        resourceManager.setDirectory(gameDirectory.resolve("resourcepacks"));
+        applySelectedResourcePacks();
         I18n.load(resourceManager, gameSettings.language);
         blockRegistry = BlockRegistry.load(resourceManager);
         itemRegistry = ItemRegistry.load(resourceManager, blockRegistry);
@@ -274,14 +391,24 @@ public final class Minecraft implements GuiContext {
         musicTicker = new net.minecraft.client.audio.MusicTicker(soundHandler, new Random());
         modelManager = new BlockModelManager(resourceManager, blockRegistry);
         atlas = new TextureAtlas(resourceManager);
+        atlas.setMipmapLevels(gameSettings.mipmapLevels);
         atlas.load();
         fontRenderer = new FontRenderer(resourceManager);
         fontRenderer.load();
         guiTextures = new GuiTextures(resourceManager);
+        guiTextures.setSpriteMipmapLevels(atlas.mipmapLevels());
         biomeRegistry = BiomeRegistry.load(resourceManager, blockRegistry);
         biomeColors = BiomeColors.load(resourceManager);
         itemRenderer = new ItemRenderer(resourceManager, guiTextures, atlas, modelManager, biomeColors);
-        firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer);
+        itemRenderer.modelState = this::heldModelState;
+        itemRenderer.builtin = headItems;
+        mobRenderer = new net.minecraft.client.renderer.entity.MobRenderer(guiTextures, itemRenderer);
+        localSkin = new LocalSkin(launcherSkin);
+        localSkin.load();
+        localCape = new LocalCape(launcherCape);
+        localCape.load();
+        playerModel = new PlayerModel(launcherSlim);
+        firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer, localSkin, launcherSlim);
         creativeTabs = CreativeTabs.load(resourceManager, itemRegistry);
         crafting = net.minecraft.item.crafting.CraftingManager.load(resourceManager, itemRegistry);
         smelting = net.minecraft.item.crafting.FurnaceRecipes.load(resourceManager, itemRegistry);
@@ -408,7 +535,7 @@ public final class Minecraft implements GuiContext {
                 }
             }
             case GLFW_KEY_P -> { gameSettings.pauseOnLostFocus = !gameSettings.pauseOnLostFocus; saveOptions(); }
-            case GLFW_KEY_T -> { guiTextures.reload(); refreshLanguage(); }
+            case GLFW_KEY_T -> refreshResources();
             default -> { return false; }
         }
         return true;
@@ -493,9 +620,15 @@ public final class Minecraft implements GuiContext {
         if (!paused) {
             world.setDifficulty(levelInfo.difficulty);
             world.setDoFireTick(!"false".equals(levelInfo.gameRules.get("doFireTick")));
-            world.setRaining(levelInfo.raining);
+            world.setRaining(levelInfo.raining && !world.isNether());
             world.tick();
             atlas.tickAnimations();
+            if (preparing == null && player != null)
+                net.minecraft.world.MobSpawner.spawnMonsters(world, entityHost, random, levelInfo.spawnX, levelInfo.spawnY, levelInfo.spawnZ);
+            if (preparing == null && player != null)
+                net.minecraft.world.MobSpawner.spawnCreatures(world, entityHost, random, levelInfo.totalTime,
+                    levelInfo.spawnX, levelInfo.spawnY, levelInfo.spawnZ);
+            spawnGeneratedCreatures();
             server.tick();
             tickItemEntities();
             levelInfo.totalTime++;
@@ -549,6 +682,7 @@ public final class Minecraft implements GuiContext {
     /** The music the game wants now (Minecraft.getAmbientMusicType). */
     private net.minecraft.client.audio.MusicTicker.Type musicType() {
         if (player == null || world == null) return net.minecraft.client.audio.MusicTicker.Type.MENU;
+        if (world.isNether()) return net.minecraft.client.audio.MusicTicker.Type.NETHER;
         return isCreative() && player.allowFlying ? net.minecraft.client.audio.MusicTicker.Type.CREATIVE
             : net.minecraft.client.audio.MusicTicker.Type.GAME;
     }
@@ -618,7 +752,97 @@ public final class Minecraft implements GuiContext {
     }
 
     /** Merges nearby dropped stacks and lets the player pick up what it touches (server side of 1.8.9's EntityItem). */
+    /**
+     * EntityArrow.onCollideWithPlayer: an arrow the player may take, lying
+     * within reach (their box grown 1 across and 0.5 up and down), goes into
+     * the inventory with the pickup pop.
+     */
+    private void pickUpArrows() {
+        if (player == null || player.dead || isSpectator()) return;
+        AxisAlignedBB reach = player.boundingBox().grow(1.0, 0.5, 1.0);
+        for (Entity entity : server.entities().values()) {
+            if (!(entity instanceof net.minecraft.entity.EntityArrow arrow) || arrow.isRemoved() || !arrow.canPickUp(isCreative())) continue;
+            if (!arrow.boundingBox().intersects(reach)) continue;
+            Item item = itemByName("arrow");
+            if (arrow.pickup == 1 && (item == null || !inventory.addItemStackToInventory(new ItemStack(item)))) continue;
+            playSound("random.pop", player.x, player.y, player.z, 0.2f, ((random.nextFloat() - random.nextFloat()) * 0.7f + 1f) * 2f);
+            arrow.remove();
+        }
+    }
+
+    /** Each spawner's countdown (MobSpawnerBaseLogic.spawnDelay), by position; -1 waits to be reset. */
+    private final java.util.Map<World.BlockPos, Integer> spawnerDelays = new java.util.HashMap<>();
+
+    /**
+     * MobSpawnerBaseLogic.updateSpawner: with the player within 16 blocks, a
+     * spawner smokes and flickers, and when its countdown (200-799 ticks,
+     * 20 at first) runs out tries 4 times to put its mob within 4 blocks
+     * (where the mob could spawn and has room), unless 6 of them are
+     * already near; a success puffs flames and restarts the countdown.
+     */
+    private void tickSpawners() {
+        if (world.spawners().isEmpty() || player == null) return;
+        Block spawnerBlock = blockRegistry.get("minecraft:mob_spawner");
+        for (var entry : List.copyOf(world.spawners().entrySet())) {
+            World.BlockPos pos = entry.getKey();
+            if (world.generatedChunk(pos.x() >> 4, pos.z() >> 4) == null) continue;
+            if (world.get(pos.x(), pos.y(), pos.z()) != spawnerBlock) {
+                world.spawners().remove(pos);
+                spawnerDelays.remove(pos);
+                continue;
+            }
+            double dx = player.x - (pos.x() + 0.5), dy = player.y - (pos.y() + 0.5), dz = player.z - (pos.z() + 0.5);
+            if (dx * dx + dy * dy + dz * dz > 256.0) continue;
+            if (particles != null) {
+                particles.spawn(ParticleManager.Kind.SMOKE, pos.x() + random.nextFloat(), pos.y() + random.nextFloat(), pos.z() + random.nextFloat(), 0, 0, 0, null);
+                particles.spawn(ParticleManager.Kind.FLAME, pos.x() + random.nextFloat(), pos.y() + random.nextFloat(), pos.z() + random.nextFloat(), 0, 0, 0, null);
+            }
+            int delay = spawnerDelays.getOrDefault(pos, 20);
+            if (delay == -1) delay = 200 + random.nextInt(600);
+            if (delay > 0) {
+                spawnerDelays.put(pos, delay - 1);
+                continue;
+            }
+            boolean spawnedAny = false;
+            for (int i = 0; i < 4; i++) {
+                MovingEntity entity = net.minecraft.entity.EntityList.create(entry.getValue(), world, 0, 0, 0);
+                if (entity == null) break;
+                AxisAlignedBB near = new AxisAlignedBB(pos.x() - 4, pos.y() - 4, pos.z() - 4, pos.x() + 5, pos.y() + 5, pos.z() + 5);
+                int count = 0;
+                for (Entity other : server.entities().values())
+                    if (other.getClass() == entity.getClass() && !other.isRemoved() && ((MovingEntity) other).boundingBox().intersects(near)) count++;
+                if (count >= 6) {
+                    spawnedAny = true;
+                    break;
+                }
+                double sx = pos.x() + (random.nextDouble() - random.nextDouble()) * 4.0 + 0.5;
+                double sy = pos.y() + random.nextInt(3) - 1;
+                double sz = pos.z() + (random.nextDouble() - random.nextDouble()) * 4.0 + 0.5;
+                entity.setPositionAndRotation(sx, sy, sz, random.nextFloat() * 360f, 0f);
+                entity.setHost(entityHost);
+                if (entity instanceof EntityLiving living) {
+                    living.renderYawOffset = living.rotationYawHead = living.rotationYaw;
+                    if (!net.minecraft.world.MobSpawner.canMobSpawnHere(world, entityHost, random, living)
+                        || !net.minecraft.world.MobSpawner.isNotColliding(world, entityHost, living)) continue;
+                    living.onInitialSpawn();
+                }
+                spawnEntity(entity);
+                if (particles != null)
+                    for (int p = 0; p < 20; p++) {
+                        particles.spawn(ParticleManager.Kind.SMOKE, pos.x() + random.nextFloat(), pos.y() + random.nextFloat(), pos.z() + random.nextFloat(), 0, 0, 0, null);
+                        particles.spawn(ParticleManager.Kind.FLAME, pos.x() + random.nextFloat(), pos.y() + random.nextFloat(), pos.z() + random.nextFloat(), 0, 0, 0, null);
+                        particles.spawn(ParticleManager.Kind.EXPLODE, sx + (random.nextFloat() - 0.5) * entity.width, sy + random.nextFloat() * entity.height,
+                            sz + (random.nextFloat() - 0.5) * entity.width, random.nextGaussian() * 0.02, random.nextGaussian() * 0.02, random.nextGaussian() * 0.02, null);
+                    }
+                spawnedAny = true;
+            }
+            spawnerDelays.put(pos, spawnedAny ? -1 : 0);
+        }
+    }
+
     private void tickItemEntities() {
+        pickUpArrows();
+        tickSpawners();
         List<EntityItem> items = new ArrayList<>();
         for (Entity entity : server.entities().values()) if (entity instanceof EntityItem item && !item.isRemoved()) items.add(item);
         for (EntityItem item : items) {
@@ -694,19 +918,31 @@ public final class Minecraft implements GuiContext {
                 "Couldn't load world: " + error.getMessage(), "gui.toTitle"));
             return;
         }
+        overworld = world;
+        dimension = net.minecraft.world.Dimension.OVERWORLD;
+        chooseSpawn(info);
+        if (settings == null && info.playerDimension == -1 && info.player != null && cliSpawnX == null) {
+            dimension = net.minecraft.world.Dimension.NETHER;
+            world = dimensionWorld(dimension);
+        }
         loadingScreen.setTitle(I18n.format("menu.loadingLevel"));
         loadingScreen.setMessage(I18n.format("menu.generatingTerrain"));
         loadingScreen.setProgress(0);
         displayGuiScreen(loadingScreen);
-        chooseSpawn(info);
         int radius = Math.min(MAX_SPAWN_RADIUS, gameSettings.renderDistanceChunks + 1);
-        preparing = new SpawnPreparation(info.spawnX >> 4, info.spawnZ >> 4, radius, this::finishLaunch);
+        // Prepare the land where the player will actually appear: their saved position in an existing world.
+        int centerX = info.spawnX >> 4, centerZ = info.spawnZ >> 4;
+        if (info.player != null && cliSpawnX == null) {
+            centerX = (int) Math.floor(info.player.x()) >> 4;
+            centerZ = (int) Math.floor(info.player.z()) >> 4;
+        }
+        preparing = new SpawnPreparation(centerX, centerZ, radius, this::finishLaunch);
     }
 
     /** A new world's spawn point: vanilla's search for grass in a spawn-friendly biome near the origin. */
     private void chooseSpawn(LevelInfo info) {
-        if (info.initialized || world.isFlat()) return;
-        int[] spawn = world.findSpawn();
+        if (info.initialized || overworld.isFlat()) return;
+        int[] spawn = overworld.findSpawn();
         info.spawnX = spawn[0];
         info.spawnZ = spawn[1];
     }
@@ -737,7 +973,7 @@ public final class Minecraft implements GuiContext {
 
     private void finishLaunch() {
         if (!levelInfo.initialized) {
-            levelInfo.spawnY = world.surfaceHeight(levelInfo.spawnX, levelInfo.spawnZ) + 1;
+            levelInfo.spawnY = overworld.surfaceHeight(levelInfo.spawnX, levelInfo.spawnZ) + 1;
             levelInfo.initialized = true;
         }
         double spawnX = cliSpawnX != null ? cliSpawnX : levelInfo.spawnX + 0.5;
@@ -772,12 +1008,30 @@ public final class Minecraft implements GuiContext {
             if (player.allowFlying) player.isFlying = true;
         }
         player.sounds = (event, volume, pitch) -> playSound(event, player.x, player.y, player.z, volume, pitch);
-        server = new IntegratedServer(world);
+        player.itemUseListener = new Player.ItemUseListener() {
+            @Override public void update(ItemStack stack, int particles) { itemUseEffects(stack, particles); }
+            @Override public void finish(ItemStack stack) { finishItemUse(stack); }
+        };
+        server = dimensionServer(dimension);
+        spawnGeneratedCreatures();
+        player.heldItem = () -> inventory == null ? null : inventory.getCurrentItem();
+        player.fireListener = this::setPlayerOnFire;
         renderer = new WorldRenderer(world, atlas, modelManager, biomeColors);
         sky = new SkyRenderer(guiTextures);
         particles = new ParticleManager(world, atlas, guiTextures, modelManager, biomeColors);
         particles.sounds = this::playSound;
-        world.setEvents(new World.Events() {
+        eventsInstalled = true;
+        installEvents(overworld);
+        if (netherWorld != null) installEvents(netherWorld);
+        sky.setNether(world.isNether());
+        gameSettings.difficulty = levelInfo.difficulty;
+        if (worldFolder != null) saveWorld();
+        displayGuiScreen(null);
+    }
+
+    /** What block logic in a dimension's world asks of the game (drops, effects, lit TNT). */
+    private void installEvents(World target) {
+        target.setEvents(new World.Events() {
             @Override public void washedAway(int x, int y, int z, BlockState previous) { dropBlock(x, y, z, previous); }
             @Override public void liquidsMixed(int x, int y, int z) {
                 // BlockLiquid.triggerMixEffects.
@@ -792,10 +1046,96 @@ public final class Minecraft implements GuiContext {
                 playBreakSound(x, y, z, previous);
             }
             @Override public void containerBroken(int x, int y, int z, List<ItemStack> contents) { spillContents(x, y, z, contents); }
+            @Override public void tntIgnited(int x, int y, int z) { primeTnt(x, y, z, null, false); }
         });
-        gameSettings.difficulty = levelInfo.difficulty;
-        if (worldFolder != null) saveWorld();
-        displayGuiScreen(null);
+    }
+
+    // ---- dimensions ---------------------------------------------------------------------------
+
+    /** A dimension's world, loaded from its folder (DIM-1) or created the first time it is visited. */
+    private World dimensionWorld(net.minecraft.world.Dimension target) {
+        if (target == net.minecraft.world.Dimension.OVERWORLD) return overworld;
+        if (netherWorld != null) return netherWorld;
+        long seed = levelInfo.randomSeed;
+        Path directory = worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve(target.folder());
+        try {
+            if (directory != null && WorldStorage.exists(directory))
+                netherWorld = WorldStorage.load(directory, blockRegistry, s -> createNetherWorld(s));
+        } catch (IOException error) {
+            System.err.println("Couldn't load the Nether; it will be regenerated: " + error.getMessage());
+        }
+        if (netherWorld == null) netherWorld = createNetherWorld(seed);
+        if (eventsInstalled) installEvents(netherWorld);
+        return netherWorld;
+    }
+
+    private World createNetherWorld(long seed) {
+        World created = new World(blockRegistry, biomeRegistry, seed, null, net.minecraft.world.Dimension.NETHER);
+        created.setSmelting(smelting, this::itemByName);
+        return created;
+    }
+
+    /** A dimension's entity list, its saved entities loaded the first time. */
+    private IntegratedServer dimensionServer(net.minecraft.world.Dimension target) {
+        boolean nether = target == net.minecraft.world.Dimension.NETHER;
+        IntegratedServer existing = nether ? netherServer : overworldServer;
+        if (existing != null) return existing;
+        IntegratedServer created = new IntegratedServer(dimensionWorld(target));
+        if (nether) netherServer = created;
+        else overworldServer = created;
+        IntegratedServer previous = server;
+        server = created;
+        loadEntities(target);
+        server = previous;
+        return created;
+    }
+
+    /**
+     * Entity.travelToDimension and ServerConfigurationManager.transferEntityToWorld:
+     * the player leaves for the other dimension at a position divided (into
+     * the Nether) or multiplied (out of it) by 8, then, through a portal, the
+     * Teleporter finds or builds the portal there. The terrain around is
+     * prepared behind the "Downloading terrain" screen, then the travel
+     * sound plays.
+     */
+    private void changeDimension(net.minecraft.world.Dimension target, boolean throughPortal) {
+        if (player == null || target == dimension) return;
+        double scale = target == net.minecraft.world.Dimension.NETHER ? 1.0 / 8.0 : 8.0;
+        double x = Math.max(-29999872, Math.min(29999872, player.x * scale));
+        double z = Math.max(-29999872, Math.min(29999872, player.z * scale));
+        double y = player.y;
+        world = dimensionWorld(target);
+        server = dimensionServer(target);
+        dimension = target;
+        levelInfo.playerDimension = target.id;
+        player.setWorld(world);
+        if (target == net.minecraft.world.Dimension.NETHER && throughPortal) triggerAchievement("portal");
+        if (throughPortal) {
+            double[] spot = net.minecraft.world.Teleporter.placeInPortal(world, x, y, z, random);
+            x = spot[0];
+            y = spot[1];
+            z = spot[2];
+        }
+        player.setPositionAndRotation(x, y, z, player.yaw, player.pitch);
+        player.motionX = player.motionY = player.motionZ = 0;
+        player.fallDistance = 0;
+        pointedEntity = null;
+        playerController.resetBlockRemoving();
+        if (renderer != null) renderer.destroy();
+        renderer = new WorldRenderer(world, atlas, modelManager, biomeColors);
+        if (particles != null) particles.clear();
+        particles = new ParticleManager(world, atlas, guiTextures, modelManager, biomeColors);
+        particles.sounds = this::playSound;
+        sky.setNether(world.isNether());
+        loadingScreen.setTitle(I18n.format("multiplayer.downloadingTerrain"));
+        loadingScreen.setMessage("");
+        loadingScreen.setProgress(0);
+        displayGuiScreen(loadingScreen);
+        int radius = Math.min(MAX_SPAWN_RADIUS, gameSettings.renderDistanceChunks + 1);
+        preparing = new SpawnPreparation((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, radius, () -> {
+            displayGuiScreen(null);
+            if (soundHandler != null && throughPortal) soundHandler.playUi("portal.travel", random.nextFloat() * 0.4f + 0.8f);
+        });
     }
 
     private void startThrowawayWorld() {
@@ -810,6 +1150,8 @@ public final class Minecraft implements GuiContext {
         for (int i = 0; i < initialItems.length; i++) starter.add(new LevelInfo.SavedStack(i, "minecraft:" + initialItems[i], 64, 0));
         levelInfo.inventory = starter;
         world = createWorld(levelInfo, cliSeed);
+        overworld = world;
+        dimension = net.minecraft.world.Dimension.OVERWORLD;
         loadingScreen.setTitle(I18n.format("menu.loadingLevel"));
         loadingScreen.setMessage(I18n.format("menu.generatingTerrain"));
         displayGuiScreen(loadingScreen);
@@ -834,11 +1176,56 @@ public final class Minecraft implements GuiContext {
         try {
             Path directory = saveFormat.worldDirectory(worldFolder);
             Files.createDirectories(directory);
-            WorldStorage.save(directory, world);
+            WorldStorage.save(directory, overworld);
+            saveEntities(directory, overworldServer);
+            if (netherWorld != null) {
+                Path netherDirectory = directory.resolve(net.minecraft.world.Dimension.NETHER.folder());
+                Files.createDirectories(netherDirectory);
+                WorldStorage.save(netherDirectory, netherWorld);
+                saveEntities(netherDirectory, netherServer);
+            }
             levelInfo.sizeOnDisk = directorySize(directory);
             saveFormat.saveWorldInfo(worldFolder, levelInfo);
         } catch (IOException error) {
             System.err.println("Couldn't save world " + worldFolder + ": " + error.getMessage());
+        }
+    }
+
+    /**
+     * The world's mobs, lit TNT and experience orbs, saved in their vanilla
+     * NBT form to entities.dat (vanilla keeps them per chunk; dropped items
+     * aren't saved yet).
+     */
+    private void saveEntities(Path directory, IntegratedServer entities) throws IOException {
+        if (entities == null) return;
+        List<net.minecraft.nbt.NbtTag> list = new ArrayList<>();
+        for (Entity entity : entities.entities().values()) {
+            if (!(entity instanceof MovingEntity moving) || entity.isRemoved()) continue;
+            if (entity instanceof EntityLiving living && living.health <= 0) continue;
+            net.minecraft.nbt.NbtTag.Compound tag = new net.minecraft.nbt.NbtTag.Compound();
+            moving.writeNbt(tag);
+            list.add(tag);
+        }
+        net.minecraft.nbt.NbtTag.Compound root = new net.minecraft.nbt.NbtTag.Compound();
+        root.put("Entities", new net.minecraft.nbt.NbtTag.NbtList(list.isEmpty() ? net.minecraft.nbt.NbtTag.END
+            : net.minecraft.nbt.NbtTag.COMPOUND, list));
+        net.minecraft.nbt.NbtIo.writeCompressed(root, directory.resolve("entities.dat"));
+    }
+
+    private void loadEntities(net.minecraft.world.Dimension target) {
+        if (worldFolder == null) return;
+        Path file = saveFormat.worldDirectory(worldFolder).resolve(target.folder()).resolve("entities.dat");
+        World world = dimensionWorld(target);
+        if (!Files.isRegularFile(file)) return;
+        try {
+            net.minecraft.nbt.NbtTag.Compound root = net.minecraft.nbt.NbtIo.readCompressed(file);
+            for (net.minecraft.nbt.NbtTag element : root.getList("Entities").values()) {
+                if (!(element instanceof net.minecraft.nbt.NbtTag.Compound tag)) continue;
+                MovingEntity entity = net.minecraft.entity.EntityList.fromNbt(tag, world);
+                if (entity != null) spawnEntity(entity);
+            }
+        } catch (IOException | RuntimeException error) {
+            System.err.println("Couldn't load entities: " + error.getMessage());
         }
     }
 
@@ -852,7 +1239,14 @@ public final class Minecraft implements GuiContext {
 
     private void closeSession() {
         if (soundHandler != null) soundHandler.stopAll();
-        if (server != null) server.close();
+        if (overworldServer != null) overworldServer.close();
+        if (netherServer != null) netherServer.close();
+        if (server != null && server != overworldServer && server != netherServer) server.close();
+        overworldServer = netherServer = null;
+        overworld = netherWorld = null;
+        eventsInstalled = false;
+        dimension = net.minecraft.world.Dimension.OVERWORLD;
+        portalCounter = timeUntilPortal = 0;
         if (renderer != null) renderer.destroy();
         if (sky != null) sky.destroy();
         if (particles != null) particles.clear();
@@ -953,13 +1347,14 @@ public final class Minecraft implements GuiContext {
         inventory.clear();
         if (levelInfo.inventory == null) return;
         for (LevelInfo.SavedStack saved : levelInfo.inventory) {
-            Item item = itemRegistry.get(new net.minecraft.util.ResourceLocation(saved.id()));
+            // Vanilla ID and data value ("minecraft:dye", 1); older saves name the LegacyCraft item ("minecraft:dye_red").
+            Item item = itemRegistry.resolve(saved.id(), saved.damage());
             if (item == null || saved.count() <= 0) {
-                System.err.println("Dropping unknown saved item " + saved.id());
+                System.err.println("Dropping unknown saved item " + saved.id() + ":" + saved.damage());
                 continue;
             }
-            ItemStack stack = new ItemStack(item, Math.min(saved.count(), item.maxStackSize()),
-                Math.max(0, Math.min(item.maxDamage(), saved.damage())));
+            int durability = item.isDamageable() ? Math.max(0, Math.min(item.maxDamage(), saved.damage())) : 0;
+            ItemStack stack = new ItemStack(item, Math.min(saved.count(), item.maxStackSize()), durability);
             stack.readTag(saved.tag());
             inventory.setBySaveSlot(saved.slot(), stack);
         }
@@ -979,6 +1374,18 @@ public final class Minecraft implements GuiContext {
             player.xpSeed = levelInfo.vitals.xpSeed();
             if (player.health <= 0) player.health = 20f;
         }
+        if (levelInfo.food != null) {
+            LevelInfo.Food food = levelInfo.food;
+            player.foodStats.load(food.level(), food.saturation(), food.exhaustion(), food.timer());
+        }
+        if (levelInfo.effects != null)
+            for (LevelInfo.SavedEffect saved : levelInfo.effects) {
+                net.minecraft.potion.Potion potion = net.minecraft.potion.Potion.byId(saved.id());
+                if (potion != null && saved.duration() > 0)
+                    player.loadPotionEffect(new net.minecraft.potion.PotionEffect(potion, saved.duration(), saved.amplifier(),
+                        saved.ambient(), saved.showParticles()));
+            }
+        player.absorptionAmount = Math.max(0f, levelInfo.absorption);
     }
 
     private void saveInventory() {
@@ -989,12 +1396,21 @@ public final class Minecraft implements GuiContext {
         levelInfo.selectedItemSlot = inventory.currentItem;
         levelInfo.experience = new LevelInfo.Experience(player.experienceLevel, player.experience, player.experienceTotal);
         levelInfo.vitals = new LevelInfo.Vitals(player.health, player.air, player.xpSeed);
+        levelInfo.food = new LevelInfo.Food(player.foodStats.getFoodLevel(), player.foodStats.getSaturationLevel(),
+            player.foodStats.getExhaustionLevel(), player.foodStats.getFoodTimer());
+        List<LevelInfo.SavedEffect> effects = new ArrayList<>();
+        for (net.minecraft.potion.PotionEffect effect : player.getActivePotionEffects())
+            effects.add(new LevelInfo.SavedEffect(effect.potion().id, effect.amplifier(), effect.duration(), effect.ambient(),
+                effect.showParticles()));
+        levelInfo.effects = effects;
+        levelInfo.absorption = player.absorptionAmount;
     }
 
     private void addSaved(List<LevelInfo.SavedStack> saved, int slot) {
         ItemStack stack = inventory.getBySaveSlot(slot);
         if (stack != null)
-            saved.add(new LevelInfo.SavedStack(slot, stack.item().name().toString(), stack.count(), stack.damage(), stack.writeTag()));
+            saved.add(new LevelInfo.SavedStack(slot, stack.item().vanillaId().toString(), stack.count(),
+                stack.item().isDamageable() ? stack.damage() : stack.item().vanillaData(), stack.writeTag()));
     }
 
     /** Gives the player the current game mode's abilities (flight in Creative, noclip flight in Spectator). */
@@ -1006,7 +1422,468 @@ public final class Minecraft implements GuiContext {
 
     /** The death message in chat (CombatTracker.getDeathMessage for a death with no attacker). */
     private void announceDeath(net.minecraft.entity.DamageSource source) {
+        String attacker = player == null ? null : player.lastAttacker;
+        if (source.hasAttacker() && attacker != null) {
+            String who = attacker.startsWith("entity.") ? I18n.format(attacker) : attacker;
+            printChatLine(net.minecraft.client.gui.I18n.translateChat(source.deathMessageKey(), playerName, who), 0);
+            return;
+        }
         printChatLine(net.minecraft.client.gui.I18n.translateChat(source.deathMessageKey(), playerName), 0);
+    }
+
+    // ---- entities: targeting, fighting, explosions -------------------------------------------
+
+    /**
+     * EntityRenderer.getMouseOver: the block in reach, unless a mob or lit TNT
+     * (its box grown 0.1) is nearer along the view, in which case that is
+     * {@link #pointedEntity} and no block is targeted. Out of Creative an
+     * entity more than 3 blocks away can't be hit and blocks the block behind it.
+     */
+    private WorldRenderer.Hit target() {
+        WorldRenderer.Hit hit = renderer.raycast(player, reach());
+        pointedEntity = null;
+        if (server == null || isSpectator()) return hit;
+        double ex = player.x, ey = player.eyeY(), ez = player.z, dx = player.dirX(), dy = player.dirY(), dz = player.dirZ();
+        boolean limited = !isCreative();
+        double best = limited ? reach() : 6.0;
+        if (hit != null) {
+            double hx = hit.x() + hit.hitX() - ex, hy = hit.y() + hit.hitY() - ey, hz = hit.z() + hit.hitZ() - ez;
+            best = Math.sqrt(hx * hx + hy * hy + hz * hz);
+        }
+        MovingEntity found = null;
+        double foundDistance = best;
+        for (Entity entity : server.entities().values()) {
+            if (entity.isRemoved() || !(entity instanceof EntityLiving || entity instanceof EntityTNTPrimed
+                || entity instanceof net.minecraft.entity.EntityFireball fb && fb.deflectable())) continue;
+            AxisAlignedBB box = ((MovingEntity) entity).boundingBox();
+            box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
+            if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
+                if (foundDistance >= 0) {
+                    found = (MovingEntity) entity;
+                    foundDistance = 0;
+                }
+                continue;
+            }
+            AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
+            if (entry == null || entry.distance() > best) continue;
+            if (entry.distance() < foundDistance || foundDistance == 0) {
+                found = (MovingEntity) entity;
+                foundDistance = entry.distance();
+            }
+        }
+        if (found == null) return hit;
+        if (limited && foundDistance > 3.0) return null;
+        pointedEntity = found;
+        return null;
+    }
+
+    /**
+     * EntityPlayer.attackTargetEntityWithCurrentItem: the held item's attack
+     * damage (x1.5 for a critical hit while falling), plus Sharpness 1.25 a
+     * level; Knockback (and sprinting) throw the mob further and stop the
+     * sprint; Fire Aspect sets it alight; a sword wears by 1 and a tool by 2;
+     * the swing costs 0.3 exhaustion.
+     */
+    private void attackEntity(MovingEntity target) {
+        if (!isSpectator() && target instanceof net.minecraft.entity.EntityFireball fireball && fireball.deflectable()) {
+            fireball.deflect(player);
+            return;
+        }
+        if (isSpectator() || !(target instanceof EntityLiving mob)) return;
+        ItemStack held = inventory.getCurrentItem();
+        float damage = player.attackDamage(ToolValues.attackDamage(held == null ? null : held.item()));
+        float bonus = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.SHARPNESS, held) * 1.25f;
+        int knockback = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.KNOCKBACK, held)
+            + (player.sprinting ? 1 : 0);
+        if (damage <= 0 && bonus <= 0) return;
+        boolean crit = player.fallDistance > 0 && !player.onGround && !player.onLadder() && !player.inWater
+            && !player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS);
+        if (crit && damage > 0) damage *= 1.5f;
+        damage += bonus;
+        int fireAspect = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.FIRE_ASPECT, held);
+        boolean lit = false;
+        if (fireAspect > 0 && !mob.isBurning()) {
+            lit = true;
+            mob.setFire(1);
+        }
+        int looting = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.LOOTING, held);
+        if (!mob.attackFromPlayer(player, damage, looting)) {
+            if (lit) mob.fire = 0;
+            return;
+        }
+        if (knockback > 0) {
+            double yaw = Math.toRadians(player.yaw);
+            mob.addVelocity(Math.sin(yaw) * knockback * 0.5, 0.1, -Math.cos(yaw) * knockback * 0.5);
+            player.motionX *= 0.6;
+            player.motionZ *= 0.6;
+            player.sprinting = false;
+        }
+        if (particles != null) {
+            if (crit) particles.emitAtEntity(mob, ParticleManager.Kind.CRIT);
+            if (bonus > 0) particles.emitAtEntity(mob, ParticleManager.Kind.MAGIC_CRIT);
+        }
+        if (damage >= 18f) triggerAchievement("overkill");
+        if (held != null && !isCreative()) {
+            ToolValues.Type type = ToolValues.type(held.item());
+            int wear = type == ToolValues.Type.SWORD ? 1
+                : type == ToolValues.Type.AXE || type == ToolValues.Type.PICKAXE || type == ToolValues.Type.SHOVEL ? 2 : 0;
+            if (wear > 0 && net.minecraft.enchantment.EnchantmentHelper.damageItem(held, wear, random)) {
+                inventory.mainInventory[inventory.currentItem] = null;
+                playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+            }
+        }
+        if (fireAspect > 0) mob.setFire(fireAspect * 4);
+        player.addExhaustion(0.3f);
+    }
+
+    /** Entity.interactFirst: flint and steel lights a creeper for good. */
+    private boolean interactWithEntity(MovingEntity target) {
+        if (target instanceof net.minecraft.entity.passive.EntityAnimal animal) {
+            if (isSpectator() || !animal.isAlive()) return false;
+            return animal.interact(animalInteractor);
+        }
+        ItemStack held = inventory.getCurrentItem();
+        if (!(target instanceof EntityCreeper creeper) || held == null || !held.item().name().path().equals("flint_and_steel")) return false;
+        creeper.ignite();
+        if (!isCreative() && net.minecraft.enchantment.EnchantmentHelper.damageItem(held, 1, random)) {
+            inventory.mainInventory[inventory.currentItem] = null;
+            playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+        }
+        return true;
+    }
+
+    /** The player's hand as animals see it when right-clicked (EntityAnimal.interact and friends). */
+    private final net.minecraft.entity.passive.EntityAnimal.Interactor animalInteractor = new net.minecraft.entity.passive.EntityAnimal.Interactor() {
+        @Override public ItemStack held() { return inventory.getCurrentItem(); }
+        @Override public boolean creative() { return isCreative(); }
+        @Override public void consumeHeld() {
+            ItemStack held = inventory.getCurrentItem();
+            if (held == null || isCreative()) return;
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+        @Override public void exchangeHeld(ItemStack result) {
+            ItemStack held = inventory.getCurrentItem();
+            if (held == null) return;
+            if (held.count() <= 1) {
+                inventory.mainInventory[inventory.currentItem] = result;
+            } else {
+                held.split(1);
+                if (!inventory.addItemStackToInventory(result)) dropPlayerItem(result);
+            }
+        }
+        @Override public void damageHeld(int amount) {
+            ItemStack held = inventory.getCurrentItem();
+            if (held == null || isCreative()) return;
+            if (net.minecraft.enchantment.EnchantmentHelper.damageItem(held, amount, random)) {
+                inventory.mainInventory[inventory.currentItem] = null;
+                playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+            }
+        }
+        @Override public ItemStack stack(String name) { return itemStack(name); }
+        @Override public void awardAchievement(String id) { triggerAchievement(id); }
+    };
+
+    /** BlockTNT.explode / onBlockDestroyedByExplosion: lit TNT where the block was (a short fuse when an explosion lit it). */
+    private void primeTnt(int x, int y, int z, String placedBy, boolean byExplosion) {
+        if (server == null) return;
+        EntityTNTPrimed tnt = new EntityTNTPrimed(world, x + 0.5, y, z + 0.5, placedBy);
+        if (byExplosion) tnt.fuse = random.nextInt(tnt.fuse / 4) + tnt.fuse / 8;
+        spawnEntity(tnt);
+        if (!byExplosion) playSound("game.tnt.primed", tnt.x(), tnt.y(), tnt.z(), 1f, 1f);
+    }
+
+    /**
+     * World.newExplosion (Explosion.doExplosionA and B): entities within
+     * twice the strength take {@code (i^2 + i) / 2 x 7 x 2 x strength + 1}
+     * damage, i being their closeness times how much of them sees the
+     * centre, and are pushed away by i; then the blast sound and flash, and
+     * when it breaks blocks, a puff over each block the rays reached, each
+     * broken block dropping with chance 1 / strength (TNT lights instead).
+     */
+    private void explode(Entity exploder, double x, double y, double z, float size, boolean smoking, String attacker) {
+        explode(exploder, x, y, z, size, false, smoking, attacker);
+    }
+
+    private void explode(Entity exploder, double x, double y, double z, float size, boolean flaming, boolean smoking, String attacker) {
+        if (server == null || world == null) return;
+        net.minecraft.world.Explosion explosion = new net.minecraft.world.Explosion(x, y, z, size);
+        if (exploder instanceof net.minecraft.entity.EntityWitherSkull skull && skull.invulnerable) explosion.resistanceCap = 0.8f;
+        explosion.computeAffectedBlocks(world, random);
+        float reachDistance = size * 2f;
+        AxisAlignedBB area = new AxisAlignedBB(x - reachDistance - 1, y - reachDistance - 1, z - reachDistance - 1,
+            x + reachDistance + 1, y + reachDistance + 1, z + reachDistance + 1);
+        for (Entity entity : server.entities().values()) {
+            if (entity == exploder || entity.isRemoved()) continue;
+            AxisAlignedBB box;
+            double eyeHeight;
+            if (entity instanceof MovingEntity moving) {
+                if (moving.isImmuneToExplosions()) continue;
+                box = moving.boundingBox();
+                eyeHeight = moving.eyeHeight();
+            } else if (entity instanceof EntityItem item) {
+                box = item.boundingBox();
+                eyeHeight = EntityItem.SIZE * 0.85;
+            } else {
+                continue;
+            }
+            if (!box.intersects(area)) continue;
+            double ddx = entity.x() - x, ddy = entity.y() - y, ddz = entity.z() - z;
+            double closeness = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) / reachDistance;
+            if (closeness > 1.0) continue;
+            double px = entity.x() - x, py = entity.y() + eyeHeight - y, pz = entity.z() - z;
+            double length = Math.sqrt(px * px + py * py + pz * pz);
+            if (length == 0) continue;
+            px /= length; py /= length; pz /= length;
+            double impact = (1.0 - closeness) * net.minecraft.world.Explosion.exposure(world, x, y, z, box);
+            float damage = (int) ((impact * impact + impact) / 2.0 * 7.0 * reachDistance + 1.0);
+            if (entity instanceof MovingEntity moving) {
+                moving.attackFromExplosion(damage, attacker, exploder instanceof MovingEntity m ? m : null);
+                moving.motionX += px * impact;
+                moving.motionY += py * impact;
+                moving.motionZ += pz * impact;
+            } else {
+                EntityItem item = (EntityItem) entity;
+                item.explosionDamage(damage);
+                item.motionX += px * impact;
+                item.motionY += py * impact;
+                item.motionZ += pz * impact;
+            }
+        }
+        if (player != null && !player.dead && player.boundingBox().intersects(area)) {
+            double ddx = player.x - x, ddy = player.y - y, ddz = player.z - z;
+            double closeness = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) / reachDistance;
+            double px = ddx, py = player.y + player.eyeHeight() - y, pz = ddz;
+            double length = Math.sqrt(px * px + py * py + pz * pz);
+            if (closeness <= 1.0 && length != 0) {
+                px /= length; py /= length; pz /= length;
+                double impact = (1.0 - closeness) * net.minecraft.world.Explosion.exposure(world, x, y, z, player.boundingBox());
+                float damage = (int) ((impact * impact + impact) / 2.0 * 7.0 * reachDistance + 1.0);
+                player.attackByExplosion(damage, attacker);
+                // The client takes the push straight from the explosion packet (no Blast Protection), unless flying in Creative.
+                if (!isSpectator() && !(isCreative() && player.isFlying)) {
+                    player.motionX += px * impact;
+                    player.motionY += py * impact;
+                    player.motionZ += pz * impact;
+                }
+            }
+        }
+        playSound("random.explode", x, y, z, 4f, (1f + (random.nextFloat() - random.nextFloat()) * 0.2f) * 0.7f);
+        if (particles != null) {
+            if (size >= 2f && smoking) particles.spawn(ParticleManager.Kind.HUGE_EXPLOSION, x, y, z, 1, 0, 0, null);
+            else particles.spawn(ParticleManager.Kind.LARGE_EXPLODE, x, y, z, 1, 0, 0, null);
+        }
+        if (smoking) destroyExploded(explosion, x, y, z, size, attacker);
+        if (flaming) {
+            // Explosion.doExplosionB with isFlaming: a third of the cleared spots over full blocks catch fire.
+            Block fire = blockRegistry.get("minecraft:fire");
+            for (int[] pos : explosion.affectedBlocks()) {
+                int bx = pos[0], by = pos[1], bz = pos[2];
+                if (by < 1 || by >= World.HEIGHT || !world.get(bx, by, bz).isAir() || !world.get(bx, by - 1, bz).isOpaque()) continue;
+                if (random.nextInt(3) == 0) world.setStateAndUpdate(bx, by, bz, BlockState.defaultOf(fire));
+            }
+        }
+    }
+
+    private void destroyExploded(net.minecraft.world.Explosion explosion, double x, double y, double z, float size, String attacker) {
+        for (int[] pos : explosion.affectedBlocks()) {
+            int bx = pos[0], by = pos[1], bz = pos[2];
+            if (particles != null) {
+                double px = bx + random.nextFloat(), py = by + random.nextFloat(), pz = bz + random.nextFloat();
+                double dx = px - x, dy = py - y, dz = pz - z;
+                double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                dx /= length; dy /= length; dz /= length;
+                double speed = 0.5 / (length / size + 0.1);
+                speed *= random.nextFloat() * random.nextFloat() + 0.3f;
+                dx *= speed; dy *= speed; dz *= speed;
+                particles.spawn(ParticleManager.Kind.EXPLODE, (px + x) / 2.0, (py + y) / 2.0, (pz + z) / 2.0, dx, dy, dz, null);
+                particles.spawn(ParticleManager.Kind.SMOKE, px, py, pz, dx, dy, dz, null);
+            }
+            BlockState state = world.getState(bx, by, bz);
+            Block block = state.block();
+            if (block.isAir()) continue;
+            String name = block.name().path();
+            if (!name.equals("tnt") && dropsEnabled())
+                for (ItemStack drop : blockDrops.explosionDrops(name, block.material(), state.metadata(), 1f / size, random))
+                    spawnItem(EntityItem.fromBlock(world, bx, by, bz, drop, random));
+            if (name.equals("skull") && dropsEnabled() && random.nextFloat() <= 1f / size) {
+                ItemStack head = skullDrop(bx, by, bz, state.metadata());
+                if (head != null) spawnItem(EntityItem.fromBlock(world, bx, by, bz, head, random));
+            }
+            world.setState(bx, by, bz, BlockState.of(blockRegistry.air(), 0));
+            BlockUpdates.afterChange(world, bx, by, bz, this::blockPopped);
+            if (name.equals("tnt")) primeTnt(bx, by, bz, attacker, true);
+        }
+    }
+
+    /** Mobs, lit TNT and experience orbs, and the shadows under entities (Fancy graphics with Entity Shadows on). */
+    private void renderMobs(int renderDistance) {
+        if (server == null || mobRenderer == null) return;
+        double limit = (double) renderDistance * renderDistance;
+        boolean front = gameSettings.thirdPersonView == 2;
+        mobRenderer.setView(world, levelInfo.worldTime, player.x, player.eyeY(), player.z,
+            PlayerAnimation.vanillaYaw(player) + (front ? 180f : 0f), front ? -player.pitch : player.pitch);
+        boolean shadows = gameSettings.fancyGraphics && gameSettings.entityShadows;
+        mobRenderer.fireRequests.clear();
+        mobRenderer.bossRendered = false;
+        glEnable(GL_DEPTH_TEST);
+        BlockState tntBlock = null;
+        for (Entity entity : server.entities().values()) {
+            if (entity.isRemoved()) continue;
+            if (entity instanceof EntityItem item) {
+                if (!shadows) continue;
+                double ix = item.prevX + (item.x() - item.prevX) * partialTicks, iz = item.prevZ + (item.z() - item.prevZ) * partialTicks;
+                double iy = item.prevY + (item.y() - item.prevY) * partialTicks;
+                if ((ix - player.x) * (ix - player.x) + (iz - player.z) * (iz - player.z) <= limit)
+                    mobRenderer.renderShadow(ix, iy, iz, 0.15f, 0.75f);
+                continue;
+            }
+            if (!(entity instanceof MovingEntity moving)) continue;
+            double ex = moving.renderX(partialTicks), ey = moving.renderY(partialTicks), ez = moving.renderZ(partialTicks);
+            if ((ex - player.x) * (ex - player.x) + (ez - player.z) * (ez - player.z) > limit) continue;
+            if (entity instanceof EntityCreeper creeper) {
+                mobRenderer.renderCreeper(creeper, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
+            } else if (entity instanceof EntityTNTPrimed tnt) {
+                if (tntBlock == null) tntBlock = BlockState.defaultOf(blockRegistry.get("minecraft:tnt"));
+                mobRenderer.renderTNT(tnt, tntBlock, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
+            } else if (entity instanceof EntityXPOrb orb) {
+                mobRenderer.renderXPOrb(orb, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.15f, 0.75f);
+            } else if (entity instanceof net.minecraft.entity.monster.EntityPigZombie || entity instanceof net.minecraft.entity.monster.EntitySkeleton
+                || entity instanceof net.minecraft.entity.monster.EntityBlaze || entity instanceof net.minecraft.entity.monster.EntityGhast
+                || entity instanceof net.minecraft.entity.monster.EntityMagmaCube) {
+                EntityLiving mob = (EntityLiving) entity;
+                mobRenderer.renderMob(mob, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, net.minecraft.client.renderer.entity.MobRenderer.shadowSize(mob), 1f);
+            } else if (entity instanceof net.minecraft.entity.boss.EntityWither wither) {
+                mobRenderer.renderWither(wither, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 1f, 1f);
+            } else if (entity instanceof net.minecraft.entity.EntityWitherSkull skull) {
+                mobRenderer.renderWitherSkull(skull, partialTicks);
+            } else if (entity instanceof net.minecraft.entity.EntityArrow arrow) {
+                mobRenderer.renderArrow(arrow, partialTicks);
+            } else if (entity instanceof net.minecraft.entity.EntityFireball fireball) {
+                Item item = itemByName(fireball.itemName());
+                if (item != null) mobRenderer.renderFireball(fireball, new ItemStack(item), partialTicks);
+            } else if (entity instanceof net.minecraft.entity.passive.EntityAnimal animal) {
+                mobRenderer.renderAnimal(animal, partialTicks);
+                // RenderPig/Cow/Sheep 0.7, RenderChicken 0.3; babies half (Render.renderShadow).
+                float size = animal instanceof net.minecraft.entity.passive.EntityChicken ? 0.3f : 0.7f;
+                if (animal.isChild()) size *= 0.5f;
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, size, 1f);
+            } else if (entity instanceof net.minecraft.entity.EntityPotion potion) {
+                Item item = itemRegistry.potion(potion.potionData);
+                if (item != null) mobRenderer.renderThrownItem(potion, new ItemStack(item), partialTicks);
+            } else if (entity instanceof net.minecraft.entity.EntityThrowable thrown) {
+                Item item = itemByName(thrown.itemName());
+                if (item != null) mobRenderer.renderThrownItem(thrown, new ItemStack(item), partialTicks);
+            }
+        }
+        renderSkulls(limit);
+        if (mobRenderer.bossRendered && ingameGui != null)
+            ingameGui.setBossStatus(I18n.format(mobRenderer.bossName), mobRenderer.bossHealthScale);
+        if (shadows && gameSettings.thirdPersonView != 0 && !player.dead)
+            mobRenderer.renderShadow(player.renderX(partialTicks), player.renderY(partialTicks), player.renderZ(partialTicks), 0.5f, 1f);
+        for (double[] fire : mobRenderer.fireRequests) renderEntityFire(fire[0], fire[1], fire[2], (float) fire[3], (float) fire[4]);
+        glEnable(GL_TEXTURE_2D);
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /** TileEntityItemStackRenderer for mob heads: the head standing on the floor of the item's block, turned round. */
+    private final ItemRenderer.Builtin headItems = new ItemRenderer.Builtin() {
+        @Override public boolean handles(Item item) {
+            return net.minecraft.client.renderer.entity.SkullRenderer.typeOf(item.name().path()) >= 0;
+        }
+        @Override public void draw(Item item, float red, float green, float blue) {
+            int type = net.minecraft.client.renderer.entity.SkullRenderer.typeOf(item.name().path());
+            net.minecraft.client.renderer.entity.SkullRenderer.render(guiTextures, 0, 0, 0, 1, 180f, type, new float[] {red, green, blue});
+        }
+    };
+
+    /** Placed mob heads within the render distance (TileEntitySkullRenderer); heads whose block has gone are forgotten. */
+    private void renderSkulls(double limit) {
+        Block skullBlock = blockRegistry.get("minecraft:skull");
+        for (var iterator = world.skulls().entrySet().iterator(); iterator.hasNext(); ) {
+            var entry = iterator.next();
+            World.BlockPos pos = entry.getKey();
+            double dx = pos.x() + 0.5 - player.x, dz = pos.z() + 0.5 - player.z;
+            if (dx * dx + dz * dz > limit) continue;
+            if (world.generatedChunk(Math.floorDiv(pos.x(), 16), Math.floorDiv(pos.z(), 16)) == null) continue;
+            BlockState state = world.getState(pos.x(), pos.y(), pos.z());
+            if (state.block() != skullBlock) {
+                iterator.remove();
+                continue;
+            }
+            mobRenderer.renderSkullBlock(pos.x(), pos.y(), pos.z(), state.metadata() & 7, entry.getValue());
+        }
+    }
+
+    /**
+     * ItemSkull.onItemUse: a head goes on the clicked face (never under a
+     * block), replacing a replaceable block or beside a solid one; on the
+     * floor it turns to the nearest sixteenth of the player's facing. A
+     * wither skeleton skull completing the pattern builds a wither.
+     */
+    private boolean useSkull(WorldRenderer.Hit hit) {
+        ItemStack held = inventory.getCurrentItem();
+        if (hit == null || held == null || levelInfo.gameType == WorldSettings.GameType.ADVENTURE || isSpectator()) return false;
+        int type = net.minecraft.client.renderer.entity.SkullRenderer.typeOf(held.item().name().path());
+        if (type < 0) return false;
+        net.minecraft.util.Direction face = hit.face();
+        if (face == net.minecraft.util.Direction.DOWN) return false;
+        int x = hit.x(), y = hit.y(), z = hit.z();
+        BlockState clicked = world.getState(x, y, z);
+        if (!net.minecraft.block.BlockPlacement.isReplaceable(clicked) || clicked.block().isAir()) {
+            if (!clicked.block().isSolid()) return false;
+            x += face.xOffset; y += face.yOffset; z += face.zOffset;
+        }
+        if (!world.inBounds(x, y, z) || !net.minecraft.block.BlockPlacement.isReplaceable(world.getState(x, y, z))) return false;
+        int facing = switch (face) { case UP -> 1; case NORTH -> 2; case SOUTH -> 3; case WEST -> 4; case EAST -> 5; default -> 1; };
+        world.setStateAndUpdate(x, y, z, BlockState.of(blockRegistry.get("minecraft:skull"), facing));
+        int rotation = face == net.minecraft.util.Direction.UP
+            ? (int) Math.floor((player.yaw + 180f) * 16f / 360f + 0.5) & 15 : 0;
+        world.setSkull(x, y, z, type, rotation);
+        checkWitherSpawn(x, y, z, type);
+        if (!isCreative()) inventory.consumeCurrentItem();
+        return true;
+    }
+
+    /** BlockSkull.checkWitherSpawn: the pattern's blocks vanish and a wither rises from the bottom soul sand. */
+    private void checkWitherSpawn(int x, int y, int z, int type) {
+        if (type != 1 || y < 2 || levelInfo.difficulty == 0 || server == null) return;
+        net.minecraft.world.WitherPattern.Match match = net.minecraft.world.WitherPattern.find(world, x, y, z);
+        if (match == null) return;
+        Block air = blockRegistry.air();
+        for (int[] cell : match.all()) world.setState(cell[0], cell[1], cell[2], BlockState.of(air, 0));
+        int[] bottom = match.spawnBlock();
+        float yaw = match.alongX() ? 0f : 90f;
+        net.minecraft.entity.boss.EntityWither wither = new net.minecraft.entity.boss.EntityWither(world,
+            bottom[0] + 0.5, bottom[1] + 0.55, bottom[2] + 0.5);
+        wither.setPositionAndRotation(bottom[0] + 0.5, bottom[1] + 0.55, bottom[2] + 0.5, yaw, 0f);
+        wither.prevRotationYaw = yaw;
+        wither.renderYawOffset = wither.prevRenderYawOffset = yaw;
+        wither.rotationYawHead = wither.prevRotationYawHead = yaw;
+        wither.startSpawning();
+        if (player != null && player.boundingBox().intersects(wither.boundingBox().grow(50.0, 50.0, 50.0)))
+            triggerAchievement("spawnWither");
+        spawnEntity(wither);
+        int[] top = match.cells()[0][1];
+        Item snowball = itemByName("snowball");
+        for (int i = 0; i < 120 && particles != null && itemRenderer != null; i++)
+            particles.spawnItemCrack(itemRenderer.particleTexture(snowball), top[0] + random.nextDouble(),
+                top[1] - 2 + random.nextDouble() * 3.9, top[2] + random.nextDouble(), 0, 0, 0);
+        for (int[] cell : match.all()) BlockUpdates.afterChange(world, cell[0], cell[1], cell[2], this::blockPopped);
+    }
+
+    /** BlockSkull.getDrops: the head it holds, unless it was marked not to drop. */
+    private ItemStack skullDrop(int x, int y, int z, int metadata) {
+        if ((metadata & 8) != 0) return null;
+        World.Skull skull = world.skull(x, y, z);
+        Item item = itemByName(net.minecraft.client.renderer.entity.SkullRenderer.ITEMS[
+            net.minecraft.client.renderer.entity.SkullRenderer.clampType(skull == null ? 0 : skull.type())]);
+        return item == null ? null : new ItemStack(item);
     }
 
     private boolean isSpectator() { return levelInfo != null && levelInfo.gameType == WorldSettings.GameType.SPECTATOR; }
@@ -1054,7 +1931,12 @@ public final class Minecraft implements GuiContext {
             player.experience = 0;
             player.experienceTotal = 0;
         }
+        // Dying in the Nether brings you back to the overworld spawn.
+        if (dimension != net.minecraft.world.Dimension.OVERWORLD) changeDimension(net.minecraft.world.Dimension.OVERWORLD, false);
         player.respawn();
+        if (preparing != null)
+            preparing = new SpawnPreparation((int) Math.floor(player.x) >> 4, (int) Math.floor(player.z) >> 4,
+                Math.min(MAX_SPAWN_RADIUS, gameSettings.renderDistanceChunks + 1), preparing.onDone);
         deathHandled = false;
         applyGameMode();
     }
@@ -1270,7 +2152,8 @@ public final class Minecraft implements GuiContext {
         float temperature = net.minecraft.world.gen.ChunkPopulator.temperature(world.biomeAt(x, z), x, y, z);
         float[] fog = sky.prepare(levelInfo.worldTime, partialTicks, temperature, player.dirX(), player.dirY(), player.dirZ(),
             gameSettings.renderDistanceChunks, player.y, world.isFlat(), cameraLiquid());
-        LightMap.update(SkyRenderer.sunBrightness(sky.angle()), gameSettings.gammaSetting);
+        LightMap.update(SkyRenderer.sunBrightness(sky.angle()), gameSettings.gammaSetting,
+            player == null ? 0f : player.nightVisionBrightness(partialTicks), world.isNether());
         return fog;
     }
 
@@ -1298,7 +2181,9 @@ public final class Minecraft implements GuiContext {
             sky.renderSky(levelInfo.worldTime, eyeY);
         }
         glEnable(GL_FOG);
-        setupFog(liquid, renderDistance * 0.75f, renderDistance);
+        // WorldProviderHell.doesXZShowFog: the Nether's fog starts almost at once and ends halfway out.
+        if (world.isNether() && liquid == null) setupFog(null, renderDistance * 0.05f, Math.min(renderDistance, 192f) * 0.5f);
+        else setupFog(liquid, renderDistance * 0.75f, renderDistance);
         if (eyeY < SkyRenderer.CLOUD_HEIGHT) renderClouds(renderDistance, skyVisible);
         perspective(worldFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
         glMatrixMode(GL_MODELVIEW);
@@ -1310,9 +2195,10 @@ public final class Minecraft implements GuiContext {
         renderer.render(player, renderDistance);
         if (gameSettings.showChunkBorders) DebugRenderer.renderChunkBorders(player.x, player.y, player.z);
         renderItemEntities(renderDistance);
+        renderMobs(renderDistance);
         tableBooks.render(world, guiTextures, partialTicks, player.x, player.z, Math.min(64.0, renderDistance));
         if (gameSettings.thirdPersonView != 0 && !player.dead) renderPlayerModel();
-        WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? renderer.raycast(player, reach()) : null;
+        WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? target() : null;
         drawDestroyProgress();
         if (hit != null && !gameSettings.hideGUI) drawSelection(hit);
         renderParticles();
@@ -1391,7 +2277,7 @@ public final class Minecraft implements GuiContext {
         if (portal > 0f) {
             float squeeze = 5f / (portal * portal + 5f) - portal * 0.04f;
             squeeze *= squeeze;
-            float turn = (rendererUpdateCount + partialTicks) * 20f;
+            float turn = (rendererUpdateCount + partialTicks) * (player.isPotionActive(net.minecraft.potion.Potion.CONFUSION) ? 7f : 20f);
             glRotatef(turn, 0f, 1f, 1f);
             glScalef(1f / squeeze, 1f, 1f);
             glRotatef(-turn, 0f, 1f, 1f);
@@ -1583,12 +2469,30 @@ public final class Minecraft implements GuiContext {
         glEnable(GL_TEXTURE_2D);
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
-        guiTextures.bind(FirstPersonRenderer.STEVE);
+        localSkin.bind(guiTextures);
         glColor4f(light[0], light[1], light[2], 1f);
+        playerModel.head.showOverlay = gameSettings.isModelPartEnabled("hat");
+        playerModel.body.showOverlay = gameSettings.isModelPartEnabled("jacket");
+        playerModel.rightArm.showOverlay = gameSettings.isModelPartEnabled("right_sleeve");
+        playerModel.leftArm.showOverlay = gameSettings.isModelPartEnabled("left_sleeve");
+        playerModel.rightLeg.showOverlay = gameSettings.isModelPartEnabled("right_pants_leg");
+        playerModel.leftLeg.showOverlay = gameSettings.isModelPartEnabled("left_pants_leg");
         playerModel.render(player.sneaking);
         if (inventory != null)
             net.minecraft.client.renderer.ArmorLayer.render(playerModel, inventory.armorInventory, player.sneaking, guiTextures, light,
                 player.ticksExisted() + partialTicks);
+        // LayerCustomHead: a mob head in the helmet slot sits on the head, 1.1875 times its size.
+        ItemStack helmet = inventory == null ? null : inventory.armorInventory[3];
+        int headType = helmet == null ? -1 : net.minecraft.client.renderer.entity.SkullRenderer.typeOf(helmet.item().name().path());
+        if (headType >= 0) {
+            glPushMatrix();
+            if (player.sneaking) glTranslatef(0f, 0.2f, 0f);
+            playerModel.head.transform();
+            glScalef(1.1875f, -1.1875f, -1.1875f);
+            net.minecraft.client.renderer.entity.SkullRenderer.render(guiTextures, -0.5, 0, -0.5, 1, 180f, headType, light);
+            glPopMatrix();
+        }
+        if (localCape.present() && gameSettings.isModelPartEnabled("cape")) renderCape(bodyYaw, light);
         if (player.hurtTime > 0 || player.deathTime > 0) {
             // RendererLivingEntity.setBrightness: a hurt entity is mixed 30% toward red.
             glDisable(GL_TEXTURE_2D);
@@ -1608,6 +2512,40 @@ public final class Minecraft implements GuiContext {
             itemRenderer.renderHeld(held, ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
             glPopMatrix();
         }
+        glPopMatrix();
+    }
+
+    /**
+     * LayerCape (1.8.9; HYPOTHESIS: recalled maths): the cape hangs from the
+     * shoulders, one-eighth of a block behind the body, and swings back by how
+     * far the chasing position trails the player: forward movement lifts it
+     * (100 degrees per block of lag, never forward of 6 degrees), sideways
+     * movement twists it, vertical movement adds up to 32 degrees (-6 when
+     * falling behind upward), walking bobs it with the view bob, and sneaking
+     * adds 25 degrees. Called in drawPlayer's model space.
+     */
+    private void renderCape(float bodyYaw, float[] light) {
+        PlayerAnimation a = playerAnimation;
+        localCape.bind();
+        glColor4f(light[0], light[1], light[2], 1f);
+        glPushMatrix();
+        glTranslatef(0f, 0f, 0.125f);
+        double dx = a.prevChasingX + (a.chasingX - a.prevChasingX) * partialTicks - player.x;
+        double dy = a.prevChasingY + (a.chasingY - a.prevChasingY) * partialTicks - player.y;
+        double dz = a.prevChasingZ + (a.chasingZ - a.prevChasingZ) * partialTicks - player.z;
+        double sin = Math.sin(Math.toRadians(bodyYaw)), cos = -Math.cos(Math.toRadians(bodyYaw));
+        float lift = Math.max(-6f, Math.min(32f, (float) dy * 10f));
+        float back = (float) (dx * sin + dz * cos) * 100f;
+        float side = (float) (dx * cos - dz * sin) * 100f;
+        if (back < 0f) back = 0f;
+        float bob = PlayerAnimation.lerp(a.prevCameraYaw, a.cameraYaw, partialTicks);
+        lift += (float) Math.sin(PlayerAnimation.lerp(a.prevDistanceWalked, a.distanceWalked, partialTicks) * 6f) * 32f * bob;
+        if (player.sneaking) lift += 25f;
+        glRotatef(6f + back / 2f + lift, 1f, 0f, 0f);
+        glRotatef(side / 2f, 0f, 0f, 1f);
+        glRotatef(-side / 2f, 0f, 1f, 0f);
+        glRotatef(180f, 0f, 1f, 0f);
+        playerModel.renderCape();
         glPopMatrix();
     }
 
@@ -1832,14 +2770,18 @@ public final class Minecraft implements GuiContext {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glColor4f(1, 1, 1, 1);
 
+        // GuiIngame.renderGameOverlay: the purple haze is the portal's, not nausea's.
         float portal = PlayerAnimation.lerp(player.prevTimeInPortal, player.timeInPortal, partialTicks);
-        if (portal > 0f) renderPortalOverlay(portal, guiWidth, guiHeight);
+        if (portal > 0f && !player.isPotionActive(net.minecraft.potion.Potion.CONFUSION)) renderPortalOverlay(portal, guiWidth, guiHeight);
 
         boolean showDebug = gameSettings.showDebugInfo;
         boolean axisCrosshair = showDebug && !gameSettings.reducedDebugInfo;
         GuiIngame.Status status = new GuiIngame.Status(survivalHud(), isSpectator(), levelInfo.hardcore, player.health,
-            player.foodLevel, inventory.getTotalArmorValue(), player.experienceLevel, player.experience,
-            player.headInWater(), player.air, player.hurtResistantTime);
+            player.foodLevel(), inventory.getTotalArmorValue(), player.experienceLevel, player.experience,
+            player.headInWater(), player.air, player.hurtResistantTime, player.foodStats.getSaturationLevel(),
+            player.absorptionAmount, player.isPotionActive(net.minecraft.potion.Potion.POISON),
+            player.isPotionActive(net.minecraft.potion.Potion.WITHER), player.isPotionActive(net.minecraft.potion.Potion.REGENERATION),
+            player.isPotionActive(net.minecraft.potion.Potion.HUNGER));
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
@@ -1918,14 +2860,26 @@ public final class Minecraft implements GuiContext {
         if (player.isUsingItem()) {
             // Minecraft.runTick: letting go of the use key stops blocking; meanwhile clicks do nothing
             // and mining pauses where it was.
-            if (!gameSettings.keyBindUseItem.isKeyDown()) player.clearItemInUse();
+            if (!gameSettings.keyBindUseItem.isKeyDown()) {
+                ItemStack using = player.itemInUse();
+                int used = 72000 - player.itemInUseCount();
+                player.clearItemInUse();
+                if (using != null && using.item().useAction() == Item.UseAction.BOW) releaseBow(using, used);
+            }
             return;
         }
-        WorldRenderer.Hit hit = renderer.raycast(player, reach());
+        WorldRenderer.Hit hit = target();
         // The arm swings on every attack click, every tick a block is being mined, and on each placement.
         if (attackPressed) playerAnimation.swing();
+        if (attackPressed && pointedEntity != null) attackEntity(pointedEntity);
         if (pickPressed && hit != null) {
-            Item picked = itemForBlock(world.getState(hit.x(), hit.y(), hit.z()));
+            BlockState pickedState = world.getState(hit.x(), hit.y(), hit.z());
+            Item picked = itemForBlock(pickedState);
+            if (pickedState.block().name().path().equals("skull")) {
+                World.Skull skull = world.skull(hit.x(), hit.y(), hit.z());
+                picked = itemByName(net.minecraft.client.renderer.entity.SkullRenderer.ITEMS[
+                    net.minecraft.client.renderer.entity.SkullRenderer.clampType(skull == null ? 0 : skull.type())]);
+            }
             if (picked != null) inventory.pickItem(picked, isCreative());
         }
         boolean canBreak = levelInfo.gameType != WorldSettings.GameType.ADVENTURE;
@@ -1959,8 +2913,16 @@ public final class Minecraft implements GuiContext {
         }
         if (usePressed || gameSettings.keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0) {
             rightClickDelayTimer = 4;
+            // Minecraft.rightClickMouse: an entity under the crosshair is interacted with first.
+            if (pointedEntity != null) {
+                if (interactWithEntity(pointedEntity)) playerAnimation.swing();
+                else useHeldItem();
+                return;
+            }
             if (activateBlock(hit)) playerAnimation.swing();
             else if (useFlintAndSteel(hit)) playerAnimation.swing();
+            else if (useSpawnEgg(hit)) playerAnimation.swing();
+            else if (useSkull(hit)) playerAnimation.swing();
             else if (!useBucket()) {
                 if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
                 else useHeldItem();
@@ -2018,6 +2980,8 @@ public final class Minecraft implements GuiContext {
             }
         }
         BlockState replacement = BlockState.of(blockRegistry.air(), 0);
+        // Block.harvestBlock: breaking a block the held item can harvest costs 0.025 exhaustion.
+        if (!creative && ToolValues.canHarvest(held == null ? null : held.item(), name, block.material())) player.addExhaustion(0.025f);
         if (!creative) {
             if (dropsEnabled()) {
                 int meta = state.metadata();
@@ -2028,6 +2992,8 @@ public final class Minecraft implements GuiContext {
                 for (ItemStack drop : blockDrops.drops(name, block.material(), meta, held == null ? null : held.item(),
                         fortune, silk, block.isFullCube(), random))
                     spawnItem(EntityItem.fromBlock(world, x, y, z, drop, random));
+                ItemStack head = name.equals("skull") ? skullDrop(x, y, z, meta) : null;
+                if (head != null) spawnItem(EntityItem.fromBlock(world, x, y, z, head, random));
             }
             if (name.equals("ice") && y > 0) {
                 Block below = world.get(x, y - 1, z);
@@ -2089,8 +3055,16 @@ public final class Minecraft implements GuiContext {
             playBreakSound(x, y, z, target);
             dropBlock(x, y, z, target);
         }
-        Block liquid = blockRegistry.get(name.equals("water_bucket") ? "minecraft:flowing_water" : "minecraft:flowing_lava");
-        world.setStateAndUpdate(x, y, z, BlockState.of(liquid, 0));
+        if (name.equals("water_bucket") && world.dimension().waterVaporizes()) {
+            // ItemBucket.tryPlaceContainedLiquid: in the Nether the water boils away with a fizz and 8 puffs.
+            playSound("random.fizz", x + 0.5, y + 0.5, z + 0.5, 0.5f, 2.6f + (random.nextFloat() - random.nextFloat()) * 0.8f);
+            if (particles != null)
+                for (int i = 0; i < 8; i++)
+                    particles.spawn(ParticleManager.Kind.LARGE_SMOKE, x + Math.random(), y + Math.random(), z + Math.random(), 0, 0, 0, null);
+        } else {
+            Block liquid = blockRegistry.get(name.equals("water_bucket") ? "minecraft:flowing_water" : "minecraft:flowing_lava");
+            world.setStateAndUpdate(x, y, z, BlockState.of(liquid, 0));
+        }
         if (!isCreative()) inventory.mainInventory[inventory.currentItem] = new ItemStack(itemRegistry.get("minecraft:bucket"));
         return true;
     }
@@ -2120,7 +3094,36 @@ public final class Minecraft implements GuiContext {
             displayGuiScreen(new net.minecraft.client.gui.GuiRepair(hit.x(), hit.y(), hit.z()));
             return true;
         }
+        if (name.equals("cake")) {
+            eatCake(hit.x(), hit.y(), hit.z());
+            return true;
+        }
+        ItemStack held = inventory.getCurrentItem();
+        if (name.equals("tnt") && held != null && held.item().name().path().equals("flint_and_steel")) {
+            // BlockTNT.onBlockActivated: flint and steel lights the TNT and takes a use.
+            primeTnt(hit.x(), hit.y(), hit.z(), playerName, false);
+            world.setStateAndUpdate(hit.x(), hit.y(), hit.z(), BlockState.of(blockRegistry.air(), 0));
+            if (!isCreative() && net.minecraft.enchantment.EnchantmentHelper.damageItem(held, 1, random)) {
+                inventory.mainInventory[inventory.currentItem] = null;
+                playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+            }
+            return true;
+        }
         return false;
+    }
+
+    /**
+     * BlockCake.eatCake: if the player can eat (hungry, not Creative) a slice
+     * gives 2 food and 0.4 saturation and the cake loses a bite; the seventh
+     * bite finishes it. Silent, as in vanilla.
+     */
+    private void eatCake(int x, int y, int z) {
+        if (!player.canEat(false)) return;
+        player.foodStats.addStats(2, 2 * 0.1f * 2f);
+        BlockState state = world.getState(x, y, z);
+        int bites = state.metadata();
+        if (bites < 6) world.setStateAndUpdate(x, y, z, BlockState.of(state.block(), bites + 1));
+        else world.setStateAndUpdate(x, y, z, BlockState.of(blockRegistry.air(), 0));
     }
 
     /**
@@ -2172,19 +3175,44 @@ public final class Minecraft implements GuiContext {
      * Standing in a portal (EntityPlayerSP.onLivingUpdate): the purple haze
      * builds up by 0.0125 a tick (full after 4 seconds) with the trigger
      * sound as it starts, and a screen that doesn't pause the game closes;
-     * out of the portal it fades by 0.05 a tick. With no Nether yet nothing
-     * else happens (DEV-026).
+     * out of the portal it fades by 0.05 a tick. Entity.onEntityUpdate and
+     * setPortal: after 80 ticks in a portal (1 in Creative) the player goes
+     * to the other dimension; arriving starts a 10-tick cooldown that
+     * standing in a portal keeps renewing, so they must step out first.
      */
     private void updatePortalTime() {
         player.prevTimeInPortal = player.timeInPortal;
+        if (player.inPortal && timeUntilPortal > 0) {
+            timeUntilPortal = 10;
+            player.inPortal = false;
+        }
+        boolean travel = false;
+        if (player.inPortal) {
+            int max = player.disableDamage ? 0 : 80;
+            if (portalCounter++ >= max) {
+                portalCounter = max;
+                timeUntilPortal = 10;
+                travel = true;
+            }
+        } else {
+            portalCounter = Math.max(0, portalCounter - 4);
+        }
+        if (timeUntilPortal > 0) timeUntilPortal--;
         if (player.inPortal) {
             if (currentScreen != null && !currentScreen.doesGuiPauseGame()) displayGuiScreen(null);
             if (player.timeInPortal == 0f && soundHandler != null) soundHandler.playUi("portal.trigger", random.nextFloat() * 0.4f + 0.8f);
             player.timeInPortal = Math.min(1f, player.timeInPortal + 0.0125f);
             player.inPortal = false;
+        } else if (player.isPotionActive(net.minecraft.potion.Potion.CONFUSION)
+            && player.getActivePotionEffect(net.minecraft.potion.Potion.CONFUSION).duration() > 60) {
+            // Nausea warps the view the same way, building up over 150 ticks.
+            player.timeInPortal = Math.min(1f, player.timeInPortal + 0.006666667f);
         } else {
             player.timeInPortal = Math.max(0f, player.timeInPortal - 0.05f);
         }
+        if (travel && !player.dead)
+            changeDimension(dimension == net.minecraft.world.Dimension.NETHER ? net.minecraft.world.Dimension.OVERWORLD
+                : net.minecraft.world.Dimension.NETHER, true);
     }
 
     /**
@@ -2230,9 +3258,365 @@ public final class Minecraft implements GuiContext {
     private boolean useHeldItem() {
         if (inventory.equipHeldArmor()) return true;
         ItemStack held = inventory.getCurrentItem();
-        if (held == null || held.item().useAction() != Item.UseAction.BLOCK) return false;
-        player.setItemInUse(held, 72000);
+        if (held == null) return false;
+        Item item = held.item();
+        if (item.vanillaId().path().equals("potion") && net.minecraft.item.Potions.isSplash(item.vanillaData())) {
+            throwPotion(held);
+            return true;
+        }
+        if (item.kind() == Item.Kind.SPAWN_EGG) return spawnEggOnLiquid(held);
+        if (item.name().path().equals("glass_bottle")) return fillBottle(held);
+        if (item.name().path().equals("egg") || item.name().path().equals("snowball")) {
+            throwItem(held);
+            return true;
+        }
+        switch (item.useAction()) {
+            case BLOCK -> player.setItemInUse(held, 72000);
+            case EAT -> {
+                // ItemFood.onItemRightClick: only when hungry (golden apples always), never in Creative; 32 ticks.
+                if (!item.isFood()) return false;
+                if (player.canEat(item.vanillaId().path().equals("golden_apple"))) player.setItemInUse(held, 32);
+            }
+            // ItemBucketMilk / ItemPotion.onItemRightClick: drinking always starts, 32 ticks.
+            case DRINK -> player.setItemInUse(held, 32);
+            case BOW -> {
+                // ItemBow.onItemRightClick: drawn only with an arrow to shoot (or in Creative, or with Infinity).
+                boolean infinite = isCreative() || net.minecraft.enchantment.EnchantmentHelper.level(
+                    net.minecraft.enchantment.Enchantment.INFINITY, held) > 0;
+                if (!infinite && !hasItem("arrow")) return false;
+                player.setItemInUse(held, 72000);
+            }
+            default -> { return false; }
+        }
         return true;
+    }
+
+    /**
+     * ItemBow.getModel (1.8.9): a bow being drawn shows pulling_0 from the
+     * first tick, pulling_1 after 13 and pulling_2 from 18. The cast rod
+     * (fishing_rod_cast) would show while a bobber is out; LegacyCraft has
+     * no fishing yet, so it never does.
+     */
+    private net.minecraft.util.ResourceLocation heldModelState(Item item) {
+        if (player == null || !player.isUsingItem() || player.itemInUse().item() != item || !item.name().path().equals("bow")) return null;
+        int drawn = 72000 - player.itemInUseCount();
+        String stage = drawn >= 18 ? "bow_pulling_2" : drawn > 13 ? "bow_pulling_1" : drawn > 0 ? "bow_pulling_0" : null;
+        return stage == null ? null : new net.minecraft.util.ResourceLocation("minecraft", "item/" + stage);
+    }
+
+    private boolean hasItem(String name) {
+        for (ItemStack stack : inventory.mainInventory)
+            if (stack != null && stack.item().name().path().equals(name)) return true;
+        return false;
+    }
+
+    /**
+     * ItemBow.onPlayerStoppedUsing: the draw's power is (t^2 + 2t) / 3 for t
+     * seconds drawn, capped at 1 (a full draw is critical); under 0.1
+     * nothing happens. The arrow flies at 3 x power, with Power, Punch and
+     * Flame applied; the bow wears by 1 and an arrow is used up (not in
+     * Creative or with Infinity, when the arrow can't be picked up).
+     */
+    private void releaseBow(ItemStack bow, int used) {
+        int infinity = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.INFINITY, bow);
+        boolean infinite = isCreative() || infinity > 0;
+        if (!infinite && !hasItem("arrow")) return;
+        float power = used / 20f;
+        power = (power * power + power * 2f) / 3f;
+        if (power < 0.1f) return;
+        if (power > 1f) power = 1f;
+        net.minecraft.entity.EntityArrow arrow = net.minecraft.entity.EntityArrow.shotBy(world, player, power * 2f, random);
+        if (power == 1f) arrow.critical = true;
+        int powerLevel = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.POWER, bow);
+        if (powerLevel > 0) arrow.damage += powerLevel * 0.5 + 0.5;
+        int punch = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.PUNCH, bow);
+        if (punch > 0) arrow.knockbackStrength = punch;
+        if (net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.FLAME, bow) > 0) arrow.setFire(100);
+        if (!isCreative() && net.minecraft.enchantment.EnchantmentHelper.damageItem(bow, 1, random)) {
+            for (int i = 0; i < inventory.mainInventory.length; i++) if (inventory.mainInventory[i] == bow) inventory.mainInventory[i] = null;
+            playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+        }
+        playSound("random.bow", player.x, player.y, player.z, 1f, 1f / (random.nextFloat() * 0.4f + 1.2f) + power * 0.5f);
+        if (infinite) {
+            arrow.pickup = 2;
+        } else {
+            for (int i = 0; i < inventory.mainInventory.length; i++) {
+                ItemStack stack = inventory.mainInventory[i];
+                if (stack != null && stack.item().name().path().equals("arrow")) {
+                    stack.split(1);
+                    if (stack.isEmpty()) inventory.mainInventory[i] = null;
+                    break;
+                }
+            }
+        }
+        spawnEntity(arrow);
+    }
+
+    /**
+     * ItemPotion.onItemRightClick for a splash potion: thrown at once with
+     * the bow sound (0.5, pitch 0.4 / 0.8-1.2), used up unless in Creative.
+     */
+    private void throwPotion(ItemStack held) {
+        if (!isCreative()) {
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+        playSound("random.bow", player.x, player.y, player.z, 0.5f, 0.4f / (random.nextFloat() * 0.4f + 0.8f));
+        spawnEntity(net.minecraft.entity.EntityPotion.thrownBy(world, player, held.item().vanillaData(), random));
+    }
+
+    /**
+     * ItemEgg / ItemSnowball.onItemRightClick: thrown at once with the bow
+     * sound (0.5, pitch 0.4 / 0.8-1.2), used up unless in Creative.
+     */
+    private void throwItem(ItemStack held) {
+        boolean egg = held.item().name().path().equals("egg");
+        if (!isCreative()) {
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+        playSound("random.bow", player.x, player.y, player.z, 0.5f, 0.4f / (random.nextFloat() * 0.4f + 0.8f));
+        net.minecraft.entity.EntityThrowable thrown = egg ? new net.minecraft.entity.EntityEgg(world, player.x, player.y, player.z)
+            : new net.minecraft.entity.EntitySnowball(world, player.x, player.y, player.z);
+        spawnEntity(thrown.aimFrom(player, random));
+    }
+
+    /**
+     * ItemMonsterPlacer.onItemUse: a spawn egg on a block hatches its mob
+     * standing in the middle of the space against the clicked face (half a
+     * block up on top of a fence), facing a random way, and is used up
+     * unless in Creative. Eggs of mobs LegacyCraft doesn't have do nothing
+     * but still swing. Returns whether a spawn egg was used on a block.
+     */
+    private boolean useSpawnEgg(WorldRenderer.Hit hit) {
+        ItemStack held = inventory.getCurrentItem();
+        if (hit == null || held == null || held.item().kind() != Item.Kind.SPAWN_EGG) return false;
+        if (levelInfo.gameType == WorldSettings.GameType.ADVENTURE || isSpectator()) return false;
+        String clicked = world.get(hit.x(), hit.y(), hit.z()).name().path();
+        double up = hit.face() == net.minecraft.util.Direction.UP && clicked.endsWith("fence") ? 0.5 : 0.0;
+        hatch(held, hit.placeX() + 0.5, hit.placeY() + up, hit.placeZ() + 0.5);
+        return true;
+    }
+
+    /**
+     * ItemMonsterPlacer.onItemRightClick: aimed at a liquid source within 5
+     * blocks (water or lava), a spawn egg hatches its mob in the middle of it.
+     */
+    private boolean spawnEggOnLiquid(ItemStack held) {
+        WorldRenderer.Hit hit = WorldRenderer.raycast(world, player.x, player.eyeY(), player.z,
+            player.dirX(), player.dirY(), player.dirZ(), 5.0, true);
+        if (hit == null || levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return false;
+        if (net.minecraft.block.Liquids.liquid(world.get(hit.x(), hit.y(), hit.z())) == null) return false;
+        hatch(held, hit.x() + 0.5, hit.y() + 0.5, hit.z() + 0.5);
+        return true;
+    }
+
+    /** ItemMonsterPlacer.spawnCreature: the egg's mob at a random yaw, head and body turned the same way. */
+    /** The animals world generation placed (SpawnerAnimals.performWorldGenSpawning), created now there is an entity list. */
+    private void spawnGeneratedCreatures() {
+        if (server == null || world == null) return;
+        for (World.CreatureSpawn spawn : world.takeCreatureSpawns()) {
+            MovingEntity entity = net.minecraft.entity.EntityList.create(spawn.entity(), world, spawn.x(), spawn.y(), spawn.z());
+            if (!(entity instanceof EntityLiving living)) continue;
+            living.setPositionAndRotation(spawn.x(), spawn.y(), spawn.z(), spawn.yaw(), 0f);
+            living.prevRotationYaw = spawn.yaw();
+            living.rotationYawHead = living.prevRotationYawHead = living.renderYawOffset = living.prevRenderYawOffset = spawn.yaw();
+            living.onInitialSpawn();
+            spawnEntity(living);
+        }
+    }
+
+    private void hatch(ItemStack held, double x, double y, double z) {
+        net.minecraft.item.VanillaItems.Egg egg = net.minecraft.item.VanillaItems.egg(held.item().vanillaData());
+        MovingEntity entity = egg == null ? null : net.minecraft.entity.EntityList.create(egg.entity(), world, x, y, z);
+        if (entity == null) return;
+        float yaw = wrap180(random.nextFloat() * 360f);
+        entity.setPositionAndRotation(x, y, z, yaw, 0f);
+        entity.prevRotationYaw = yaw;
+        if (entity instanceof EntityLiving living) {
+            living.rotationYawHead = living.prevRotationYawHead = yaw;
+            living.renderYawOffset = living.prevRenderYawOffset = yaw;
+            living.persistenceRequired = false;
+            living.onInitialSpawn();
+        }
+        spawnEntity(entity);
+        if (entity instanceof EntityLiving living) living.playLivingSound();
+        if (!isCreative()) {
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+    }
+
+    private static float wrap180(float angle) {
+        angle %= 360f;
+        if (angle >= 180f) angle -= 360f;
+        if (angle < -180f) angle += 360f;
+        return angle;
+    }
+
+    /**
+     * ItemGlassBottle.onItemRightClick: aimed at a water source within 5
+     * blocks, one bottle becomes a water bottle (even in Creative); the
+     * water stays.
+     */
+    private boolean fillBottle(ItemStack held) {
+        WorldRenderer.Hit hit = WorldRenderer.raycast(world, player.x, player.eyeY(), player.z,
+            player.dirX(), player.dirY(), player.dirZ(), 5.0, true);
+        if (hit == null || levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return false;
+        if (!world.get(hit.x(), hit.y(), hit.z()).material().equals("water")) return false;
+        Item water = itemRegistry.potion(0);
+        if (water == null) return false;
+        held.split(1);
+        if (held.isEmpty()) {
+            inventory.mainInventory[inventory.currentItem] = new ItemStack(water);
+        } else if (!inventory.addItemStackToInventory(new ItemStack(water))) {
+            dropPlayerItem(new ItemStack(water));
+        }
+        return true;
+    }
+
+    /**
+     * World.playAuxSFX 2002 (RenderGlobal): eight glass crumbs and a ring of
+     * 100 spell swirls (instant ones for Healing and Harming) in the
+     * potion's colour from the block corner, then the smash (pitch 0.9-1.0).
+     */
+    private void potionSmash(int bx, int by, int bz, int data) {
+        if (particles != null) {
+            net.minecraft.util.ResourceLocation crumb = itemRenderer == null ? null : itemRenderer.particleTexture(itemRegistry.potion(data));
+            for (int i = 0; i < 8; i++)
+                particles.spawnItemCrack(crumb, bx, by, bz, random.nextGaussian() * 0.15, random.nextDouble() * 0.2, random.nextGaussian() * 0.15);
+            int color = net.minecraft.item.Potions.color(data);
+            float red = (color >> 16 & 255) / 255f, green = (color >> 8 & 255) / 255f, blue = (color & 255) / 255f;
+            boolean instant = net.minecraft.item.Potions.isInstant(data);
+            for (int i = 0; i < 100; i++) {
+                double spread = random.nextDouble() * 4.0;
+                double angle = random.nextDouble() * Math.PI * 2.0;
+                double vx = Math.cos(angle) * spread, vy = 0.01 + random.nextDouble() * 0.5, vz = Math.sin(angle) * spread;
+                float shade = 0.75f + random.nextFloat() * 0.25f;
+                var spell = particles.spawnSpell(instant, bx + vx * 0.1, by + 0.3, bz + vz * 0.1, vx, vy, vz,
+                    red * shade, green * shade, blue * shade);
+                if (spell != null) spell.multiplyVelocity((float) spread);
+            }
+        }
+        playSound("game.potion.smash", bx + 0.5, by + 0.5, bz + 0.5, 1f, random.nextFloat() * 0.1f + 0.9f);
+    }
+
+    /**
+     * EntityPlayer.updateItemUse: drinking plays the gulp (0.5, pitch
+     * 0.9-1.0); eating throws {@code count} crumbs of the item from in front
+     * of the mouth and plays the munch (volume 0.5 or 1, pitch 0.8-1.2).
+     */
+    private void itemUseEffects(ItemStack stack, int count) {
+        Item.UseAction action = stack.item().useAction();
+        if (action == Item.UseAction.DRINK)
+            player.sounds.play("random.drink", 0.5f, random.nextFloat() * 0.1f + 0.9f);
+        if (action != Item.UseAction.EAT) return;
+        if (particles != null) {
+            net.minecraft.util.ResourceLocation texture = itemRenderer == null ? null : itemRenderer.particleTexture(stack.item());
+            double yaw = -Math.toRadians(player.yaw + 180f), pitch = -Math.toRadians(player.pitch);
+            for (int i = 0; i < count; i++) {
+                double[] velocity = rotate((random.nextFloat() - 0.5) * 0.1, Math.random() * 0.1 + 0.1, 0.0, pitch, yaw);
+                double[] offset = rotate((random.nextFloat() - 0.5) * 0.3, -random.nextFloat() * 0.6 - 0.3, 0.6, pitch, yaw);
+                particles.spawnItemCrack(texture, player.x + offset[0], player.eyeY() + offset[1], player.z + offset[2],
+                    velocity[0], velocity[1] + 0.05, velocity[2]);
+            }
+        }
+        player.sounds.play("random.eat", 0.5f + 0.5f * random.nextInt(2), (random.nextFloat() - random.nextFloat()) * 0.2f + 1f);
+    }
+
+    /** Vec3.rotatePitch then Vec3.rotateYaw. */
+    private static double[] rotate(double x, double y, double z, double pitch, double yaw) {
+        double cos = Math.cos(pitch), sin = Math.sin(pitch);
+        double y1 = y * cos + z * sin, z1 = z * cos - y * sin;
+        cos = Math.cos(yaw);
+        sin = Math.sin(yaw);
+        return new double[] {x * cos + z1 * sin, y1, z1 * cos - x * sin};
+    }
+
+    /**
+     * EntityPlayer.onItemUseFinish and the items' onItemUseFinish: food is
+     * used up (not in Creative), fills the bar, burps (0.5, pitch 0.9-1.0)
+     * and applies its effects; stew leaves its bowl. Milk clears every effect
+     * and leaves the bucket; a bottle leaves an empty glass bottle.
+     */
+    private void finishItemUse(ItemStack stack) {
+        if (inventory.getCurrentItem() != stack) return;
+        Item item = stack.item();
+        String name = item.name().path();
+        boolean creative = isCreative();
+        ItemStack result = stack;
+        int before = stack.count();
+        if (item.useAction() == Item.UseAction.EAT && item.isFood()) {
+            if (!creative) stack.split(1);
+            player.foodStats.addStats(item.food(), item.saturation());
+            player.sounds.play("random.burp", 0.5f, random.nextFloat() * 0.1f + 0.9f);
+            applyFoodEffects(name);
+            if (name.equals("mushroom_stew") || name.equals("rabbit_stew")) result = itemStack("bowl");
+        } else if (name.equals("milk_bucket")) {
+            if (!creative) stack.split(1);
+            player.clearActivePotions();
+            if (stack.isEmpty()) result = itemStack("bucket");
+        } else if (item.vanillaId().path().equals("potion")) {
+            // ItemPotion.onItemUseFinish: the effects (Healing and Harming at once), then the empty bottle.
+            for (net.minecraft.potion.PotionEffect effect : net.minecraft.item.Potions.effects(item.vanillaData())) {
+                if (effect.potion().isInstant())
+                    net.minecraft.entity.EntityPotion.instant(player, effect.potion(), effect.amplifier(), 1.0, null);
+                else player.addPotionEffect(effect);
+            }
+            if (!creative) {
+                stack.split(1);
+                if (stack.isEmpty()) result = itemStack("glass_bottle");
+                else {
+                    ItemStack bottle = itemStack("glass_bottle");
+                    if (bottle != null) inventory.addItemStackToInventory(bottle);
+                }
+            }
+        } else {
+            return;
+        }
+        if (result != stack || result != null && result.count() != before)
+            inventory.mainInventory[inventory.currentItem] = result == null || result.isEmpty() ? null : result;
+    }
+
+    private ItemStack itemStack(String name) {
+        Item item = itemByName(name);
+        return item == null ? null : new ItemStack(item);
+    }
+
+    /**
+     * ItemFood.onFoodEaten (HYPOTHESIS: recalled table): golden apple
+     * Absorption 2:00 and Regeneration II 0:05; raw chicken 30% and rotten
+     * flesh 80% Hunger 0:30; spider eye Poison 0:05; poisonous potato 60%
+     * Poison 0:05; pufferfish Poison IV 1:00, Hunger III 0:15, Nausea II 0:15.
+     */
+    private void applyFoodEffects(String name) {
+        switch (name) {
+            case "enchanted_golden_apple" -> {
+                // ItemAppleGold.onFoodEaten with data 1: the Notch apple.
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.ABSORPTION, 2400, 0));
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.REGENERATION, 600, 4));
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.RESISTANCE, 6000, 0));
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.FIRE_RESISTANCE, 6000, 0));
+            }
+            case "golden_apple" -> {
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.ABSORPTION, 2400, 0));
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.REGENERATION, 100, 1));
+            }
+            case "chicken" -> foodEffect(net.minecraft.potion.Potion.HUNGER, 600, 0, 0.3f);
+            case "rotten_flesh" -> foodEffect(net.minecraft.potion.Potion.HUNGER, 600, 0, 0.8f);
+            case "spider_eye" -> foodEffect(net.minecraft.potion.Potion.POISON, 100, 0, 1f);
+            case "poisonous_potato" -> foodEffect(net.minecraft.potion.Potion.POISON, 100, 0, 0.6f);
+            case "pufferfish" -> {
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.POISON, 1200, 3));
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.HUNGER, 300, 2));
+                player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.CONFUSION, 300, 1));
+            }
+            default -> { }
+        }
+    }
+
+    private void foodEffect(net.minecraft.potion.Potion potion, int duration, int amplifier, float chance) {
+        if (random.nextFloat() < chance) player.addPotionEffect(new net.minecraft.potion.PotionEffect(potion, duration, amplifier));
     }
 
     /** Drops a block's items where it stood (Block.dropBlockAsItem), if tile drops are on. */
@@ -2275,6 +3659,13 @@ public final class Minecraft implements GuiContext {
     }
 
     private void spawnItem(EntityItem item) { server.entities().add(item); }
+
+    /** World.spawnEntityInWorld. */
+    private void spawnEntity(Entity entity) {
+        if (server == null) return;
+        if (entity instanceof MovingEntity moving) moving.setHost(entityHost);
+        server.entities().add(entity);
+    }
 
     /** The drop key: one item from the held stack, or all of it with Ctrl. */
     private void dropHeldItem(boolean wholeStack) {
@@ -2455,6 +3846,52 @@ public final class Minecraft implements GuiContext {
             player.attack(net.minecraft.entity.DamageSource.OUT_OF_WORLD, Float.MAX_VALUE);
         }
         @Override public ItemStack heldItem() { return inventory.getCurrentItem(); }
+        @Override public String give(String id, int count, int data) {
+            Item item = itemRegistry.resolve(id, data);
+            if (item == null && data != 0) item = itemRegistry.resolve(id, 0);
+            if (item == null) return null;
+            ItemStack stack = new ItemStack(item, count, item.isDamageable() ? Math.max(0, data) : 0);
+            String name = stackName(stack);
+            int before = stack.count();
+            inventory.addItemStackToInventory(stack);
+            if (stack.count() < before)
+                playSound("random.pop", player.x, player.y, player.z, 0.2f, ((random.nextFloat() - random.nextFloat()) * 0.7f + 1f) * 2f);
+            if (!stack.isEmpty()) {
+                // CommandGive: what doesn't fit is dropped, ready to be picked up at once.
+                EntityItem drop = EntityItem.thrown(world, player.x, player.eyeY(), player.z, player.dirX(), player.dirY(), player.dirZ(),
+                    stack, false, random);
+                drop.pickupDelay = 0;
+                spawnItem(drop);
+            }
+            return name;
+        }
+        @Override public boolean summon(String id, double x, double y, double z) {
+            MovingEntity entity = net.minecraft.entity.EntityList.create(id, world, x, y, z);
+            if (entity == null) return false;
+            entity.setPositionAndRotation(x, y, z, entity.rotationYaw, entity.rotationPitch);
+            if (entity instanceof EntityTNTPrimed || entity instanceof EntityXPOrb) entity.motionX = entity.motionY = entity.motionZ = 0;
+            if (entity instanceof EntityXPOrb orb) orb.xpValue = 0;
+            if (entity instanceof EntityLiving living) living.onInitialSpawn();
+            spawnEntity(entity);
+            return true;
+        }
+        @Override public void addEffect(int id, int ticks, int amplifier, boolean showParticles) {
+            net.minecraft.potion.Potion potion = net.minecraft.potion.Potion.byId(id);
+            if (potion == null) return;
+            if (potion == net.minecraft.potion.Potion.HEAL) player.heal(Math.max(4 << amplifier, 0));
+            else if (potion == net.minecraft.potion.Potion.HARM) player.attack(net.minecraft.entity.DamageSource.MAGIC, 6 << amplifier);
+            else if (potion == net.minecraft.potion.Potion.SATURATION) player.foodStats.addStats(amplifier + 1, (amplifier + 1) * 2f);
+            else player.addPotionEffect(new net.minecraft.potion.PotionEffect(potion, ticks, amplifier, false, showParticles));
+        }
+        @Override public boolean removeEffect(int id) {
+            if (id < 0) {
+                boolean any = !player.getActivePotionEffects().isEmpty();
+                player.clearActivePotions();
+                return any;
+            }
+            net.minecraft.potion.Potion potion = net.minecraft.potion.Potion.byId(id);
+            return potion != null && player.removePotionEffect(potion);
+        }
         @Override public void addExperience(int points) { player.addExperience(points); }
         @Override public void addExperienceLevels(int levels) { player.addExperienceLevel(levels); }
         @Override public net.minecraft.stats.StatFile achievements() { return stats; }
@@ -2552,6 +3989,9 @@ public final class Minecraft implements GuiContext {
         }
         playSound("random.anvil_use", x + 0.5, y + 0.5, z + 0.5, 1f, pitch);
     }
+    @Override public java.util.Collection<net.minecraft.potion.PotionEffect> activePotionEffects() {
+        return player == null ? List.of() : player.getActivePotionEffects();
+    }
     @Override public InventoryPlayer playerInventory() { return inventory; }
     @Override public boolean isCreative() { return levelInfo != null && levelInfo.gameType == WorldSettings.GameType.CREATIVE; }
     @Override public FontRenderer font() { return fontRenderer; }
@@ -2589,6 +4029,126 @@ public final class Minecraft implements GuiContext {
 
     @Override
     public void refreshLanguage() { I18n.load(resourceManager, gameSettings.language); }
+
+    @Override public net.minecraft.client.resources.ResourcePackRepository resourcePacks() { return resourceManager; }
+
+    private static final String MOJANG_LOGO = "/assets/minecraft/textures/gui/title/mojang.png";
+
+    /**
+     * The Mojang screen shown while the game starts and while resources reload
+     * (Minecraft.drawSplashScreen): the window filled with the logo texture's
+     * white corner and the 256x256 logo centred in GUI coordinates, read from
+     * the built-in default pack so a resource pack can't replace it. One frame
+     * is presented; the loading work that follows keeps it on screen.
+     */
+    private void drawSplashScreen() {
+        int[] fbWidth = new int[1], fbHeight = new int[1];
+        glfwGetFramebufferSize(window, fbWidth, fbHeight);
+        int w = Math.max(1, fbWidth[0]), h = Math.max(1, fbHeight[0]);
+        java.awt.image.BufferedImage logo;
+        try (java.io.InputStream stream = Minecraft.class.getResourceAsStream(MOJANG_LOGO)) {
+            logo = stream == null ? null : javax.imageio.ImageIO.read(stream);
+        } catch (IOException error) {
+            logo = null;
+        }
+        ScaledResolution resolution = new ScaledResolution(w, h, gameSettings.getGuiScale(), gameSettings.isUnicodeFont());
+        glViewport(0, 0, w, h);
+        glClearColor(1f, 1f, 1f, 1f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(0, resolution.getScaledWidth(), resolution.getScaledHeight(), 0, 1000, 3000);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glTranslatef(0f, 0f, -2000f);
+        glDisable(GL_LIGHTING);
+        glDisable(GL_FOG);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_BLEND);
+        glDisable(GL_ALPHA_TEST);
+        glDisable(GL_CULL_FACE);
+        if (logo != null) {
+            int texture = net.minecraft.client.gui.GuiTextures.upload(logo, false);
+            float sw = resolution.getScaledWidth(), sh = resolution.getScaledHeight();
+            int x = (resolution.getScaledWidth() - 256) / 2, y = (resolution.getScaledHeight() - 256) / 2;
+            glEnable(GL_TEXTURE_2D);
+            glColor4f(1f, 1f, 1f, 1f);
+            glBegin(GL_QUADS);
+            glTexCoord2f(0, 0); glVertex2f(0, sh);
+            glTexCoord2f(0, 0); glVertex2f(sw, sh);
+            glTexCoord2f(0, 0); glVertex2f(sw, 0);
+            glTexCoord2f(0, 0); glVertex2f(0, 0);
+            glTexCoord2f(0, 1); glVertex2f(x, y + 256);
+            glTexCoord2f(1, 1); glVertex2f(x + 256, y + 256);
+            glTexCoord2f(1, 0); glVertex2f(x + 256, y);
+            glTexCoord2f(0, 0); glVertex2f(x, y);
+            glEnd();
+            glDeleteTextures(texture);
+        }
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        // No glfwPollEvents here: a reload can start from inside an input callback (the Done button).
+        glfwSwapBuffers(window);
+    }
+
+    /**
+     * Opens the packs listed in options.txt (lowest priority first), dropping
+     * ones that are gone and incompatible ones the player never confirmed
+     * (1.8.9 keeps those consents in incompatibleResourcePacks).
+     */
+    private void applySelectedResourcePacks() {
+        java.util.Map<String, net.minecraft.client.resources.ResourcePackRepository.Entry> found = new java.util.HashMap<>();
+        for (var entry : resourceManager.scan()) found.put(entry.name, entry);
+        List<String> wanted = new ArrayList<>();
+        for (String name : gameSettings.resourcePacks) {
+            var entry = found.get(name);
+            if (entry == null || wanted.contains(name)) continue;
+            if (entry.compatible()) gameSettings.incompatibleResourcePacks.remove(name);
+            else if (!gameSettings.incompatibleResourcePacks.contains(name)) continue;
+            wanted.add(name);
+        }
+        List<String> opened = resourceManager.apply(wanted);
+        if (!opened.equals(gameSettings.resourcePacks)) {
+            gameSettings.resourcePacks = new ArrayList<>(opened);
+            if (window != NULL) saveOptions();
+        }
+    }
+
+    /**
+     * Reloads everything that comes from resources (Minecraft.refreshResources,
+     * F3+T, closing the resource pack screen, a new mipmap level): language,
+     * sounds, block models, the block atlas and its mipmaps, fonts, GUI and
+     * item textures and colour maps; chunk meshes are rebuilt with the new UVs.
+     */
+    @Override public void refreshResources() {
+        drawSplashScreen();
+        applySelectedResourcePacks();
+        if (soundHandler != null) soundHandler.stopAll();
+        soundSystem.flushCache();
+        I18n.load(resourceManager, gameSettings.language);
+        soundRegistry = SoundRegistry.load(resourceManager);
+        soundHandler = new net.minecraft.client.audio.SoundHandler(soundRegistry, gameSettings, soundSystem);
+        musicTicker = new net.minecraft.client.audio.MusicTicker(soundHandler, new Random());
+        modelManager.reload();
+        atlas.setMipmapLevels(gameSettings.mipmapLevels);
+        atlas.reload();
+        if (galacticFont != null && galacticFont != fontRenderer) galacticFont.destroy();
+        galacticFont = null;
+        fontRenderer.destroy();
+        fontRenderer = new FontRenderer(resourceManager);
+        fontRenderer.load();
+        guiTextures.setSpriteMipmapLevels(atlas.mipmapLevels());
+        guiTextures.reload();
+        biomeColors.reload(resourceManager);
+        itemRenderer = new ItemRenderer(resourceManager, guiTextures, atlas, modelManager, biomeColors);
+        itemRenderer.modelState = this::heldModelState;
+        itemRenderer.builtin = headItems;
+        mobRenderer = new net.minecraft.client.renderer.entity.MobRenderer(guiTextures, itemRenderer);
+        firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer, localSkin, launcherSlim);
+        if (renderer != null) renderer.markAllDirty();
+        if (particles != null) particles.clear();
+        if (currentScreen != null) currentScreen.setWorldAndResolution(this, lastScaledWidth, lastScaledHeight);
+    }
 
     @Override
     public void applyDisplaySettings() {
@@ -2634,6 +4194,12 @@ public final class Minecraft implements GuiContext {
                 game.cliWorld = arg.substring(8);
             } else if (arg.startsWith("--username=")) {
                 game.playerName = arg.substring(11);
+            } else if (arg.startsWith("--skin=")) {
+                game.launcherSkin = Path.of(arg.substring(7));
+            } else if (arg.startsWith("--skinModel=")) {
+                game.launcherSlim = arg.substring(12).equalsIgnoreCase("slim");
+            } else if (arg.startsWith("--cape=")) {
+                game.launcherCape = Path.of(arg.substring(7));
             } else if (arg.startsWith("--gamedir=")) {
                 game.gameDirectory = Path.of(arg.substring(10));
             }

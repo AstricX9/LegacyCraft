@@ -115,7 +115,8 @@ final class FireSpread {
         } else {
             world.setStateAndUpdate(x, y, z, BlockState.defaultOf(air));
         }
-        // Burning TNT would prime it; there are no TNT entities yet (DEV-026).
+        // Burning TNT lights it (BlockTNT.onBlockDestroyedByPlayer with EXPLODE set).
+        if (state.block().name().path().equals("tnt")) world.events().tntIgnited(x, y, z);
     }
 
     /** The most encouragement next to an air block (getNeighborEncouragement), 0 when not air. */

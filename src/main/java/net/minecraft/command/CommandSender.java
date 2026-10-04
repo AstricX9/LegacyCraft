@@ -41,6 +41,20 @@ public interface CommandSender {
     /** Adds (or with a negative count takes) whole levels (EntityPlayer.addExperienceLevel). */
     default void addExperienceLevels(int levels) {}
 
+    /**
+     * Gives the sender {@code count} of the item with this vanilla name and
+     * data value (CommandGive): what doesn't fit is dropped at their feet.
+     * Returns the item's display name, or null for an unknown item.
+     */
+    default String give(String id, int count, int data) { return null; }
+
+    /** Creates an entity by its saved id at a position (CommandSummon); false for an unknown id. */
+    default boolean summon(String id, double x, double y, double z) { return false; }
+    /** Gives the sender an effect (CommandEffect); the potion id, ticks and amplifier. */
+    default void addEffect(int potion, int ticks, int amplifier, boolean showParticles) {}
+    /** Removes one effect, or every effect for -1; returns whether any was removed. */
+    default boolean removeEffect(int potion) { return false; }
+
     /** The sender's achievements, or null when it has none. */
     default net.minecraft.stats.StatFile achievements() { return null; }
     /** Awards an achievement if its parent is earned, announcing it (EntityPlayerMP.triggerAchievement). */

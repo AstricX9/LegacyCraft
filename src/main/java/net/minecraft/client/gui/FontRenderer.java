@@ -73,7 +73,8 @@ public final class FontRenderer {
             int cellY = character / 16 * cellHeight;
             int right = cellWidth - 1;
             while (right >= 0 && columnIsTransparent(image, cellX + right, cellY, cellHeight)) right--;
-            charWidth[character] = Math.max(2, Math.min(8, right + 2));
+            // FontRenderer.readFontTexture scales the glyph's opaque width to 8-pixel cells (HD fonts in resource packs).
+            charWidth[character] = Math.max(2, Math.min(8, (int) (0.5D + (right + 1) * 8.0D / cellWidth) + 1));
         }
     }
 

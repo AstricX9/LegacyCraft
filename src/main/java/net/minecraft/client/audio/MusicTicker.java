@@ -4,14 +4,15 @@ import java.util.Random;
 
 /**
  * Background music (1.8.9 MusicTicker, HYPOTHESIS: recalled delays): the
- * title screen, survival and creative each have a music event and a pause
+ * title screen, survival, creative and the Nether each have a music event and a pause
  * range in ticks between tracks. The first track waits 100 ticks; after a
  * track ends the next waits a random time in the range; switching to
  * another kind stops the track and waits up to half the new minimum.
  */
 public final class MusicTicker {
     public enum Type {
-        MENU("music.menu", 20, 600), GAME("music.game", 12000, 24000), CREATIVE("music.game.creative", 1200, 3600);
+        MENU("music.menu", 20, 600), GAME("music.game", 12000, 24000), CREATIVE("music.game.creative", 1200, 3600),
+        NETHER("music.game.nether", 1200, 3600);
 
         final String event;
         final int minDelay, maxDelay;

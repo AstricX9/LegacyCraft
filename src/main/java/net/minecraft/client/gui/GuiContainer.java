@@ -49,8 +49,56 @@ public abstract class GuiContainer extends GuiScreen {
     public void initGui() {
         guiLeft = (width - xSize) / 2;
         guiTop = (height - ySize) / 2;
+        updateActivePotionEffects();
         slots.clear();
         buildSlots();
+    }
+
+    // ---- InventoryEffectRenderer (the survival and creative inventories) -------------------
+
+    /** Set by screens that show the effect list beside them (InventoryEffectRenderer's subclasses). */
+    protected boolean showsPotionEffects;
+    private boolean hasActivePotionEffects;
+
+    /**
+     * InventoryEffectRenderer.updateActivePotionEffects: with any effect
+     * active the screen moves right ({@code 160 + (width - xSize - 200) / 2})
+     * to make room for the list on its left.
+     */
+    protected void updateActivePotionEffects() {
+        if (!showsPotionEffects) return;
+        hasActivePotionEffects = !mc.activePotionEffects().isEmpty();
+        guiLeft = hasActivePotionEffects ? 160 + (width - xSize - 200) / 2 : (width - xSize) / 2;
+    }
+
+    /**
+     * InventoryEffectRenderer.drawActivePotionEffects: a 140x32 panel per
+     * effect from inventory.png, 124 left of the screen, 33 apart (closer
+     * when more than five), with the icon, the name and level in white and
+     * the time left in grey.
+     */
+    private void drawActivePotionEffects() {
+        java.util.List<net.minecraft.potion.PotionEffect> effects = new ArrayList<>(mc.activePotionEffects());
+        if (effects.isEmpty()) return;
+        effects.sort(java.util.Comparator.comparingInt(effect -> effect.potion().id));
+        int x = guiLeft - 124, y = guiTop;
+        int spacing = effects.size() > 5 ? 132 / (effects.size() - 1) : 33;
+        for (net.minecraft.potion.PotionEffect effect : effects) {
+            net.minecraft.potion.Potion potion = effect.potion();
+            glColor4f(1, 1, 1, 1);
+            mc.textures().bind(GuiInventory.BACKGROUND);
+            drawTexturedModalRect(x, y, 0, 166, 140, 32);
+            if (potion.hasIcon()) {
+                int index = potion.iconIndex();
+                drawTexturedModalRect(x + 6, y + 7, index % 8 * 18, 198 + index / 8 * 18, 18, 18);
+            }
+            String name = I18n.format(potion.name);
+            if (effect.amplifier() >= 1 && effect.amplifier() <= 3)
+                name = name + " " + I18n.format("enchantment.level." + (effect.amplifier() + 1));
+            fontRendererObj.drawStringWithShadow(name, x + 10 + 18, y + 6, 0xFFFFFF);
+            fontRendererObj.drawStringWithShadow(net.minecraft.potion.Potion.durationString(effect), x + 10 + 18, y + 6 + 10, 0x7F7F7F);
+            y += spacing;
+        }
     }
 
     /** Adds this screen's slots to {@link #slots}. */
@@ -92,6 +140,7 @@ public abstract class GuiContainer extends GuiScreen {
         }
         drawGuiContainerForegroundLayer(mouseX, mouseY);
         glPopMatrix();
+        if (hasActivePotionEffects) drawActivePotionEffects();
         drawCursorAndTooltip(hovered == null ? null : hovered.slot().get(), mouseX, mouseY);
     }
 
@@ -145,6 +194,8 @@ public abstract class GuiContainer extends GuiScreen {
             name += tabs.hasSubtypes(item) ? String.format(" (#%04d/%d)", entry.id(), entry.meta()) : String.format(" (#%04d)", entry.id());
         }
         lines.add(rarityColor(stack) + name);
+        // ItemPotion.addInformation: each effect with its level and time.
+        if (item.vanillaId().path().equals("potion")) lines.addAll(net.minecraft.item.Potions.tooltip(item.vanillaData(), I18n::format));
         for (var entry : stack.storedEnchantments().entrySet()) lines.add(GRAY + enchantmentName(entry.getKey(), entry.getValue()));
         for (var entry : stack.enchantments().entrySet()) lines.add(GRAY + enchantmentName(entry.getKey(), entry.getValue()));
         if (advanced && item.isDamageable() && stack.damage() > 0)
@@ -152,8 +203,16 @@ public abstract class GuiContainer extends GuiScreen {
         return lines;
     }
 
-    /** EnumRarity colour of a stack's name: RARE (aqua) when enchanted, UNCOMMON (yellow) for an enchanted book, else white. */
+    /**
+     * EnumRarity colour of a stack's name: EPIC (light purple) for the
+     * enchanted golden apple, RARE (aqua) for golden apples, records and
+     * enchanted items, UNCOMMON (yellow) for an enchanted book, else white.
+     */
     public static String rarityColor(ItemStack stack) {
+        Item item = stack.item();
+        if (item.kind() == Item.Kind.ENCHANTED_APPLE) return FontRenderer.FORMAT_CHAR + "d";
+        String id = item.vanillaId().path();
+        if (id.equals("golden_apple") || id.startsWith("record_")) return FontRenderer.FORMAT_CHAR + "b";
         if (stack.isEnchanted()) return FontRenderer.FORMAT_CHAR + "b";
         if (!stack.storedEnchantments().isEmpty()) return FontRenderer.FORMAT_CHAR + "e";
         return FontRenderer.FORMAT_CHAR + "f";

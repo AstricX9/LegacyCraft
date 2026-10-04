@@ -46,6 +46,12 @@ public interface GuiContext {
     void saveOptions();
     /** Re-reads the language files after the language changed. */
     void refreshLanguage();
+
+    /** Reloads every resource from the selected resource packs (no-op where there is no GL context). */
+    default void refreshResources() {}
+
+    /** The resource pack folder and stack; null in tests. */
+    default net.minecraft.client.resources.ResourcePackRepository resourcePacks() { return null; }
     /** Applies display options that need the window (vsync, fullscreen). */
     void applyDisplaySettings();
 
@@ -70,6 +76,8 @@ public interface GuiContext {
     CreativeTabs creativeTabs();
     /** The local player's inventory, or null on the title screen. */
     InventoryPlayer playerInventory();
+    /** The local player's active effects (empty on the title screen and in tests). */
+    default java.util.Collection<net.minecraft.potion.PotionEffect> activePotionEffects() { return java.util.List.of(); }
     /** The crafting recipes, or null when none are loaded (tests). */
     default net.minecraft.item.crafting.CraftingManager crafting() { return null; }
     /** An item by its LegacyCraft name ("bucket"), or null. */
@@ -144,6 +152,8 @@ public interface GuiContext {
      * "Oak Planks").
      */
     default String itemName(Item item) {
+        String variant = net.minecraft.item.VanillaItems.displayName(item, I18n::format);
+        if (variant != null) return variant;
         CreativeTabs tabs = creativeTabs();
         String key = tabs == null ? null : tabs.nameKey(item);
         if (key != null && I18n.hasKey(key)) return I18n.format(key);

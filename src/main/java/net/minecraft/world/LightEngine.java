@@ -32,8 +32,12 @@ final class LightEngine {
     private Chunk lastChunk;
     private long lastMarked;
 
+    /** False in the Nether: no sky light anywhere (WorldProvider.getHasNoSky). */
+    private final boolean hasSky;
+
     LightEngine(World world, BlockRegistry registry) {
         this.world = world;
+        this.hasSky = world.dimension().hasSky;
         opacity = new int[registry.size()];
         emission = new int[registry.size()];
         for (Block block : registry.values()) {
@@ -51,7 +55,7 @@ final class LightEngine {
                 // VERIFIED against 1.8.9 saves: sky light falls straight down at full strength
                 // while it is still 15; once anything has dimmed it, every further block costs
                 // at least one level even if transparent (same rule as spread() going down).
-                int level = 15;
+                int level = hasSky ? 15 : 0;
                 for (int y = Chunk.HEIGHT - 1; y >= 0; y--) {
                     int id = chunk.get(x, y, z) >>> BlockState.METADATA_BITS;
                     if (level < 15 || opacity[id] > 0) level = Math.max(0, level - Math.max(1, opacity[id]));
@@ -96,7 +100,7 @@ final class LightEngine {
 
     /** Relights around a position whose block changed. */
     void blockChanged(int x, int y, int z) {
-        for (Type type : Type.values()) relight(type, x, y, z);
+        for (Type type : Type.values()) if (hasSky || type == Type.BLOCK) relight(type, x, y, z);
         flush();
     }
 

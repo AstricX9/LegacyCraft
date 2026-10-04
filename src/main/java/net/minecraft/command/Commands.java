@@ -23,7 +23,7 @@ public final class Commands {
     static List<Command> all(CommandHandler handler) {
         return List.of(new Help(handler), new Time(), new GameRule(), new GameMode(), new Difficulty(), new Teleport(),
             new Seed(), new Kill(), new Say(), new Emote(), new Weather(), new SetWorldSpawn(), new Clear(),
-            new AchievementCommand(), new Enchant(), new Xp());
+            new AchievementCommand(), new Enchant(), new Xp(), new Summon(), new Effect(), new Give());
     }
 
     // ---- shared parsing ---------------------------------------------------------------------
@@ -574,6 +574,129 @@ public final class Commands {
 
         @Override public List<String> complete(CommandSender sender, String[] args) {
             return args.length == 2 ? matching(args[1], List.of(sender.name())) : List.of();
+        }
+    }
+
+    /**
+     * CommandGive: /give player item [amount] [data]. The item is its
+     * vanilla name ("minecraft:" optional, no numeric IDs since 1.8), the
+     * amount 1-64 (default 1), the data value any whole number (default 0).
+     */
+    static final class Give implements Command {
+        @Override public String name() { return "give"; }
+        @Override public String usage() { return "commands.give.usage"; }
+
+        @Override public void execute(CommandSender sender, String[] args) throws CommandException {
+            if (args.length < 2) throw new CommandException.WrongUsage(usage());
+            player(sender, args[0]);
+            String id = args[1].contains(":") ? args[1] : "minecraft:" + args[1];
+            int count = args.length >= 3 ? parseInt(args[2], 1, 64) : 1;
+            int data = args.length >= 4 ? parseInt(args[3]) : 0;
+            String given = sender.give(id, count, data);
+            if (given == null) throw new CommandException("commands.give.item.notFound", id);
+            feedback(sender, "commands.give.success", "[" + given + "]", count, sender.name());
+        }
+
+        @Override public List<String> complete(CommandSender sender, String[] args) {
+            if (args.length == 1) return matching(args[0], List.of(sender.name()));
+            if (args.length == 2) return matching(args[1], ITEM_NAMES);
+            return List.of();
+        }
+
+        /** Every vanilla item name, for tab completion. */
+        private static final List<String> ITEM_NAMES = itemNames();
+
+        private static List<String> itemNames() {
+            java.util.TreeSet<String> names = new java.util.TreeSet<>();
+            for (int id = 256; id < 2300; id++) {
+                String name = net.minecraft.item.VanillaItems.itemName(id);
+                if (name != null) names.add(name);
+            }
+            return List.copyOf(names);
+        }
+    }
+
+    /** CommandSummon: /summon EntityName [x y z]; positions default to the sender's, "~" is relative. */
+    static final class Summon implements Command {
+        private static final List<String> NAMES = List.of("Arrow", "Blaze", "Chicken", "Cow", "Creeper", "Fireball", "Ghast",
+            "LavaSlime", "Pig", "PigZombie", "PrimedTnt", "Sheep", "Skeleton", "SmallFireball", "Snowball", "ThrownEgg",
+            "ThrownPotion", "WitherBoss", "WitherSkull", "XPOrb");
+        @Override public String name() { return "summon"; }
+        @Override public String usage() { return "commands.summon.usage"; }
+
+        @Override public void execute(CommandSender sender, String[] args) throws CommandException {
+            if (args.length < 1) throw new CommandException.WrongUsage(usage());
+            double x = sender.x(), y = sender.y(), z = sender.z();
+            if (args.length >= 4) {
+                x = parseCoordinate(x, args[1], 0, 0, true);
+                y = parseCoordinate(y, args[2], 0, 0, false);
+                z = parseCoordinate(z, args[3], 0, 0, true);
+            }
+            if (y < 0 || y >= 256) throw new CommandException("commands.summon.outOfWorld");
+            if (!sender.summon(args[0], x, y, z)) throw new CommandException("commands.summon.failed");
+            feedback(sender, "commands.summon.success");
+        }
+
+        @Override public List<String> complete(CommandSender sender, String[] args) {
+            return args.length == 1 ? matching(args[0], NAMES) : List.of();
+        }
+    }
+
+    /**
+     * CommandEffect: /effect player clear, or /effect player effect [seconds]
+     * [amplifier] [hideParticles]; 30 seconds by default, 0 seconds removes it.
+     */
+    static final class Effect implements Command {
+        private static final List<String> NAMES = List.of("speed", "slowness", "haste", "mining_fatigue", "strength",
+            "instant_health", "instant_damage", "jump_boost", "nausea", "regeneration", "resistance", "fire_resistance",
+            "water_breathing", "invisibility", "blindness", "night_vision", "hunger", "weakness", "poison", "wither",
+            "health_boost", "absorption", "saturation");
+        @Override public String name() { return "effect"; }
+        @Override public String usage() { return "commands.effect.usage"; }
+
+        @Override public void execute(CommandSender sender, String[] args) throws CommandException {
+            if (args.length < 2) throw new CommandException.WrongUsage(usage());
+            player(sender, args[0]);
+            if (args[1].equals("clear")) {
+                if (!sender.removeEffect(-1)) throw new CommandException("commands.effect.failure.notActive.all", sender.name());
+                feedback(sender, "commands.effect.success.removed.all", sender.name());
+                return;
+            }
+            int id;
+            String key = args[1].startsWith("minecraft:") ? args[1].substring(10) : args[1];
+            int named = NAMES.indexOf(key);
+            if (named >= 0) id = named + 1;
+            else {
+                try {
+                    id = Integer.parseInt(args[1]);
+                } catch (NumberFormatException notANumber) {
+                    throw new CommandException("commands.effect.notFound", args[1]);
+                }
+            }
+            net.minecraft.potion.Potion potion = net.minecraft.potion.Potion.byId(id);
+            if (potion == null) throw new CommandException("commands.effect.notFound", args[1]);
+            int seconds = potion.isInstant() ? 1 : 30;
+            if (args.length >= 3) seconds = parseInt(args[2], 0, 1000000);
+            int amplifier = args.length >= 4 ? parseInt(args[3], 0, 255) : 0;
+            boolean hide = args.length >= 5 && args[4].equalsIgnoreCase("true");
+            if (seconds > 0) {
+                sender.addEffect(id, potion.isInstant() ? seconds : seconds * 20, amplifier, !hide);
+                feedback(sender, "commands.effect.success", I18n.format(potion.name), id, amplifier, sender.name(), seconds);
+            } else if (sender.removeEffect(id)) {
+                feedback(sender, "commands.effect.success.removed", I18n.format(potion.name), sender.name());
+            } else {
+                throw new CommandException("commands.effect.failure.notActive", I18n.format(potion.name), sender.name());
+            }
+        }
+
+        @Override public List<String> complete(CommandSender sender, String[] args) {
+            if (args.length == 1) return matching(args[0], List.of(sender.name()));
+            if (args.length == 2) {
+                List<String> options = new ArrayList<>(NAMES);
+                options.add(0, "clear");
+                return matching(args[1], options);
+            }
+            return List.of();
         }
     }
 

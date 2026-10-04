@@ -34,7 +34,8 @@ public final class BlockModelManager {
     private record BakeKey(ResourceLocation model, int x, int y, boolean uvlock) {}
 
     private final IResourceManager resources;
-    private final ModelBaker baker;
+    private final BlockRegistry registry;
+    private ModelBaker baker;
     private final Map<ResourceLocation, Map<String, List<VariantSpec>>> blockstateFiles = new HashMap<>();
     private final Map<BakeKey, BakedModel> baked = new HashMap<>();
     private final Map<StateMapper.ModelLocation, WeightedModel> variants = new HashMap<>();
@@ -44,12 +45,28 @@ public final class BlockModelManager {
 
     public BlockModelManager(IResourceManager resources, BlockRegistry registry) {
         this.resources = resources;
+        this.registry = registry;
         this.baker = new ModelBaker(resources);
-        // Bake every block's default state up front so asset problems surface at startup.
+        bakeDefaults();
+    }
+
+    /** Bakes every block's default state up front so asset problems surface at startup. */
+    private void bakeDefaults() {
         for (Block block : registry.values()) {
             if (block.renderType() == Block.RenderType.MODEL || block.modelOverride() != null)
                 variantsFor(ActualState.withoutWorld(block.defaultState()));
         }
+    }
+
+    /** Forgets every blockstate, model and bake and reads them again (resource packs changed). */
+    public synchronized void reload() {
+        blockstateFiles.clear();
+        baked.clear();
+        variants.clear();
+        overrides.clear();
+        reported.clear();
+        baker = new ModelBaker(resources);
+        bakeDefaults();
     }
 
     /** The model drawn for a state at a position (random variants are keyed by position). */

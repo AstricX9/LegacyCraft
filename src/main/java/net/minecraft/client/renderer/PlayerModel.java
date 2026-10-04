@@ -3,8 +3,9 @@ package net.minecraft.client.renderer;
 import static org.lwjgl.opengl.GL11.*;
 
 /**
- * The player model in 1.8.9's 64x64 skin layout (ModelPlayer, wide arms;
- * HYPOTHESIS: part sizes, pivots and pose maths are recalled). Model space
+ * The player model in 1.8.9's 64x64 skin layout (ModelPlayer, wide or slim
+ * "Alex" arms, plus the cape; HYPOTHESIS: part sizes, pivots and pose maths
+ * are recalled). Model space
  * has y pointing down and the face toward -z, in 1/16-block units; callers
  * draw it the way RendererLivingEntity does (see {@link #setPose}).
  *
@@ -19,6 +20,8 @@ public final class PlayerModel {
         final float x, y, z, width, height, depth;
         final int u, v, overlayU, overlayV;
         final float overlayGrow;
+        /** Whether the outer layer is drawn (Skin Customization's model parts). */
+        public boolean showOverlay = true;
         public float pivotX, pivotY, pivotZ, angleX, angleY, angleZ;
         final float basePivotX, basePivotY, basePivotZ;
 
@@ -51,7 +54,7 @@ public final class PlayerModel {
             transform();
             glBegin(GL_QUADS);
             box(x, y, z, width, height, depth, 0, u, v);
-            box(x, y, z, width, height, depth, overlayGrow, overlayU, overlayV);
+            if (showOverlay) box(x, y, z, width, height, depth, overlayGrow, overlayU, overlayV);
             glEnd();
             glPopMatrix();
         }
@@ -59,11 +62,30 @@ public final class PlayerModel {
 
     public final Part head = new Part(-4, -8, -4, 8, 8, 8, 0, 0, 32, 0, 0.5f, 0, 0, 0);
     public final Part body = new Part(-4, 0, -2, 8, 12, 4, 16, 16, 16, 32, 0.25f, 0, 0, 0);
-    public final Part rightArm = new Part(-3, -2, -2, 4, 12, 4, 40, 16, 40, 32, 0.25f, -5, 2, 0);
-    public final Part leftArm = new Part(-1, -2, -2, 4, 12, 4, 32, 48, 48, 48, 0.25f, 5, 2, 0);
+    public final Part rightArm;
+    public final Part leftArm;
     public final Part rightLeg = new Part(-2, 0, -2, 4, 12, 4, 0, 16, 0, 32, 0.25f, -1.9f, 12, 0);
     public final Part leftLeg = new Part(-2, 0, -2, 4, 12, 4, 16, 48, 0, 48, 0.25f, 1.9f, 12, 0);
-    private final Part[] parts = {head, body, rightArm, leftArm, rightLeg, leftLeg};
+    private final Part[] parts;
+    /** ModelPlayer.bipedCape: a 10x16x1 box on the 64x32 cape texture, hanging from the shoulders. */
+    private float capePivotY;
+    public final boolean slim;
+
+    /** The classic (Steve) model. */
+    public PlayerModel() { this(false); }
+
+    /** {@code slim}: ModelPlayer's small arms, 3 pixels wide with the shoulder pivot half a pixel lower. */
+    public PlayerModel(boolean slim) {
+        this.slim = slim;
+        if (slim) {
+            rightArm = new Part(-2, -2, -2, 3, 12, 4, 40, 16, 40, 32, 0.25f, -5, 2.5f, 0);
+            leftArm = new Part(-1, -2, -2, 3, 12, 4, 32, 48, 48, 48, 0.25f, 5, 2.5f, 0);
+        } else {
+            rightArm = new Part(-3, -2, -2, 4, 12, 4, 40, 16, 40, 32, 0.25f, -5, 2, 0);
+            leftArm = new Part(-1, -2, -2, 4, 12, 4, 32, 48, 48, 48, 0.25f, 5, 2, 0);
+        }
+        parts = new Part[] {head, body, rightArm, leftArm, rightLeg, leftLeg};
+    }
 
     /** What the pose depends on (ModelBiped.setRotationAngles and friends). */
     public record Pose(float limbSwing, float limbSwingAmount, float ageInTicks, float headYaw, float headPitch,
@@ -118,8 +140,10 @@ public final class PlayerModel {
             rightLeg.pivotZ = leftLeg.pivotZ = 4f;
             rightLeg.pivotY = leftLeg.pivotY = 9f;
             head.pivotY = 1f;
+            capePivotY = 2f;
         } else {
             rightLeg.pivotZ = leftLeg.pivotZ = 0.1f;
+            capePivotY = 0f;
         }
         rightArm.angleZ += (float) Math.cos(age * 0.09f) * 0.05f + 0.05f;
         leftArm.angleZ -= (float) Math.cos(age * 0.09f) * 0.05f + 0.05f;
@@ -135,6 +159,20 @@ public final class PlayerModel {
         glPopMatrix();
     }
 
+    /**
+     * The cape box (ModelPlayer.renderCape) in the space LayerCape sets up;
+     * the cape texture must be bound. Its texture coordinates assume the
+     * 64x32 cape layout, so larger capes of the same shape work too.
+     */
+    public void renderCape() {
+        glPushMatrix();
+        glTranslatef(0f, capePivotY / 16f, 0f);
+        glBegin(GL_QUADS);
+        box(-5, 0, -1, 10, 16, 1, 0, 0, 0, 64f, 32f);
+        glEnd();
+        glPopMatrix();
+    }
+
     /** The first-person arm: the right arm at rest (idle sway from time 0, i.e. tilted 0.1 radians out). */
     public void renderRightArmAtRest() {
         setPose(new Pose(0, 0, 0, 0, 0, 0, false, false, false));
@@ -146,12 +184,12 @@ public final class PlayerModel {
      * (the net laid out from the skin offset), grown by {@code grow} on
      * every side without changing the texture area.
      */
-    static void box(float x, float y, float z, float width, float height, float depth, float grow, int u, int v) {
+    public static void box(float x, float y, float z, float width, float height, float depth, float grow, int u, int v) {
         box(x, y, z, width, height, depth, grow, u, v, 64f, 64f);
     }
 
     /** {@link #box} on a texture of {@code textureWidth} x {@code textureHeight} pixels (armour is 64x32). */
-    static void box(float x, float y, float z, float width, float height, float depth, float grow, int u, int v,
+    public static void box(float x, float y, float z, float width, float height, float depth, float grow, int u, int v,
                     float textureWidth, float textureHeight) {
         float tw = textureWidth, th = textureHeight;
         float x1 = (x - grow) / 16f, y1 = (y - grow) / 16f, z1 = (z - grow) / 16f;

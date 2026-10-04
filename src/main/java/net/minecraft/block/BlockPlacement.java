@@ -62,7 +62,7 @@ public final class BlockPlacement {
         return block.placements(world, x, y, z, itemMetadata, face, context);
     }
 
-    static boolean isReplaceable(BlockState state) {
+    public static boolean isReplaceable(BlockState state) {
         String name = state.block().name().toString();
         if (!REPLACEABLE.contains(name)) return false;
         return !name.equals("minecraft:snow_layer") || state.get("layers").equals("1");

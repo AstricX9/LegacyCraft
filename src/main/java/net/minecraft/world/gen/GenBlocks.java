@@ -21,7 +21,8 @@ public final class GenBlocks {
 
     public final int airId, stoneId, grassId, dirtId, gravelId, sandId, sandstoneId, redSandstoneId, clayId,
         hardenedClayId, stainedClayId, myceliumId, snowLayerId, snowId, iceId, packedIceId, waterId, flowingWaterId,
-        lavaId, flowingLavaId, logId, log2Id, saplingId, vineId, farmlandId, reedsId, cactusId, chestId, bedrockId;
+        lavaId, flowingLavaId, logId, log2Id, saplingId, vineId, farmlandId, reedsId, cactusId, chestId, bedrockId,
+        netherrackId, soulSandId, glowstoneId, netherBrickId;
 
     /** Packed states. */
     public final int AIR, STONE, GRASS, DIRT, COARSE_DIRT, PODZOL, GRAVEL, SAND, RED_SAND, SANDSTONE, RED_SANDSTONE,
@@ -30,7 +31,8 @@ public final class GenBlocks {
         MOB_SPAWNER, CHEST, WATERLILY, DEADBUSH, REEDS, CACTUS, PUMPKIN, MELON, EMERALD_ORE, SILVERFISH_STONE,
         SANDSTONE_SLAB, BROWN_MUSHROOM, RED_MUSHROOM, BROWN_MUSHROOM_BLOCK, RED_MUSHROOM_BLOCK, VINE, COCOA,
         TALLGRASS, YELLOW_FLOWER, RED_FLOWER, DOUBLE_PLANT, LOG, LOG2, LEAVES, LEAVES2,
-        COAL_ORE, IRON_ORE, GOLD_ORE, REDSTONE_ORE, DIAMOND_ORE, LAPIS_ORE;
+        COAL_ORE, IRON_ORE, GOLD_ORE, REDSTONE_ORE, DIAMOND_ORE, LAPIS_ORE,
+        NETHERRACK, SOUL_SAND, GLOWSTONE, QUARTZ_ORE, FIRE, NETHER_BRICK, NETHER_BRICK_FENCE, NETHER_WART;
 
     public GenBlocks(BlockRegistry registry) {
         this.registry = registry;
@@ -69,6 +71,8 @@ public final class GenBlocks {
         waterId = id("water"); flowingWaterId = id("flowing_water"); lavaId = id("lava"); flowingLavaId = id("flowing_lava");
         logId = id("log"); log2Id = id("log2"); saplingId = id("sapling"); vineId = id("vine"); farmlandId = id("farmland");
         reedsId = id("reeds"); cactusId = id("cactus"); chestId = id("chest"); bedrockId = id("bedrock");
+        netherrackId = id("netherrack"); soulSandId = id("soul_sand"); glowstoneId = id("glowstone");
+        netherBrickId = id("nether_brick");
 
         AIR = 0; STONE = state("stone", 0); GRASS = state("grass", 0); DIRT = state("dirt", 0);
         COARSE_DIRT = state("dirt", 1); PODZOL = state("dirt", 2); GRAVEL = state("gravel", 0);
@@ -92,6 +96,9 @@ public final class GenBlocks {
         LEAVES = state("leaves", 0); LEAVES2 = state("leaves2", 0);
         COAL_ORE = state("coal_ore", 0); IRON_ORE = state("iron_ore", 0); GOLD_ORE = state("gold_ore", 0);
         REDSTONE_ORE = state("redstone_ore", 0); DIAMOND_ORE = state("diamond_ore", 0); LAPIS_ORE = state("lapis_ore", 0);
+        NETHERRACK = state("netherrack", 0); SOUL_SAND = state("soul_sand", 0); GLOWSTONE = state("glowstone", 0);
+        QUARTZ_ORE = state("quartz_ore", 0); FIRE = state("fire", 0); NETHER_BRICK = state("nether_brick", 0);
+        NETHER_BRICK_FENCE = state("nether_brick_fence", 0); NETHER_WART = state("nether_wart", 0);
     }
 
     public BlockRegistry registry() { return registry; }

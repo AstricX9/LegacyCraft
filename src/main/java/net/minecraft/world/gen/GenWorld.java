@@ -24,4 +24,10 @@ public interface GenWorld {
     /** Whether sky light reaches the position at all (lakes turn exposed dirt to grass). */
     boolean seesSky(int x, int y, int z);
     GenBlocks blocks();
+    /** Asks for the liquid just placed here to flow (World.forceBlockUpdateTick); ignored where nothing listens. */
+    default void scheduleBlockTick(int x, int y, int z) {}
+    /** Makes the spawner block here spawn this entity (TileEntityMobSpawner.setEntityName). */
+    default void setSpawner(int x, int y, int z, String entity) {}
+    /** An animal placed by population (SpawnerAnimals.performWorldGenSpawning); ignored where nothing listens. */
+    default void spawnCreature(String entity, double x, double y, double z, float yaw) {}
 }

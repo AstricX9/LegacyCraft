@@ -68,11 +68,39 @@ public final class World implements IBlockWorld {
         default void shattered(int x, int y, int z, BlockState previous) {}
         /** A block that held items is gone; its contents spill here (InventoryHelper.dropInventoryItems). */
         default void containerBroken(int x, int y, int z, List<ItemStack> contents) {}
+        /** Fire burnt a TNT block away and lit it (BlockFire.catchOnFire priming TNT). */
+        default void tntIgnited(int x, int y, int z) {}
     }
     private Events events = new Events() {};
 
+    /** An animal world generation placed (SpawnerAnimals.performWorldGenSpawning), waiting for the game to create it. */
+    public record CreatureSpawn(String entity, double x, double y, double z, float yaw) {}
+    private final List<CreatureSpawn> pendingCreatures = new ArrayList<>();
+
+    /** The animals generation placed since the last call (chunks can generate before the game has an entity list). */
+    public List<CreatureSpawn> takeCreatureSpawns() {
+        if (pendingCreatures.isEmpty()) return List.of();
+        List<CreatureSpawn> taken = new ArrayList<>(pendingCreatures);
+        pendingCreatures.clear();
+        return taken;
+    }
+
+    /** Mob spawners by position and the entity they make (TileEntityMobSpawner); the game runs them. */
+    private final Map<BlockPos, String> spawners = new LinkedHashMap<>();
+    public Map<BlockPos, String> spawners() { return spawners; }
+    public void setSpawner(int x, int y, int z, String entity) { spawners.put(new BlockPos(x, y, z), entity); }
+
     /** A furnace's position (the key of its tile entity). */
     public record BlockPos(int x, int y, int z) {}
+
+    /** A mob head's tile entity (TileEntitySkull): SkullType 0 skeleton, 1 wither, 2 zombie, 3 player, 4 creeper; Rot 0-15 on the floor. */
+    public record Skull(int type, int rotation) {}
+    private final Map<BlockPos, Skull> skulls = new LinkedHashMap<>();
+    /** Mob heads by position; entries whose block has since gone are dropped when found. */
+    public Map<BlockPos, Skull> skulls() { return skulls; }
+    public void setSkull(int x, int y, int z, int type, int rotation) { skulls.put(new BlockPos(x, y, z), new Skull(type, rotation)); }
+    /** The head at this position, or null. */
+    public Skull skull(int x, int y, int z) { return skulls.get(new BlockPos(x, y, z)); }
     /** The furnaces' contents and fire, by position (vanilla keeps them as tile entities in their chunk). */
     private final Map<BlockPos, Furnace> furnaces = new LinkedHashMap<>();
     private FurnaceRecipes smelting;
@@ -121,6 +149,17 @@ public final class World implements IBlockWorld {
     /** Chunks population wrote into since listeners were last told. */
     private final Set<Chunk> populated = new LinkedHashSet<>();
 
+    private final Dimension dimension;
+    private final net.minecraft.world.gen.NetherGenerator netherGenerator;
+    private final net.minecraft.world.gen.NetherPopulator netherPopulator;
+    /** The one biome of the Nether (Hell, id 8). */
+    private final Biome hellBiome;
+
+    public Dimension dimension() { return dimension; }
+    public boolean isNether() { return dimension == Dimension.NETHER; }
+    /** The Nether's generator (for its fortresses), or null. */
+    public net.minecraft.world.gen.NetherGenerator netherGenerator() { return netherGenerator; }
+
     /** Superflat layers, or null for normal terrain. */
     private final FlatGeneratorInfo flat;
     private final Biome flatBiome;
@@ -135,6 +174,13 @@ public final class World implements IBlockWorld {
      *             no structures or decoration yet (DEV-011).
      */
     public World(BlockRegistry registry, BiomeRegistry biomeRegistry, long seed, FlatGeneratorInfo flat) {
+        this(registry, biomeRegistry, seed, flat, Dimension.OVERWORLD);
+    }
+
+    /** A world of the given dimension (the Nether ignores {@code flat}). */
+    public World(BlockRegistry registry, BiomeRegistry biomeRegistry, long seed, FlatGeneratorInfo flat, Dimension dimension) {
+        this.dimension = dimension;
+        if (dimension == Dimension.NETHER) flat = null;
         this.flat = flat;
         Biome chosen = flat == null ? null : biomeRegistry.byId(flat.biome());
         this.flatBiome = flat == null ? null : chosen != null ? chosen : biomeRegistry.get("minecraft:plains");
@@ -145,8 +191,13 @@ public final class World implements IBlockWorld {
         bedrock = registry.get("minecraft:bedrock");
         biomes = new BiomeSource(biomeRegistry, seed);
         genBlocks = new GenBlocks(registry);
-        generator = flat == null ? new ChunkGenerator(genBlocks, biomeRegistry, biomes.layers(), seed) : null;
-        populator = new ChunkPopulator(genBlocks, seed);
+        boolean nether = dimension == Dimension.NETHER;
+        generator = flat == null && !nether ? new ChunkGenerator(genBlocks, biomeRegistry, biomes.layers(), seed) : null;
+        populator = nether ? null : new ChunkPopulator(genBlocks, seed);
+        Biome hell = biomeRegistry.byId(8);
+        netherGenerator = nether ? new net.minecraft.world.gen.NetherGenerator(genBlocks, seed) : null;
+        netherPopulator = nether ? new net.minecraft.world.gen.NetherPopulator(genBlocks, seed) : null;
+        hellBiome = nether ? (hell != null ? hell : biomeRegistry.get("minecraft:plains")) : null;
         light = new LightEngine(this, registry);
         liquids = new LiquidFlow(this, registry);
         fire = new FireSpread(this);
@@ -175,6 +226,7 @@ public final class World implements IBlockWorld {
     @Override
     public BlockRegistry registry() { return registry; }
     public void addListener(Listener listener) { listeners.add(listener); }
+    public void removeListener(Listener listener) { listeners.remove(listener); }
     public boolean inBounds(int x, int y, int z) { return y >= 0 && y < HEIGHT; }
 
     public Block get(int x, int y, int z) {
@@ -399,15 +451,68 @@ public final class World implements IBlockWorld {
 
     public Chunk getChunk(int chunkX, int chunkZ) {
         long key = chunkKey(chunkX, chunkZ);
-        Chunk chunk = chunks.computeIfAbsent(key, ignored -> new Chunk(chunkX, chunkZ));
+        Chunk chunk = chunks.get(key);
+        if (chunk == null) {
+            chunk = loadSaved(chunkX, chunkZ);
+            if (chunk == null) {
+                chunk = new Chunk(chunkX, chunkZ);
+                chunks.put(key, chunk);
+            }
+        }
         if (!chunk.isGenerated()) generate(chunk);
+        return chunk;
+    }
+
+    /** Saved chunks the world reads on demand (a world folder); null for a world that was never saved. */
+    public interface ChunkSource {
+        boolean has(int chunkX, int chunkZ);
+        Chunk read(int chunkX, int chunkZ) throws java.io.IOException;
+    }
+
+    private ChunkSource chunkSource;
+
+    /**
+     * Saved chunks are now read when the game first needs them (as vanilla's
+     * ChunkProviderServer does) instead of all at once when the world opens.
+     */
+    public void setChunkSource(ChunkSource source) { this.chunkSource = source; }
+    public ChunkSource chunkSource() { return chunkSource; }
+
+    /** Makes new chunks continue the saved generation sequence. */
+    public void reserveGenerationIndex(long next) { nextGenerationIndex = Math.max(nextGenerationIndex, next); }
+
+    /** Reads a saved chunk into the world, or returns null when there is none (or it can't be read). */
+    private Chunk loadSaved(int chunkX, int chunkZ) {
+        if (chunkSource == null || !chunkSource.has(chunkX, chunkZ)) return null;
+        Chunk chunk;
+        try {
+            chunk = chunkSource.read(chunkX, chunkZ);
+        } catch (java.io.IOException | RuntimeException error) {
+            System.err.println("Couldn't load chunk " + chunkX + "," + chunkZ + "; it will be regenerated: " + error.getMessage());
+            return null;
+        }
+        if (chunk == null || !chunk.isGenerated()) return null;
+        chunks.put(chunkKey(chunkX, chunkZ), chunk);
+        nextGenerationIndex = Math.max(nextGenerationIndex, chunk.generationIndex() + 1);
+        if (!chunk.isLightStored()) light.lightChunk(chunk);
+        findEnchantingTables(chunk);
+        chunk.markClean();
+        if (populationEnabled && !chunk.isPopulated()) {
+            // An unfinished edge of a saved world: population may now be possible (Chunk.populateChunk on load).
+            pendingPopulation.add(new int[]{chunkX, chunkZ});
+            pendingPopulation.add(new int[]{chunkX - 1, chunkZ});
+            pendingPopulation.add(new int[]{chunkX, chunkZ - 1});
+            pendingPopulation.add(new int[]{chunkX - 1, chunkZ - 1});
+            if (!populating) finishGeneration();
+        }
+        for (Listener listener : listeners) listener.chunkChanged(chunkX, chunkZ);
         return chunk;
     }
 
     public Collection<Chunk> loadedChunks() { return chunks.values(); }
     public int loadedChunkCount() { return chunks.size(); }
     public long seed() { return seed; }
-    public Biome biomeAt(int x, int z) { return flatBiome != null ? flatBiome : biomes.sample(x, z); }
+    public Biome biomeAt(int x, int z) { return hellBiome != null ? hellBiome : flatBiome != null ? flatBiome : biomes.sample(x, z); }
     public boolean isFlat() { return flat != null; }
 
     /** Installs a persisted chunk and advances the generation sequence past it. */
@@ -540,7 +645,8 @@ public final class World implements IBlockWorld {
             generateFlat(chunk);
             return;
         }
-        ChunkPrimer primer = generator.generate(chunk.chunkX(), chunk.chunkZ());
+        ChunkPrimer primer = netherGenerator != null ? netherGenerator.generate(chunk.chunkX(), chunk.chunkZ())
+            : generator.generate(chunk.chunkX(), chunk.chunkZ());
         for (int x = 0; x < Chunk.SIZE; x++)
             for (int z = 0; z < Chunk.SIZE; z++)
                 for (int y = 0; y < HEIGHT; y++) {
@@ -575,7 +681,8 @@ public final class World implements IBlockWorld {
                 if (corner == null || !corner.isGenerated() || corner.isPopulated()) continue;
                 if (!exists(next[0] + 1, next[1]) || !exists(next[0], next[1] + 1) || !exists(next[0] + 1, next[1] + 1)) continue;
                 corner.markPopulated();
-                populator.populate(genAccess, next[0], next[1]);
+                if (netherPopulator != null) netherPopulator.populate(genAccess, netherGenerator, next[0], next[1]);
+                else populator.populate(genAccess, next[0], next[1]);
             }
         } finally {
             populating = false;
@@ -591,7 +698,8 @@ public final class World implements IBlockWorld {
 
     private boolean exists(int chunkX, int chunkZ) {
         Chunk chunk = chunks.get(chunkKey(chunkX, chunkZ));
-        return chunk != null && chunk.isGenerated();
+        if (chunk != null) return chunk.isGenerated();
+        return loadSaved(chunkX, chunkZ) != null;
     }
 
     /** Population's view of the world: raw writes (relit afterwards), vanilla heightmap and light estimates. */
@@ -625,6 +733,14 @@ public final class World implements IBlockWorld {
         }
 
         @Override public Biome biome(int x, int z) { return biomeAt(x, z); }
+        @Override public void scheduleBlockTick(int x, int y, int z) {
+            Block block = World.this.get(x, y, z);
+            if (!block.isAir()) scheduleUpdate(x, y, z, block, liquids.tickRate(block.material()));
+        }
+        @Override public void setSpawner(int x, int y, int z, String entity) { spawners.put(new BlockPos(x, y, z), entity); }
+        @Override public void spawnCreature(String entity, double x, double y, double z, float yaw) {
+            pendingCreatures.add(new CreatureSpawn(entity, x, y, z, yaw));
+        }
 
         @Override
         public int height(int x, int z) {

@@ -1,0 +1,20 @@
+plugins {
+    id 'application'
+}
+
+group = 'net.legacycraft'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+application {
+    mainClass = 'net.legacycraft.launcher.LauncherApp'
+}

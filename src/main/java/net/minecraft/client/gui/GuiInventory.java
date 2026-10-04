@@ -24,7 +24,12 @@ public class GuiInventory extends GuiContainer {
     public GuiInventory() {
         xSize = 176;
         ySize = 166;
+        showsPotionEffects = true;
     }
+
+    /** GuiInventory.updateScreen: the effect list (and the screen's position) follows effects starting and ending. */
+    @Override
+    public void updateScreen() { updateActivePotionEffects(); }
 
     @Override
     protected void buildSlots() {

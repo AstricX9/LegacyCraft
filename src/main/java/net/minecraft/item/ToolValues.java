@@ -35,6 +35,26 @@ public final class ToolValues {
 
     private ToolValues() {}
 
+    /**
+     * The attack damage attribute with this item held (1 + ItemSword/ItemTool's
+     * modifier): swords 4, axes 3, pickaxes 2, shovels 1, plus the material's
+     * 0 (wood, gold), 1 (stone), 2 (iron) or 3 (diamond); anything else 1.
+     */
+    public static float attackDamage(Item item) {
+        if (item == null) return 1f;
+        float base = switch (type(item)) {
+            case SWORD -> 4f;
+            case AXE -> 3f;
+            case PICKAXE -> 2f;
+            case SHOVEL -> 1f;
+            default -> -1f;
+        };
+        if (base < 0) return 1f;
+        String name = item.name().path();
+        float material = name.startsWith("stone_") ? 1f : name.startsWith("iron_") ? 2f : name.startsWith("diamond_") ? 3f : 0f;
+        return 1f + base + material;
+    }
+
     public static Type type(Item item) {
         if (item == null) return Type.NONE;
         String path = item.name().path();

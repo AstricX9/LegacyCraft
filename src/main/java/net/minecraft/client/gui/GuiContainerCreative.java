@@ -52,6 +52,8 @@ public class GuiContainerCreative extends GuiContainer {
         buttonList.clear();
         guiLeft = (width - xSize) / 2;
         guiTop = (height - ySize) / 2;
+        showsPotionEffects = true;
+        updateActivePotionEffects();
         String previousSearch = searchField == null ? "" : searchField.getText();
         searchField = new GuiTextField(0, fontRendererObj, guiLeft + 82, guiTop + 6, 89, FontRenderer.FONT_HEIGHT);
         searchField.setMaxStringLength(15);

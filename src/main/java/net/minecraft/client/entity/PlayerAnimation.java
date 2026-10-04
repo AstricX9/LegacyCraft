@@ -13,7 +13,10 @@ package net.minecraft.client.entity;
  *   <li>attack swing: six ticks from a swing start;</li>
  *   <li>legs: limb swing driven by ground speed; the body turns toward the
  *       walking direction and stays within 75° of the head;</li>
- *   <li>field of view: 1.1x flying, 1.15x sprinting, eased halfway per tick.</li>
+ *   <li>field of view: 1.1x flying, 1.15x sprinting, eased halfway per tick;</li>
+ *   <li>cape: a "chasing" position that closes a quarter of the gap to the
+ *       player each tick and snaps when more than 10 blocks behind
+ *       (EntityPlayer.onUpdate), which LayerCape swings the cape from.</li>
  * </ul>
  * Angles here are vanilla's (yaw 0 = south); the player's own yaw is
  * vanilla's minus 180.
@@ -33,6 +36,7 @@ public final class PlayerAnimation {
     private int swingTicks;
     private boolean swinging;
     public float fovModifier = 1f, prevFovModifier = 1f;
+    public double chasingX, chasingY, chasingZ, prevChasingX, prevChasingY, prevChasingZ;
 
     /** Starts an attack/use swing unless one is less than half done (EntityLivingBase.swingItem). */
     public void swing() {
@@ -52,6 +56,9 @@ public final class PlayerAnimation {
             armYaw = prevArmYaw = yaw;
             armPitch = prevArmPitch = player.pitch;
             bodyYaw = prevBodyYaw = yaw;
+            chasingX = prevChasingX = player.x;
+            chasingY = prevChasingY = player.y;
+            chasingZ = prevChasingZ = player.z;
         }
         ticksExisted++;
         double dx = player.x - lastX, dy = player.y - lastY, dz = player.z - lastZ;
@@ -105,10 +112,26 @@ public final class PlayerAnimation {
         limbSwingAmount += (speed - limbSwingAmount) * 0.4f;
         limbSwing += limbSwingAmount;
 
+        prevChasingX = chasingX; prevChasingY = chasingY; prevChasingZ = chasingZ;
+        double cx = player.x - chasingX, cy = player.y - chasingY, cz = player.z - chasingZ;
+        if (cx > 10.0 || cx < -10.0) chasingX = prevChasingX = player.x;
+        if (cz > 10.0 || cz < -10.0) chasingZ = prevChasingZ = player.z;
+        if (cy > 10.0 || cy < -10.0) chasingY = prevChasingY = player.y;
+        chasingX += cx * 0.25;
+        chasingZ += cz * 0.25;
+        chasingY += cy * 0.25;
+
         prevFovModifier = fovModifier;
         float fov = 1f;
         if (player.isFlying) fov *= 1.1f;
-        if (player.sprinting) fov *= 1.15f;
+        // AbstractClientPlayer.getFovModifier: (speed attribute / walk speed + 1) / 2 (sprinting 1.15, Speed more),
+        // and a drawn bow zooms in up to 15% over a second.
+        fov *= (player.moveSpeed() / 0.1f + 1f) / 2f;
+        if (player.isUsingItem() && player.itemInUse().item().name().path().equals("bow")) {
+            float drawn = (72000 - player.itemInUseCount()) / 20f;
+            drawn = drawn > 1f ? 1f : drawn * drawn;
+            fov *= 1f - drawn * 0.15f;
+        }
         fovModifier += (fov - fovModifier) * 0.5f;
         fovModifier = Math.max(0.1f, Math.min(1.5f, fovModifier));
     }

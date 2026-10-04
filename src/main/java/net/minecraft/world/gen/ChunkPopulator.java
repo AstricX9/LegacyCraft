@@ -11,9 +11,10 @@ import java.util.Random;
  * are placed in the 16x16 area offset by +8, so features can spill across
  * chunk borders; then water freezes and snow falls where it is cold enough.
  *
- * <p>Structures (villages, mineshafts, strongholds, temples, monuments) are
- * not generated, nor the animals vanilla spawns after decoration
- * (deviations.yml). HYPOTHESIS, recalled.
+ * <p>After decoration the biome's animals are placed in groups
+ * ({@link #spawnAnimals}). Structures (villages, mineshafts, strongholds,
+ * temples, monuments) are not generated (deviations.yml). HYPOTHESIS,
+ * recalled.
  */
 public final class ChunkPopulator {
     private final long seed;
@@ -49,6 +50,7 @@ public final class ChunkPopulator {
             Features.dungeon(w, rand, x + dx, dy, z + dz);
         }
         decorator.decorate(w, rand, biome, x, z);
+        spawnAnimals(w, biome, x + 8, z + 8, 16, 16, rand);
 
         for (int dx = 0; dx < 16; dx++) {
             for (int dz = 0; dz < 16; dz++) {
@@ -58,6 +60,67 @@ public final class ChunkPopulator {
                 if (canSnow(w, bx, top, bz)) w.set(bx, top, bz, b.SNOW_LAYER);
             }
         }
+    }
+
+    /**
+     * SpawnerAnimals.performWorldGenSpawning: while a random float is below
+     * the biome's spawning chance (0.1), a group from its creature list
+     * (weighted) of its group size is placed around a random column of the
+     * area, each animal trying up to 4 spots (moving up to 4 blocks each
+     * try, kept inside the area) on top of the highest block that blocks
+     * movement (leaves don't), where an animal could stand.
+     */
+    static void spawnAnimals(GenWorld w, Biome biome, int centerX, int centerZ, int diameterX, int diameterZ, Random rand) {
+        java.util.List<net.minecraft.world.MobSpawner.SpawnEntry> list = net.minecraft.world.MobSpawner.creatures(biome.id());
+        if (list.isEmpty()) return;
+        while (rand.nextFloat() < 0.1f) {
+            net.minecraft.world.MobSpawner.SpawnEntry entry = net.minecraft.world.MobSpawner.pick(list, rand);
+            int count = entry.min() + rand.nextInt(1 + entry.max() - entry.min());
+            int j = centerX + rand.nextInt(diameterX), k = centerZ + rand.nextInt(diameterZ);
+            int startX = j, startZ = k;
+            for (int n = 0; n < count; n++) {
+                boolean placed = false;
+                for (int attempt = 0; !placed && attempt < 4; attempt++) {
+                    int y = topSolidOrLiquid(w, j, k);
+                    if (canStand(w, j, y, k)) {
+                        float yaw = rand.nextFloat() * 360f;
+                        if (net.minecraft.world.MobSpawner.exists(entry.entity())) w.spawnCreature(entry.entity(), j + 0.5, y, k + 0.5, yaw);
+                        placed = true;
+                    }
+                    j += rand.nextInt(5) - rand.nextInt(5);
+                    for (k += rand.nextInt(5) - rand.nextInt(5); j < centerX || j >= centerX + diameterX || k < centerZ
+                        || k >= centerZ + diameterX; k = startZ + rand.nextInt(5) - rand.nextInt(5))
+                        j = startX + rand.nextInt(5) - rand.nextInt(5);
+                }
+            }
+        }
+    }
+
+    /** World.getTopSolidOrLiquidBlock: just above the highest block that blocks movement and isn't leaves. */
+    private static int topSolidOrLiquid(GenWorld w, int x, int z) {
+        GenBlocks b = w.blocks();
+        int y = 255;
+        while (y > 0) {
+            int below = w.get(x, y - 1, z);
+            if (b.blocksMovement(below) && !b.isLeaves(below)) break;
+            y--;
+        }
+        return y;
+    }
+
+    /** SpawnerAnimals.canCreatureTypeSpawnAtLocation on the ground, read through population's view. */
+    private static boolean canStand(GenWorld w, int x, int y, int z) {
+        if (y < 1 || y >= 255) return false;
+        net.minecraft.block.BlockRegistry registry = w.blocks().registry();
+        int below = w.get(x, y - 1, z), here = w.get(x, y, z), above = w.get(x, y + 1, z);
+        net.minecraft.block.Block belowBlock = registry.byId(GenBlocks.id(below));
+        if (belowBlock == null || !net.minecraft.block.Block.hasSolidTop(net.minecraft.block.BlockState.of(belowBlock, GenBlocks.meta(below))))
+            return false;
+        String name = belowBlock.name().path();
+        if (name.equals("bedrock") || name.equals("barrier")) return false;
+        net.minecraft.block.Block hereBlock = registry.byId(GenBlocks.id(here)), aboveBlock = registry.byId(GenBlocks.id(above));
+        return hereBlock != null && !hereBlock.isNormalCube() && !w.blocks().isLiquid(here)
+            && (aboveBlock == null || !aboveBlock.isNormalCube());
     }
 
     /** The lowest y above which snow can fall freely: above the highest block that blocks movement or is liquid. */

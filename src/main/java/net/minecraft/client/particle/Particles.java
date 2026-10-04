@@ -44,6 +44,285 @@ public final class Particles {
     }
 
     /**
+     * A crumb of an item (EntityBreakingFX): white, full gravity, half size,
+     * a quarter-by-quarter piece of the sprite; the given velocity plus a
+     * tenth of the usual random scatter.
+     */
+    public static final class ItemCrack extends Particle {
+        private final net.minecraft.util.ResourceLocation texture;
+        private final float frame;
+
+        public ItemCrack(World world, Random random, double x, double y, double z, double vx, double vy, double vz,
+                         net.minecraft.util.ResourceLocation texture, float frame) {
+            super(world, random, x, y, z, 0, 0, 0);
+            this.texture = texture;
+            this.frame = frame;
+            motionX = motionX * 0.1 + vx;
+            motionY = motionY * 0.1 + vy;
+            motionZ = motionZ * 0.1 + vz;
+            gravity = 1f;
+            scale /= 2f;
+        }
+
+        public net.minecraft.util.ResourceLocation texture() { return texture; }
+
+        @Override public int layer() { return 2; }
+
+        @Override public void render(float partialTicks, float[] left, float[] up, float[] light) {
+            float u0 = jitterX / 4f, u1 = (jitterX + 1f) / 4f;
+            float v0 = jitterY / 4f * frame, v1 = (jitterY + 1f) / 4f * frame;
+            quad(partialTicks, left, up, light, u0, v1, u0, v0, u1, v0, u1, v1);
+        }
+    }
+
+    /**
+     * Explosion puffs (EntityExplodeFX): pale grey, big and varied (scale
+     * 1-7), rising slowly through the eight puff frames for 2-82 ticks.
+     */
+    public static final class Explode extends Particle {
+        public Explode(World world, Random random, double x, double y, double z, double vx, double vy, double vz) {
+            super(world, random, x, y, z, vx, vy, vz);
+            motionX = vx + (Math.random() * 2.0 - 1.0) * 0.05000000074505806;
+            motionY = vy + (Math.random() * 2.0 - 1.0) * 0.05000000074505806;
+            motionZ = vz + (Math.random() * 2.0 - 1.0) * 0.05000000074505806;
+            red = green = blue = random.nextFloat() * 0.3f + 0.7f;
+            scale = random.nextFloat() * random.nextFloat() * 6f + 1f;
+            maxAge = (int) (16.0 / (random.nextFloat() * 0.8 + 0.2)) + 2;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            if (age++ >= maxAge) dead = true;
+            textureIndex = 7 - age * 8 / maxAge;
+            motionY += 0.004;
+            move(motionX, motionY, motionZ);
+            motionX *= 0.9; motionY *= 0.9; motionZ *= 0.9;
+            if (onGround) {
+                motionX *= 0.7;
+                motionZ *= 0.7;
+            }
+        }
+    }
+
+    /**
+     * The big explosion flash (EntityLargeExplodeFX): 16 frames of
+     * explosion.png over 6-9 ticks, grey, full bright, {@code 2 x (1 - scale / 2)}
+     * blocks from the centre to each side.
+     */
+    public static final class LargeExplode extends Particle {
+        private final int lifetime;
+        private final float halfSize;
+
+        public LargeExplode(World world, Random random, double x, double y, double z, double scale) {
+            super(world, random, x, y, z);
+            lifetime = 6 + random.nextInt(4);
+            red = green = blue = random.nextFloat() * 0.6f + 0.4f;
+            halfSize = 2f * (1f - (float) scale * 0.5f);
+        }
+
+        @Override public int layer() { return 3; }
+        @Override protected float size(float partialTicks) { return halfSize; }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            if (++age == lifetime) dead = true;
+        }
+
+        @Override public void render(float partialTicks, float[] left, float[] up, float[] light) {
+            int frame = (int) ((age + partialTicks) * 15f / lifetime);
+            if (frame > 15) return;
+            float u0 = (frame % 4) / 4f, u1 = u0 + 0.24975f, v0 = (frame / 4) / 4f, v1 = v0 + 0.24975f;
+            float[] bright = net.minecraft.client.renderer.LightMap.color(0, 15);
+            quad(partialTicks, left, up, bright, u1, v1, u1, v0, u0, v0, u0, v1);
+        }
+    }
+
+    /** EntityHugeExplodeFX: unseen, for 8 ticks it sets off 6 large flashes a tick up to 4 blocks around. */
+    public static final class HugeExplosion extends Particle {
+        private final ParticleManager manager;
+        private int timeSinceStart;
+
+        public HugeExplosion(World world, Random random, double x, double y, double z, ParticleManager manager) {
+            super(world, random, x, y, z);
+            this.manager = manager;
+        }
+
+        @Override public void tick() {
+            for (int i = 0; i < 6; i++) {
+                double px = x + (random.nextDouble() - random.nextDouble()) * 4.0;
+                double py = y + (random.nextDouble() - random.nextDouble()) * 4.0;
+                double pz = z + (random.nextDouble() - random.nextDouble()) * 4.0;
+                manager.spawn(ParticleManager.Kind.LARGE_EXPLODE, px, py, pz, timeSinceStart / 8f, 0, 0, null);
+            }
+            if (++timeSinceStart == 8) dead = true;
+        }
+
+        @Override public void render(float partialTicks, float[] left, float[] up, float[] light) {}
+    }
+
+    /**
+     * Critical-hit sparks (EntityCritFX): light grey turning yellow-orange as
+     * they fade, thrown out fast and falling. The enchanted ("magic") kind is
+     * tinted blue-green and uses the next frame.
+     */
+    /**
+     * Spell swirls (EntitySpellParticleFX, the SPELL and INSTANT_SPELL
+     * particles): drifting slowly up, speeding sideways when they stop
+     * rising, shrinking through eight frames from index 128 (144 instant)
+     * and tinted by whoever spawns them.
+     */
+    public static final class Spell extends Particle {
+        private final float baseScale;
+        private final int baseIndex;
+
+        public Spell(World world, Random random, double x, double y, double z, double vx, double vy, double vz, boolean instant) {
+            super(world, random, x, y, z, 0.5 - random.nextDouble(), vy, 0.5 - random.nextDouble());
+            motionY *= 0.20000000298023224;
+            if (vx == 0 && vz == 0) {
+                motionX *= 0.10000000149011612;
+                motionZ *= 0.10000000149011612;
+            }
+            scale *= 0.75f;
+            baseScale = scale;
+            maxAge = (int) (8.0 / (Math.random() * 0.8 + 0.2));
+            noClip = false;
+            baseIndex = instant ? 144 : 128;
+            textureIndex = baseIndex + 7;
+        }
+
+        public Spell color(float r, float g, float b) {
+            red = r;
+            green = g;
+            blue = b;
+            return this;
+        }
+
+        @Override protected float size(float partialTicks) {
+            float grown = Math.max(0f, Math.min(1f, (age + partialTicks) / maxAge * 32f));
+            return 0.1f * baseScale * grown;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            if (age++ >= maxAge) dead = true;
+            textureIndex = baseIndex + (7 - age * 8 / maxAge);
+            motionY += 0.004;
+            move(motionX, motionY, motionZ);
+            if (y == prevY) {
+                motionX *= 1.1;
+                motionZ *= 1.1;
+            }
+            motionX *= 0.9599999785423279; motionY *= 0.9599999785423279; motionZ *= 0.9599999785423279;
+            if (onGround) {
+                motionX *= 0.699999988079071;
+                motionZ *= 0.699999988079071;
+            }
+        }
+    }
+
+    /**
+     * A heart (EntityHeartFX): rises a little, speeding sideways when it
+     * stops rising, growing in over its first ticks, 16 ticks long.
+     */
+    public static final class Heart extends Particle {
+        private final float baseScale;
+
+        public Heart(World world, Random random, double x, double y, double z, double vx, double vy, double vz) {
+            super(world, random, x, y, z, 0, 0, 0);
+            motionX *= 0.009999999776482582;
+            motionY *= 0.009999999776482582;
+            motionZ *= 0.009999999776482582;
+            motionY += 0.1;
+            scale *= 0.75f * 2f;
+            baseScale = scale;
+            maxAge = 16;
+            noClip = false;
+            textureIndex = 80;
+        }
+
+        @Override protected float size(float partialTicks) {
+            float grown = Math.max(0f, Math.min(1f, (age + partialTicks) / maxAge * 32f));
+            return 0.1f * baseScale * grown;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            if (age++ >= maxAge) dead = true;
+            move(motionX, motionY, motionZ);
+            if (y == prevY) {
+                motionX *= 1.1;
+                motionZ *= 1.1;
+            }
+            motionX *= 0.8600000143051147; motionY *= 0.8600000143051147; motionZ *= 0.8600000143051147;
+            if (onGround) {
+                motionX *= 0.699999988079071;
+                motionZ *= 0.699999988079071;
+            }
+        }
+    }
+
+    /** A green sparkle (EntityAuraFX with the happy villager sprite, index 82): drifts and fades out. */
+    public static final class HappyVillager extends Particle {
+        public HappyVillager(World world, Random random, double x, double y, double z, double vx, double vy, double vz) {
+            super(world, random, x, y, z, vx, vy, vz);
+            textureIndex = 82;
+            setSize(0.02f, 0.02f);
+            scale *= random.nextFloat() * 0.6f + 0.5f;
+            motionX *= 0.02; motionY *= 0.02; motionZ *= 0.02;
+            maxAge = (int) (20.0 / (Math.random() * 0.8 + 0.2));
+            noClip = true;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            move(motionX, motionY, motionZ);
+            motionX *= 0.99; motionY *= 0.99; motionZ *= 0.99;
+            if (maxAge-- <= 0) dead = true;
+        }
+    }
+
+    public static final class Crit extends Particle {
+        private final float baseScale;
+
+        public Crit(World world, Random random, double x, double y, double z, double vx, double vy, double vz, boolean magic) {
+            super(world, random, x, y, z, 0, 0, 0);
+            motionX = motionX * 0.1 + vx * 0.4;
+            motionY = motionY * 0.1 + vy * 0.4;
+            motionZ = motionZ * 0.1 + vz * 0.4;
+            red = green = blue = (float) (Math.random() * 0.30000001192092896 + 0.6000000238418579);
+            scale *= 0.75f;
+            baseScale = scale;
+            maxAge = (int) (6.0 / (Math.random() * 0.8 + 0.6));
+            textureIndex = 65;
+            if (magic) {
+                red *= 0.3f;
+                green *= 0.8f;
+                textureIndex = 66;
+            }
+            tick();
+        }
+
+        @Override protected float size(float partialTicks) {
+            float grown = Math.max(0f, Math.min(1f, (age + partialTicks) / maxAge * 32f));
+            return 0.1f * baseScale * grown;
+        }
+
+        @Override public void tick() {
+            prevX = x; prevY = y; prevZ = z;
+            if (age++ >= maxAge) dead = true;
+            move(motionX, motionY, motionZ);
+            green *= 0.96f;
+            blue *= 0.9f;
+            motionX *= 0.699999988079071; motionY *= 0.699999988079071; motionZ *= 0.699999988079071;
+            motionY -= 0.019999999552965164;
+            if (onGround) {
+                motionX *= 0.699999988079071;
+                motionZ *= 0.699999988079071;
+            }
+        }
+    }
+
+    /**
      * Smoke (EntitySmokeFX): grey, rising slowly, drifting sideways when it
      * stops rising, growing in over its first ticks and running through the
      * eight smoke frames. {@code size} is 1 for normal and 2.5 for large smoke.

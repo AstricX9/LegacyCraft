@@ -115,7 +115,18 @@ public final class CraftingManager {
     public static CraftingManager load(net.minecraft.client.resources.IResourceManager resources, net.minecraft.item.ItemRegistry items) {
         try (var reader = new java.io.InputStreamReader(resources.open(DATA), java.nio.charset.StandardCharsets.UTF_8)) {
             JsonObject root = com.google.gson.JsonParser.parseReader(reader).getAsJsonObject();
-            return parse(root, name -> items.get(new net.minecraft.util.ResourceLocation("minecraft", name)));
+            CraftingManager manager = parse(root, name -> items.get(new net.minecraft.util.ResourceLocation("minecraft", name)));
+            // The enchanted golden apple has no model of its own, so its recipe can't be named in recipes.json:
+            // eight blocks of gold around an apple (CraftingManager, 1.8.9).
+            Item block = items.get(new net.minecraft.util.ResourceLocation("minecraft:gold_block"));
+            Item apple = items.get(new net.minecraft.util.ResourceLocation("minecraft:apple"));
+            Item notch = items.get(new net.minecraft.util.ResourceLocation("minecraft:enchanted_golden_apple"));
+            if (block != null && apple != null && notch != null) {
+                Ingredient gold = new Ingredient(Set.of(block));
+                manager.recipes.add(new Shaped(3, 3, new Ingredient[] {gold, gold, gold, gold, new Ingredient(Set.of(apple)), gold,
+                    gold, gold, gold}, notch, 1));
+            }
+            return manager;
         } catch (java.io.IOException error) {
             throw new IllegalStateException("Could not read " + DATA, error);
         }

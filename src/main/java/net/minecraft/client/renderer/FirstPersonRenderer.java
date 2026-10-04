@@ -22,14 +22,21 @@ public final class FirstPersonRenderer {
     public static final ResourceLocation STEVE = new ResourceLocation("minecraft:textures/entity/steve.png");
     private final GuiTextures textures;
     private final ItemRenderer items;
-    private final PlayerModel model = new PlayerModel();
+    private final LocalSkin skin;
+    private final PlayerModel model;
     private ItemStack itemToRender;
     private int equippedSlot = -1;
     private float equippedProgress, prevEquippedProgress;
 
-    public FirstPersonRenderer(GuiTextures textures, ItemRenderer items) {
+    public FirstPersonRenderer(GuiTextures textures, ItemRenderer items, LocalSkin skin) {
+        this(textures, items, skin, false);
+    }
+
+    public FirstPersonRenderer(GuiTextures textures, ItemRenderer items, LocalSkin skin, boolean slimArms) {
+        this.model = new PlayerModel(slimArms);
         this.textures = textures;
         this.items = items;
+        this.skin = skin;
     }
 
     /**
@@ -89,7 +96,31 @@ public final class FirstPersonRenderer {
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
         glPushMatrix();
-        if (itemToRender != null && player.isBlocking()) {
+        net.minecraft.item.Item.UseAction using = itemToRender != null && player.isUsingItem()
+            ? itemToRender.item().useAction() : null;
+        if (using == net.minecraft.item.Item.UseAction.EAT || using == net.minecraft.item.Item.UseAction.DRINK) {
+            performDrinking(player, partialTicks);
+            transformFirstPersonItem(equip, 0f);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+        } else if (using == net.minecraft.item.Item.UseAction.BOW) {
+            // ItemRenderer.doBowTransformations: the bow tilts in and is drawn back, trembling at full draw.
+            transformFirstPersonItem(equip, 0f);
+            glRotatef(-18f, 0, 0, 1);
+            glRotatef(-12f, 0, 1, 0);
+            glRotatef(-8f, 1, 0, 0);
+            glTranslatef(-0.9f, 0.2f, 0f);
+            float drawn = 72000 - (player.itemInUseCount() - partialTicks + 1f);
+            float power = drawn / 20f;
+            power = (power * power + power * 2f) / 3f;
+            if (power > 1f) power = 1f;
+            if (power > 0.1f) {
+                float tremble = (float) Math.sin((drawn - 0.1f) * 1.3f) * (power - 0.1f);
+                glTranslatef(0f, tremble * 0.01f, 0f);
+            }
+            glTranslatef(0f, 0f, power * 0.1f);
+            glScalef(1f, 1f, 1f + power * 0.2f);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+        } else if (itemToRender != null && player.isBlocking()) {
             transformFirstPersonItem(equip, 0f);
             glTranslatef(-0.5f, 0.2f, 0f);
             glRotatef(30f, 0, 1, 0);
@@ -108,6 +139,23 @@ public final class FirstPersonRenderer {
         glPopMatrix();
         StandardLighting.disable();
         glColor4f(1, 1, 1, 1);
+    }
+
+    /**
+     * ItemRenderer.performDrinking: the item swings up to the mouth over the
+     * first fifth of the 32 ticks and bobs there (|cos| x 0.1, every 4 ticks).
+     */
+    private static void performDrinking(Player player, float partialTicks) {
+        float left = player.itemInUseCount() - partialTicks + 1f;
+        float progress = left / 32f;
+        float bob = Math.abs((float) Math.cos(left / 4f * (float) Math.PI) * 0.1f);
+        if (progress >= 0.8f) bob = 0f;
+        glTranslatef(0f, bob, 0f);
+        float raise = 1f - (float) Math.pow(progress, 27.0);
+        glTranslatef(raise * 0.6f, raise * -0.5f, 0f);
+        glRotatef(raise * 90f, 0, 1, 0);
+        glRotatef(raise * 10f, 1, 0, 0);
+        glRotatef(raise * 30f, 0, 0, 1);
     }
 
     private static void transformFirstPersonItem(float equip, float swing) {
@@ -133,7 +181,7 @@ public final class FirstPersonRenderer {
         float rootSin = (float) Math.sin(root * Math.PI);
         glRotatef(rootSin * 70f, 0, 1, 0);
         glRotatef(squared * -20f, 0, 0, 1);
-        textures.bind(STEVE);
+        skin.bind(textures);
         glTranslatef(-1f, 3.6f, 3.5f);
         glRotatef(120f, 0, 0, 1);
         glRotatef(200f, 1, 0, 0);

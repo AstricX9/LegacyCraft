@@ -19,36 +19,61 @@ public final class LightMap {
         }
     }
 
-    private static volatile float[][][] table = build(1f, 0f);
-    private static float builtSun = 1f, builtGamma = 0f;
+    private static volatile float[][][] table = build(1f, 0f, 0f, false);
+    private static float builtSun = 1f, builtGamma = 0f, builtNight = 0f;
+    private static boolean builtNether;
     private static int version;
 
     private LightMap() {}
 
     /** Recomputes the table for the sun's brightness (0.2 at night to 1 at noon) and the gamma setting (0-1). */
-    public static void update(float sunBrightness, float gamma) {
-        if (Math.abs(sunBrightness - builtSun) < 1e-4f && Math.abs(gamma - builtGamma) < 1e-4f) return;
+    public static void update(float sunBrightness, float gamma) { update(sunBrightness, gamma, 0f); }
+
+    /**
+     * As {@link #update(float, float)} with Night Vision's brightness (0-1,
+     * EntityRenderer.updateLightmap): each colour is scaled up towards its
+     * brightest channel reaching full, by that much, before the gamma curve.
+     */
+    public static void update(float sunBrightness, float gamma, float nightVision) { update(sunBrightness, gamma, nightVision, false); }
+
+    /** As above; in the Nether the brightness table has a floor of 0.1 (WorldProviderHell.generateLightBrightnessTable). */
+    public static void update(float sunBrightness, float gamma, float nightVision, boolean nether) {
+        if (Math.abs(sunBrightness - builtSun) < 1e-4f && Math.abs(gamma - builtGamma) < 1e-4f
+            && Math.abs(nightVision - builtNight) < 1e-4f && nether == builtNether) return;
         builtSun = sunBrightness;
         builtGamma = gamma;
-        table = build(sunBrightness, gamma);
+        builtNight = nightVision;
+        builtNether = nether;
+        table = build(sunBrightness, gamma, nightVision, nether);
         version++;
     }
 
     /** Changes whenever {@link #update} rebuilt the table, so a lightmap texture knows to re-upload. */
     public static int version() { return version; }
 
-    private static float[][][] build(float sun, float gamma) {
+    private static float[][][] build(float sun, float gamma, float night, boolean nether) {
         float[][][] result = new float[16][16][];
         float skyScale = sun * 0.95f + 0.05f;
         for (int sky = 0; sky < 16; sky++) {
             for (int block = 0; block < 16; block++) {
-                float skyLight = BRIGHTNESS[sky] * skyScale;
-                float torch = BRIGHTNESS[block] * 1.5f;
+                float skyBright = nether ? BRIGHTNESS[sky] * 0.9f + 0.1f : BRIGHTNESS[sky];
+                float blockBright = nether ? BRIGHTNESS[block] * 0.9f + 0.1f : BRIGHTNESS[block];
+                float skyLight = skyBright * skyScale;
+                float torch = blockBright * 1.5f;
                 float skyRed = skyLight * (sun * 0.65f + 0.35f);
                 float skyGreen = skyLight * (sun * 0.65f + 0.35f);
                 float red = skyRed + torch;
                 float green = skyGreen + torch * ((torch * .6f + .4f) * .6f + .4f);
                 float blue = skyLight + torch * (torch * torch * .6f + .4f);
+                red = Math.min(1f, red * .96f + .03f);
+                green = Math.min(1f, green * .96f + .03f);
+                blue = Math.min(1f, blue * .96f + .03f);
+                if (night > 0f) {
+                    float scale = 1f / Math.max(red, Math.max(green, blue));
+                    red = Math.min(1f, red * (1f - night) + red * scale * night);
+                    green = Math.min(1f, green * (1f - night) + green * scale * night);
+                    blue = Math.min(1f, blue * (1f - night) + blue * scale * night);
+                }
                 result[sky][block] = new float[]{finish(red, gamma), finish(green, gamma), finish(blue, gamma)};
             }
         }
@@ -56,7 +81,6 @@ public final class LightMap {
     }
 
     private static float finish(float channel, float gamma) {
-        channel = Math.min(1f, channel * .96f + .03f);
         float inverse = 1f - channel;
         float bright = 1f - inverse * inverse * inverse * inverse;
         channel = channel * (1f - gamma) + bright * gamma;

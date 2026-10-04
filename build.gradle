@@ -37,7 +37,9 @@ dependencies {
 
 application {
     mainClass = 'net.minecraft.client.main.Main'
-    applicationDefaultJvmArgs = ['-Xms512m', '-Xmx2g']
+    // The launcher's profile "JVM Arguments" arrive in LEGACYCRAFT_JVM_ARGS.
+    def launcherJvmArgs = System.getenv('LEGACYCRAFT_JVM_ARGS')
+    applicationDefaultJvmArgs = launcherJvmArgs?.trim() ? launcherJvmArgs.trim().split(/\s+/).toList() : ['-Xms512m', '-Xmx2g']
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -190,8 +192,13 @@ tasks.register('generateGameData') {
 
         def itemDefaults = readJson(new File(definitions, 'item_defaults.json'))
         def itemOverrides = readOverrides(new File(definitions, 'items'))
+        // Model states that are not items of their own in 1.8.9 (the drawn bow, the cast
+        // rod): their models stay for the renderer, but they get no registry entry.
+        def modelStates = ['bow_pulling_0', 'bow_pulling_1', 'bow_pulling_2', 'fishing_rod_cast'] as Set
         def itemNames = itemModels.listFiles({ f -> f.name.endsWith('.json') } as FileFilter)
-            .collect { 'minecraft:' + it.name[0..<-5] }
+            .collect { it.name[0..<-5] }
+            .findAll { !modelStates.contains(it) }
+            .collect { 'minecraft:' + it }
             .toSorted()
         def itemNameSet = itemNames as Set
 

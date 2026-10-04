@@ -16,10 +16,12 @@ import java.util.Set;
 /**
  * Turns a {@link SectionSnapshot} into vertex data for one 16x16x16 section:
  * every visible face of every block, shaded and lit exactly as before, split
- * into two layers like vanilla's block render layers. Opaque and cut-out
- * blocks (drawn with the alpha test) go in the first; water, ice, stained
- * glass, slime and portals in the second, which is drawn after all opaque
- * geometry and sorted back to front. Runs on a worker thread; it only reads
+ * into layers like vanilla's block render layers: solid and mipmapped
+ * cut-out blocks (leaves, grass sides, panes, hoppers) in the first; the
+ * CUTOUT layer (plants, torches, rails, glass, doors...), drawn with the
+ * alpha test but without mipmaps, in the second; water, ice, stained glass,
+ * slime and portals in the third, drawn after all the rest and sorted back
+ * to front. Runs on a worker thread; it only reads
  * the snapshot and the loaded models and textures.
  */
 final class SectionMesher {
@@ -32,6 +34,20 @@ final class SectionMesher {
     /** Vanilla's TRANSLUCENT block layer. */
     private static final Set<String> TRANSLUCENT = Set.of("water", "flowing_water", "ice", "stained_glass",
         "stained_glass_pane", "slime", "portal");
+
+    /**
+     * Vanilla's CUTOUT layer (Block.getBlockLayer, HYPOTHESIS: recalled per block). The world
+     * renderer turns mipmapping off for it, which is why tall grass and flowers stay crisp in
+     * the distance while leaves fade.
+     */
+    private static final Set<String> CUTOUT = Set.of("sapling", "glass", "golden_rail", "detector_rail", "web",
+        "tallgrass", "deadbush", "yellow_flower", "red_flower", "brown_mushroom", "red_mushroom", "torch", "fire",
+        "mob_spawner", "redstone_wire", "wheat", "wooden_door", "ladder", "rail", "lever", "iron_door",
+        "unlit_redstone_torch", "redstone_torch", "cactus", "reeds", "unpowered_repeater", "powered_repeater",
+        "trapdoor", "pumpkin_stem", "melon_stem", "vine", "waterlily", "nether_wart", "brewing_stand", "cocoa",
+        "tripwire_hook", "beacon", "flower_pot", "carrots", "potatoes", "unpowered_comparator", "powered_comparator",
+        "activator_rail", "iron_trapdoor", "double_plant", "spruce_door", "birch_door", "jungle_door", "acacia_door",
+        "dark_oak_door");
 
     /** Growable vertex store. */
     static final class Buffer {
@@ -47,8 +63,8 @@ final class SectionMesher {
 
     /** A finished section mesh: both layers, ready to upload. */
     static final class Mesh {
-        final Buffer opaque = new Buffer(), translucent = new Buffer();
-        boolean isEmpty() { return opaque.size == 0 && translucent.size == 0; }
+        final Buffer opaque = new Buffer(), cutout = new Buffer(), translucent = new Buffer();
+        boolean isEmpty() { return opaque.size == 0 && cutout.size == 0 && translucent.size == 0; }
     }
 
     private final TextureAtlas atlas;
@@ -76,6 +92,8 @@ final class SectionMesher {
                     BlockState state = view.getState(x, y, z);
                     Block block = state.block();
                     if (block.renderType() == Block.RenderType.INVISIBLE) continue;
+                    // Mob heads are drawn by their tile-entity renderer (SkullRenderer), not baked.
+                    if (block.renderType() == Block.RenderType.ENTITY && block.name().path().equals("skull")) continue;
                     if (block.renderType() == Block.RenderType.FLUID && Liquids.isLiquid(block)) {
                         fluids.build(TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque,
                             view, state, x, y, z, startX, startY, startZ);
@@ -86,7 +104,8 @@ final class SectionMesher {
                     // Model lookup may fill caches lazily; workers take turns rather than risk a torn map.
                     synchronized (models) { model = models.getModel(actual, x, y, z); }
                     if (model == null) continue;
-                    Buffer target = TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque;
+                    String name = block.name().path();
+                    Buffer target = TRANSLUCENT.contains(name) ? mesh.translucent : CUTOUT.contains(name) ? mesh.cutout : mesh.opaque;
                     for (BakedQuad quad : model.quads()) {
                         Direction cull = quad.cullFace();
                         if (cull != null && !faceVisible(state, view.getState(x + cull.xOffset, y + cull.yOffset, z + cull.zOffset)))

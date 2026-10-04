@@ -83,13 +83,15 @@ public final class WorldRenderer {
             return thread;
         });
         maxInFlight = threads * 3;
-        world.addListener(new World.Listener() {
-            @Override public void blockChanged(int x, int y, int z) { changed(x, y, z); }
-            // Light spreads across chunk edges and faces there are lit from the neighbour, so neighbours rebuild too.
-            @Override public void lightChanged(int chunkX, int chunkZ) { markColumnAndNeighbours(chunkX, chunkZ); }
-            @Override public void chunkChanged(int chunkX, int chunkZ) { markColumnAndNeighbours(chunkX, chunkZ); }
-        });
+        world.addListener(listener);
     }
+
+    private final World.Listener listener = new World.Listener() {
+        @Override public void blockChanged(int x, int y, int z) { changed(x, y, z); }
+        // Light spreads across chunk edges and faces there are lit from the neighbour, so neighbours rebuild too.
+        @Override public void lightChanged(int chunkX, int chunkZ) { markColumnAndNeighbours(chunkX, chunkZ); }
+        @Override public void chunkChanged(int chunkX, int chunkZ) { markColumnAndNeighbours(chunkX, chunkZ); }
+    };
 
     private static final class Column {
         final int x, z;
@@ -103,7 +105,7 @@ public final class WorldRenderer {
 
     private static final class Section {
         final int x, y, z;
-        int opaqueBuffer, opaqueVertices, translucentBuffer, translucentVertices;
+        int opaqueBuffer, opaqueVertices, cutoutBuffer, cutoutVertices, translucentBuffer, translucentVertices;
         /** Kept for re-sorting as the camera moves. */
         SectionMesher.Buffer translucent;
         float sortedFromX = Float.NaN, sortedFromY, sortedFromZ;
@@ -227,6 +229,8 @@ public final class WorldRenderer {
     private void upload(Section section, SectionMesher.Mesh mesh, double eyeX, double eyeY, double eyeZ) {
         section.opaqueBuffer = store(section.opaqueBuffer, mesh.opaque);
         section.opaqueVertices = mesh.opaque.size / SectionMesher.INTS_PER_VERTEX;
+        section.cutoutBuffer = store(section.cutoutBuffer, mesh.cutout);
+        section.cutoutVertices = mesh.cutout.size / SectionMesher.INTS_PER_VERTEX;
         if (mesh.translucent.size > 0) {
             float fromX = (float) (eyeX - section.x * 16), fromY = (float) (eyeY - section.y * 16), fromZ = (float) (eyeZ - section.z * 16);
             SectionMesher.sortBackToFront(mesh.translucent, fromX, fromY, fromZ);
@@ -261,12 +265,13 @@ public final class WorldRenderer {
 
     private void draw(List<Column> visible, double eyeX, double eyeY, double eyeZ) {
         readFrustum();
-        List<Section> opaque = new ArrayList<>(), translucent = new ArrayList<>();
+        List<Section> opaque = new ArrayList<>(), cutout = new ArrayList<>(), translucent = new ArrayList<>();
         for (Column column : visible) {
             for (Section section : column.sections) {
-                if (section.opaqueVertices == 0 && section.translucentVertices == 0) continue;
+                if (section.opaqueVertices == 0 && section.cutoutVertices == 0 && section.translucentVertices == 0) continue;
                 if (!inFrustum(section.x * 16, section.y * 16, section.z * 16)) continue;
-                if (section.opaqueVertices > 0) opaque.add(section);
+                if (section.opaqueVertices > 0 || section.cutoutVertices > 0) opaque.add(section);
+                if (section.cutoutVertices > 0) cutout.add(section);
                 if (section.translucentVertices > 0) translucent.add(section);
             }
         }
@@ -276,6 +281,10 @@ public final class WorldRenderer {
         // Smooth lighting interpolates between vertices; menus switch to flat shading for their gradients.
         glShadeModel(GL_SMOOTH);
         glEnable(GL_TEXTURE_2D);
+        // Solid and cut-out faces draw unblended (EntityRenderer.renderWorldPass): mipmap levels give leaf
+        // edges partial alpha, which must not let the sky show through; the alpha test keeps anything above 0.1
+        // and the mip generator already dropped what fell below 96/255.
+        glDisable(GL_BLEND);
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, .1f);
         glEnableClientState(GL_VERTEX_ARRAY);
@@ -287,7 +296,17 @@ public final class WorldRenderer {
         // leaves (fancy leaves draw both) z-fight. Menus and item rendering turn culling off, so set it here.
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
-        for (Section section : opaque) drawBuffer(section, section.opaqueBuffer, section.opaqueVertices);
+        for (Section section : opaque)
+            if (section.opaqueVertices > 0) drawBuffer(section, section.opaqueBuffer, section.opaqueVertices);
+        // The CUTOUT layer without mipmaps (setBlurMipmap(false, false) around it), so plants keep their
+        // full-resolution shape at any distance.
+        if (!cutout.isEmpty()) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            for (Section section : cutout) drawBuffer(section, section.cutoutBuffer, section.cutoutVertices);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, atlas.mipmapLevels() > 0 ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST);
+        }
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         // Translucent faces last, still culled like vanilla's translucent layer (the fluid renderer
         // adds the back-facing copies of water faces itself), far to near, re-sorted inside the nearest sections as the camera moves.
         translucent.sort(Comparator.comparingDouble(section -> -distanceSquared(section, eyeX, eyeY, eyeZ)));
@@ -427,8 +446,9 @@ public final class WorldRenderer {
         section.removed = true;
         if (section.opaqueBuffer != 0) glDeleteBuffers(section.opaqueBuffer);
         if (section.translucentBuffer != 0) glDeleteBuffers(section.translucentBuffer);
-        section.opaqueBuffer = section.translucentBuffer = 0;
-        section.opaqueVertices = section.translucentVertices = 0;
+        if (section.cutoutBuffer != 0) glDeleteBuffers(section.cutoutBuffer);
+        section.opaqueBuffer = section.cutoutBuffer = section.translucentBuffer = 0;
+        section.opaqueVertices = section.cutoutVertices = section.translucentVertices = 0;
         section.translucent = null;
     }
 
@@ -526,7 +546,7 @@ public final class WorldRenderer {
     public int meshCount() {
         int count = 0;
         for (Column column : columns.values())
-            for (Section section : column.sections) if (section.opaqueVertices > 0 || section.translucentVertices > 0) count++;
+            for (Section section : column.sections) if (section.opaqueVertices > 0 || section.cutoutVertices > 0 || section.translucentVertices > 0) count++;
         return count;
     }
     /** Sections drawn last frame (F3 "C:" first number). */
@@ -535,6 +555,7 @@ public final class WorldRenderer {
     public int takeRebuildCount() { int count = rebuilds; rebuilds = 0; return count; }
 
     public void destroy() {
+        world.removeListener(listener);
         workers.shutdownNow();
         if (lightmapTexture != 0) glDeleteTextures(lightmapTexture);
         lightmapTexture = 0;
