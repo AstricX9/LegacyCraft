@@ -1063,8 +1063,12 @@ public final class Player {
                 for (int bx = minX; bx <= maxX; bx++)
                     for (AxisAlignedBB box : Block.collisionBoxesAt(world, bx, by, bz))
                         if (box.intersects(area)) result.add(box);
+        for (AxisAlignedBB box : entityBoxes.apply(area)) if (box.intersects(area)) result.add(box);
         return result;
     }
+
+    /** Entities as solid as blocks (boats: Entity.getCollisionBox), set by the game; none by default. */
+    public java.util.function.Function<AxisAlignedBB, List<AxisAlignedBB>> entityBoxes = area -> List.of();
 
     /** Whether any of these world-space boxes overlaps the player (used to refuse placements). */
     public boolean intersects(List<AxisAlignedBB> boxes) {
@@ -1100,6 +1104,20 @@ public final class Player {
     public double renderX(float partialTicks) { return prevX + (x - prevX) * partialTicks; }
     public double renderY(float partialTicks) { return prevY + (y - prevY) * partialTicks; }
     public double renderZ(float partialTicks) { return prevZ + (z - prevZ) * partialTicks; }
+
+    /**
+     * Sitting in a boat (Entity.updateRidden, HYPOTHESIS): carried with it,
+     * interpolating from the same place it did, with no motion or fall of its own.
+     */
+    public void rideAt(double px, double py, double pz, double x, double y, double z) {
+        prevX = px; prevY = py; prevZ = pz;
+        this.x = x; this.y = y; this.z = z;
+        motionX = motionY = motionZ = 0;
+        fallDistance = 0;
+        onGround = false;
+        sneaking = false;
+        sprinting = false;
+    }
 
     public double eyeY() { return y + eyeHeight(); }
     public double eyeHeight() { return sneaking ? 1.54 : 1.62; }

@@ -33,6 +33,8 @@ public final class EntityList {
             case "Cow" -> new net.minecraft.entity.passive.EntityCow(world, x, y, z);
             case "Sheep" -> new net.minecraft.entity.passive.EntitySheep(world, x, y, z);
             case "Chicken" -> new net.minecraft.entity.passive.EntityChicken(world, x, y, z);
+            case "Boat" -> new EntityBoat(world, x, y, z);
+            case "VillagerGolem" -> new net.minecraft.entity.passive.EntityIronGolem(world, x, y, z);
             default -> null;
         };
     }

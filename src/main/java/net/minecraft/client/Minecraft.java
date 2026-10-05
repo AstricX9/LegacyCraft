@@ -193,6 +193,8 @@ public final class Minecraft implements GuiContext {
     private net.minecraft.client.renderer.entity.MobRenderer mobRenderer;
     /** The mob or lit TNT under the crosshair, nearer than any block (objectMouseOver ENTITY), or null. */
     private MovingEntity pointedEntity;
+    /** The boat the player sits in, or null (Entity.ridingEntity). */
+    private net.minecraft.entity.EntityBoat ridingBoat;
 
     /** What entities may ask of the game (the World/WorldServer calls they make). */
     private final net.minecraft.entity.EntityHost entityHost = new net.minecraft.entity.EntityHost() {
@@ -634,7 +636,7 @@ public final class Minecraft implements GuiContext {
             levelInfo.totalTime++;
             player.difficulty = levelInfo.difficulty;
             player.naturalRegeneration = Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("naturalRegeneration", "true"));
-            if (preparing == null) player.tick(Player.Input.of(gameSettings));
+            if (preparing == null) tickPlayer();
             updatePortalTime();
             rendererUpdateCount++;
             playerAnimation.tick(player);
@@ -979,6 +981,7 @@ public final class Minecraft implements GuiContext {
         double spawnX = cliSpawnX != null ? cliSpawnX : levelInfo.spawnX + 0.5;
         double spawnZ = cliSpawnZ != null ? cliSpawnZ : levelInfo.spawnZ + 0.5;
         player = new Player(world, spawnX, spawnZ);
+        player.entityBoxes = this::boatBoxes;
         playerAnimation = new PlayerAnimation();
         playerFire = -20;
         if (levelInfo.player != null && cliSpawnX == null) {
@@ -1453,7 +1456,9 @@ public final class Minecraft implements GuiContext {
         MovingEntity found = null;
         double foundDistance = best;
         for (Entity entity : server.entities().values()) {
+            if (entity == ridingBoat) continue;
             if (entity.isRemoved() || !(entity instanceof EntityLiving || entity instanceof EntityTNTPrimed
+                || entity instanceof net.minecraft.entity.EntityBoat
                 || entity instanceof net.minecraft.entity.EntityFireball fb && fb.deflectable())) continue;
             AxisAlignedBB box = ((MovingEntity) entity).boundingBox();
             box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
@@ -1485,6 +1490,10 @@ public final class Minecraft implements GuiContext {
      * the swing costs 0.3 exhaustion.
      */
     private void attackEntity(MovingEntity target) {
+        if (target instanceof net.minecraft.entity.EntityBoat boat) {
+            if (!isSpectator() && boat.hitByPlayer(isCreative()) && boat == ridingBoat) dismountBoat();
+            return;
+        }
         if (!isSpectator() && target instanceof net.minecraft.entity.EntityFireball fireball && fireball.deflectable()) {
             fireball.deflect(player);
             return;
@@ -1538,6 +1547,13 @@ public final class Minecraft implements GuiContext {
 
     /** Entity.interactFirst: flint and steel lights a creeper for good. */
     private boolean interactWithEntity(MovingEntity target) {
+        if (target instanceof net.minecraft.entity.EntityBoat boat) {
+            // EntityBoat.interactFirst: an empty boat takes the player aboard.
+            if (isSpectator() || boat.ridden || ridingBoat != null) return false;
+            ridingBoat = boat;
+            boat.ridden = true;
+            return true;
+        }
         if (target instanceof net.minecraft.entity.passive.EntityAnimal animal) {
             if (isSpectator() || !animal.isAlive()) return false;
             return animal.interact(animalInteractor);
@@ -1747,6 +1763,12 @@ public final class Minecraft implements GuiContext {
             } else if (entity instanceof EntityTNTPrimed tnt) {
                 if (tntBlock == null) tntBlock = BlockState.defaultOf(blockRegistry.get("minecraft:tnt"));
                 mobRenderer.renderTNT(tnt, tntBlock, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
+            } else if (entity instanceof net.minecraft.entity.passive.EntityIronGolem golem) {
+                mobRenderer.renderGuardian(golem, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
+            } else if (entity instanceof net.minecraft.entity.EntityBoat boat) {
+                mobRenderer.renderBoat(boat, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
             } else if (entity instanceof EntityXPOrb orb) {
                 mobRenderer.renderXPOrb(orb, partialTicks);
@@ -2463,6 +2485,8 @@ public final class Minecraft implements GuiContext {
         glScalef(-1f, -1f, 1f);
         glScalef(0.9375f, 0.9375f, 0.9375f);
         glTranslatef(0f, -1.5078125f, 0f);
+        playerModel.riding = ridingBoat != null;
+        if (playerModel.riding) limbAmount = 0f;
         playerModel.setPose(new PlayerModel.Pose(limbSwing, limbAmount, age, headYaw, pitch, attackSwing,
             player.sneaking, held != null, held != null && player.isBlocking()));
         glDisable(GL_CULL_FACE);
@@ -3265,6 +3289,7 @@ public final class Minecraft implements GuiContext {
             return true;
         }
         if (item.kind() == Item.Kind.SPAWN_EGG) return spawnEggOnLiquid(held);
+        if (item.name().path().equals("boat")) return placeBoat(held);
         if (item.name().path().equals("glass_bottle")) return fillBottle(held);
         if (item.name().path().equals("egg") || item.name().path().equals("snowball")) {
             throwItem(held);
@@ -3660,6 +3685,74 @@ public final class Minecraft implements GuiContext {
 
     private void spawnItem(EntityItem item) { server.entities().add(item); }
 
+    /**
+     * The player's tick: on foot as usual, or carried in a boat, steering it
+     * with forward/back and the way they look; sneak climbs out on top of it.
+     */
+    private void tickPlayer() {
+        Player.Input input = Player.Input.of(gameSettings);
+        net.minecraft.entity.EntityBoat boat = ridingBoat;
+        if (boat != null && (boat.isRemoved() || player.dead || input.sneak())) {
+            dismountBoat();
+            boat = null;
+        }
+        if (boat == null) {
+            player.tick(input);
+            return;
+        }
+        float forward = (input.forward() ? 1f : 0f) - (input.back() ? 1f : 0f);
+        boat.setRiderInput(forward, PlayerAnimation.vanillaYaw(player));
+        player.tick(Player.Input.NONE);
+        player.rideAt(boat.prevX, boat.prevY - 0.3, boat.prevZ, boat.x(), boat.riderY(), boat.z());
+    }
+
+    /** Climbs out on top of the boat (Entity.dismountEntity), or just lets go of it if it is gone. */
+    private void dismountBoat() {
+        net.minecraft.entity.EntityBoat boat = ridingBoat;
+        ridingBoat = null;
+        if (boat == null) return;
+        boat.ridden = false;
+        boat.setRiderInput(0f, 0f);
+        if (!boat.isRemoved()) {
+            double top = boat.y() + boat.height + 0.01;
+            player.rideAt(player.x, player.y, player.z, boat.x(), top, boat.z());
+        }
+    }
+
+    /**
+     * ItemBoat.onItemRightClick: a boat goes on the water or block under the
+     * crosshair (within 5 blocks, turned the way the player faces) if there
+     * is room for it; used up out of Creative.
+     */
+    private boolean placeBoat(ItemStack held) {
+        if (isSpectator() || levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return false;
+        WorldRenderer.Hit hit = WorldRenderer.raycast(world, player.x, player.eyeY(), player.z,
+            player.dirX(), player.dirY(), player.dirZ(), 5.0, true);
+        if (hit == null) return false;
+        boolean water = world.get(hit.x(), hit.y(), hit.z()).material().equals("water");
+        if (!water && hit.face() != net.minecraft.util.Direction.UP) return false;
+        net.minecraft.entity.EntityBoat boat = new net.minecraft.entity.EntityBoat(world, hit.x() + 0.5, hit.y() + 1.0, hit.z() + 0.5);
+        float yaw = PlayerAnimation.vanillaYaw(player);
+        boat.setPositionAndRotation(boat.x(), boat.y(), boat.z(), yaw, 0f);
+        if (!boat.isFreeOfBlocks(boat.boundingBox().grow(-0.1))) return false;
+        spawnEntity(boat);
+        if (!isCreative()) {
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+        return true;
+    }
+
+    /** Boats near the player, solid like blocks (all but the one the player sits in). */
+    private java.util.List<AxisAlignedBB> boatBoxes(AxisAlignedBB area) {
+        if (server == null) return java.util.List.of();
+        java.util.List<AxisAlignedBB> boxes = new java.util.ArrayList<>();
+        for (Entity entity : server.entities().values())
+            if (entity instanceof net.minecraft.entity.EntityBoat boat && boat != ridingBoat && !boat.isRemoved()
+                && boat.boundingBox().intersects(area)) boxes.add(boat.boundingBox());
+        return boxes;
+    }
+
     /** World.spawnEntityInWorld. */
     private void spawnEntity(Entity entity) {
         if (server == null) return;
@@ -3726,10 +3819,33 @@ public final class Minecraft implements GuiContext {
                 playSound(type.placeSound(), first.x() + 0.5, first.y() + 0.5, first.z() + 0.5,
                     (type.volume() + 1f) / 2f, type.frequency() * 0.8f);
                 if (!isCreative()) inventory.consumeCurrentItem();
+                String placed = first.state().block().name().path();
+                if (placed.equals("pumpkin") || placed.equals("lit_pumpkin")) checkGolemSpawn(first.x(), first.y(), first.z());
                 return true;
             }
         }
         return false;
+    }
+
+    /** BlockPumpkin.onBlockAdded: a pumpkin topping a T of iron blocks becomes an iron golem. */
+    private void checkGolemSpawn(int x, int y, int z) {
+        if (server == null) return;
+        net.minecraft.world.GolemPattern.Match match = net.minecraft.world.GolemPattern.find(world, x, y, z);
+        if (match == null) return;
+        Block air = blockRegistry.air();
+        for (int[] cell : match.cells()) {
+            BlockState was = world.getState(cell[0], cell[1], cell[2]);
+            world.setState(cell[0], cell[1], cell[2], BlockState.of(air, 0));
+            if (particles != null) particles.addBlockDestroyEffects(cell[0], cell[1], cell[2], was);
+        }
+        for (int[] cell : match.cells()) BlockUpdates.afterChange(world, cell[0], cell[1], cell[2]);
+        int[] feet = match.feet();
+        float yaw = match.alongX() ? 0f : 90f;
+        net.minecraft.entity.passive.EntityIronGolem golem = new net.minecraft.entity.passive.EntityIronGolem(world,
+            feet[0] + 0.5, feet[1] + 0.05, feet[2] + 0.5);
+        golem.setPositionAndRotation(feet[0] + 0.5, feet[1] + 0.05, feet[2] + 0.5, yaw, 0f);
+        golem.renderYawOffset = golem.prevRenderYawOffset = golem.rotationYawHead = golem.prevRotationYawHead = yaw;
+        spawnEntity(golem);
     }
 
     /** The item that places this block variant (pick block), or null. */

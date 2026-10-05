@@ -442,8 +442,7 @@
   replica_behavior: >
     No overworld structures (Nether fortresses exist, DEV-036); dungeon chests are empty and spawners have no mob (the
     Random draws spent on the loot are skipped, so the rest of that chunk's
-    decoration diverges after a dungeon with a chest); springs are a single
-    still source; animals are placed after decoration but only sheep, pigs,
+    decoration diverges after a dungeon with a chest); animals are placed after decoration but only sheep, pigs,
     chickens and cows appear (DEV-035); population writes without per-block relighting
     and the touched chunks are relit afterwards (mushroom shade, lake grass
     and freezing read a light estimate or the light from before population).
@@ -638,7 +637,7 @@
     world rather than per chunk. In Creative the player's fire never burns
     down, only water puts it out (reported from vanilla 1.8.9 play; the
     mechanism is UNKNOWN). NOT DONE: lava igniting blocks (no random
-    block ticks yet; fire itself spreads and burns out, DEV-026), springs flowing at generation (DEV-016), and the liquid
+    block ticks yet; fire itself spreads and burns out, DEV-026), and the liquid
     tick skipping chunks whose neighbours are not loaded (only the tick's
     own chunk is checked, so a flow reaching the edge can generate new
     chunks).
@@ -1198,4 +1197,71 @@
     the wither either way.
   compatibility_effect: >
     P2: heads and the wither play like 1.8.9.
+  user_visible: true
+- id: DEV-038
+  subsystem: boats
+  vanilla_behavior: >
+    EntityBoat floats, is steered by the rider's facing while they hold
+    forward, breaks into 3 planks and 2 sticks on a fast collision, crushes
+    lily pads and snow layers, wobbles and drops itself when punched enough
+    (instantly in Creative), and is placed by ItemBoat on water or the top of
+    a block. Riders sit in it (Entity.updateRidden), sneak to get out, and the
+    player model sits with legs forward. Boats are solid to stand on and to
+    other entities.
+  replica_behavior: >
+    EntityBoat (HYPOTHESIS: every constant tuned by eye, not measured): a
+    1.5 x 0.6 box that floats about half under (water sampled in five slices),
+    falls with 0.04 gravity on land and crawls there at a quarter speed;
+    paddling adds 0.04 a tick along the rider's facing (half backwards), top
+    speed 0.4 blocks a tick, water drag 0.97 ridden / 0.95 empty; faster than
+    0.2 into a wall it smashes into 3 planks and 2 sticks; it turns up to 20
+    degrees a tick to face its motion. Each punch adds 10 damage (wearing off
+    1 a tick) and past 40 it drops a boat; Creative breaks it at once with no
+    drop; explosions count as hits. ItemBoat places it within 5 blocks on
+    water or a block's top face where it fits, turned to the player's facing,
+    and uses it up outside Creative. The rider is carried at the boat's
+    height minus 0.3, steers with forward/back and the mouse, and sneak
+    climbs out on top. Saved as "Boat". RenderBoat is an approximated hull
+    (floor and four walls) textured from textures/entity/boat.png.
+    The rider is drawn seated (legs out, arms forward). Boats are solid to
+    the player, mobs and each other, and splash when they land in water;
+    1.8.9 has no other boat sounds.
+    NOT DONE: entities pushing boats aside, the rider's view rocking,
+    riding saved across reloads (the player is left where the boat was),
+    and falling damage to boats.
+  reason: >
+    There was no riding system; this adds the smallest one boats need.
+  compatibility_effect: >
+    P2: boats can be placed, ridden, steered, crashed and broken; handling
+    and model are approximate until compared side by side with 1.8.9.
+  user_visible: true
+- id: DEV-039
+  subsystem: iron golem
+  vanilla_behavior: >
+    EntityIronGolem: 100 health, 1.4 x 2.9, speed 0.25, knockback
+    resistance, no fall damage; attacks hostile mobs (and players with bad
+    village reputation) for 7-21 with an upward fling; drops 3-5 iron ingots
+    and 0-2 poppies. Spawns in villages and when a pumpkin or jack o'lantern
+    tops a T of four iron blocks (BlockPumpkin.golemPattern). ModelIronGolem
+    and RenderIronGolem draw it with arm swing and leg walk.
+  replica_behavior: >
+    EntityIronGolem (HYPOTHESIS: values recalled): the stats, drops and
+    sounds above; it picks the nearest hostile mob within 16 blocks every
+    half second, walks to it and hits it once a second for 7-21, flinging it
+    0.4 up. Every golem counts as player-built and never attacks the player.
+    GolemPattern spawns one when a pumpkin or jack o'lantern is placed on top
+    of an iron T (along x or z, nothing beside the bottom block); the blocks
+    vanish with break particles. Saved as "VillagerGolem" with PlayerCreated.
+    Model: an ORIGINAL guardian design (not Mojang's golem model or
+    texture): untextured steel and dark-plate boxes, crested head with an
+    amber visor, long arms with shoulder plates, short legs; legs swing
+    while walking and both arms swing up and over on an attack.
+    NOT DONE: village spawning (no villages or villagers), offering
+    poppies, and hitting the player.
+  reason: >
+    Requested; villages don't exist yet, and the model is an original
+    design rather than a copy of the vanilla one.
+  compatibility_effect: >
+    P2: golems can be built, fight mobs and drop their loot; they use an original
+    guardian model, not the vanilla look.
   user_visible: true

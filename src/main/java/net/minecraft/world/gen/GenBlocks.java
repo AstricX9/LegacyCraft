@@ -27,7 +27,7 @@ public final class GenBlocks {
     /** Packed states. */
     public final int AIR, STONE, GRASS, DIRT, COARSE_DIRT, PODZOL, GRAVEL, SAND, RED_SAND, SANDSTONE, RED_SANDSTONE,
         CLAY, HARDENED_CLAY, WHITE_CLAY, ORANGE_CLAY, YELLOW_CLAY, BROWN_CLAY, RED_CLAY, SILVER_CLAY, MYCELIUM,
-        SNOW_LAYER, SNOW, ICE, PACKED_ICE, WATER, LAVA, FLOWING_LAVA, BEDROCK, COBBLESTONE, MOSSY_COBBLESTONE,
+        SNOW_LAYER, SNOW, ICE, PACKED_ICE, WATER, FLOWING_WATER, LAVA, FLOWING_LAVA, BEDROCK, COBBLESTONE, MOSSY_COBBLESTONE,
         MOB_SPAWNER, CHEST, WATERLILY, DEADBUSH, REEDS, CACTUS, PUMPKIN, MELON, EMERALD_ORE, SILVERFISH_STONE,
         SANDSTONE_SLAB, BROWN_MUSHROOM, RED_MUSHROOM, BROWN_MUSHROOM_BLOCK, RED_MUSHROOM_BLOCK, VINE, COCOA,
         TALLGRASS, YELLOW_FLOWER, RED_FLOWER, DOUBLE_PLANT, LOG, LOG2, LEAVES, LEAVES2,
@@ -82,7 +82,7 @@ public final class GenBlocks {
         YELLOW_CLAY = state("stained_hardened_clay", 4); BROWN_CLAY = state("stained_hardened_clay", 12);
         RED_CLAY = state("stained_hardened_clay", 14); SILVER_CLAY = state("stained_hardened_clay", 8);
         MYCELIUM = state("mycelium", 0); SNOW_LAYER = state("snow_layer", 0); SNOW = state("snow", 0);
-        ICE = state("ice", 0); PACKED_ICE = state("packed_ice", 0); WATER = state("water", 0); LAVA = state("lava", 0);
+        ICE = state("ice", 0); PACKED_ICE = state("packed_ice", 0); WATER = state("water", 0); FLOWING_WATER = state("flowing_water", 0); LAVA = state("lava", 0);
         FLOWING_LAVA = state("flowing_lava", 0); BEDROCK = state("bedrock", 0); COBBLESTONE = state("cobblestone", 0);
         MOSSY_COBBLESTONE = state("mossy_cobblestone", 0); MOB_SPAWNER = state("mob_spawner", 0);
         CHEST = state("chest", 2); WATERLILY = state("waterlily", 0); DEADBUSH = state("deadbush", 0);

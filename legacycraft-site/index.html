@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LegacyCraft</title>
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap">
+<style>
+/* Layout: 2013-era fixed 800px column — header bar, video + download row, blurb, two news columns, footer. Single dark look by choice. */
+:root{
+  --bg:#1f1e1d; --bar:#3a2c20; --ink:#d9d6cf; --dim:#8a867d; --faint:#55524c;
+  --link:#a9b8ff; --head:#ffffff; --orange:#f39a1e; --orange-dk:#c56a08;
+  --f-logo:"Silkscreen",ui-monospace,monospace;
+  --f-body:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:12px/1.5 var(--f-body);background-image:var(--stone,none)}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+
+/* header */
+.bar{background:var(--bar);background-image:var(--dirt,none);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.bar-in{max-width:860px;margin:0 auto;padding:6px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{font:700 22px/1 var(--f-logo);letter-spacing:1px;color:#e9c27a;
+  text-shadow:2px 2px 0 #6b4a1c,4px 4px 0 rgba(0,0,0,.5);text-decoration:none!important;white-space:nowrap}
+.logo span{color:#cfd6c4}
+nav{display:flex;gap:11px;flex-wrap:wrap}
+nav a{color:var(--head);font-weight:700;font-size:14px}
+.acct{margin-left:auto;color:var(--ink);font-size:11px;white-space:nowrap}
+.acct b{color:var(--link);font-size:14px;font-weight:700}
+
+/* main */
+.wrap{max-width:800px;margin:0 auto;padding-inline:16px;padding-block:22px 40px}
+.top{display:grid;grid-template-columns:minmax(0,510px) 1fr;gap:28px;align-items:start}
+.video{position:relative;width:100%;aspect-ratio:510/282;background:#0c140c;overflow:hidden;cursor:pointer;border:0;padding:0;display:block}
+.video canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+.video .wm{position:absolute;inset:0;display:grid;place-items:center;font:700 44px var(--f-logo);color:rgba(255,255,255,.12);pointer-events:none;letter-spacing:2px}
+.play{position:absolute;left:50%;top:50%;width:64px;height:44px;margin:-22px 0 0 -32px;background:rgba(20,20,20,.85);border-radius:9px;display:grid;place-items:center;transition:background .15s}
+.video:hover .play{background:#c0392b}
+.play i{width:0;height:0;border-left:16px solid #fff;border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:4px}
+.video.on .play{opacity:0}
+.side{display:flex;flex-direction:column;align-items:center;gap:14px;min-width:0}
+#mascots{display:block;max-width:240px;width:100%;height:auto}
+.dl{position:relative;width:210px}
+.dl-btn{width:100%;font:22px var(--f-body);color:#fff;background:linear-gradient(#f7ad3e,var(--orange) 50%,#e5850c);
+  border:1px solid var(--orange-dk);border-radius:3px;padding:6px 0;cursor:pointer;text-shadow:0 1px 0 rgba(0,0,0,.35);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 3px rgba(0,0,0,.5)}
+.dl-btn:hover{filter:brightness(1.07)}
+.dl-menu{margin-top:6px;background:#2a2826;border:1px solid #444;border-radius:3px;font-size:12px}
+.dl-menu a{display:flex;justify-content:space-between;padding:7px 10px;border-top:1px solid #383532;color:var(--ink)}
+.dl-menu a:first-child{border-top:0}
+.dl-menu a:hover{background:#34312e;text-decoration:none}
+.dl-menu small{color:var(--dim)}
+.price{margin:0;color:#fff;font-size:13px;font-weight:700}
+.alt{margin:0;text-align:center;font-size:13px;color:var(--ink)}
+.dl-note:empty{display:none}
+.dl-note{font-size:11px;color:var(--dim);text-align:center;max-width:200px}
+.dl-note.warn{color:#e8b86a}
+.gift{display:flex;gap:6px;align-items:center;font-size:12px}
+.gift i{width:16px;height:16px;background:linear-gradient(135deg,#7fb3e6,#3d6ea8);display:inline-block;box-shadow:inset -3px -3px 0 rgba(0,0,0,.25)}
+
+.blurb{max-width:510px;margin-top:20px}
+.blurb p{margin:0 0 1.2em}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin:60px 32px 0}
+.cols h2{color:var(--head);font-size:15px;text-align:center;margin:0 0 18px}
+.cols>div{min-width:0}
+.news a{display:block;font-weight:700;font-size:12px;margin-top:20px}
+.news time,.log time{display:block;color:var(--dim);font-size:9px}
+.log p{margin:20px 0 0}
+.log .at{color:var(--link)}
+
+.tiles{max-width:510px;margin:60px auto 0;color:var(--dim);font-size:11px}
+.tiles h2{color:var(--head);font-size:13px;margin:0 0 6px}
+.tiles code{color:var(--ink)}
+.tile-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:8px}
+.tile-row label{display:flex;flex-direction:column;gap:3px;color:var(--ink)}
+.tile-row input{font-size:11px;color:var(--dim);max-width:200px}
+.tile-row button{background:#34312e;color:var(--ink);border:1px solid #4a4642;border-radius:3px;padding:4px 10px;cursor:pointer}
+footer{text-align:center;color:var(--faint);font-size:11px;margin-top:70px}
+footer a{color:var(--dim)}
+
+@media (max-width:640px){
+  .top{grid-template-columns:1fr}
+  .cols{grid-template-columns:1fr;margin-inline:0;gap:28px}
+  .acct{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){.play{transition:none}}
+</style>
+</head>
+<body>
+
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="logo" href="#home">LEGACY<span>CRAFT</span></a>
+    <nav aria-label="Main">
+      <a href="#home">Home</a><a href="#game">Game</a><a href="#community">Community</a><a href="#download">Download</a><a href="#profile">Skins</a><a href="#help">Help</a>
+    </nav>
+    <div class="acct">Offline mode | <b>No login</b></div>
+  </div>
+</header>
+
+<main class="wrap" id="home">
+  <section class="top">
+    <button class="video" id="video" aria-label="Play the world flyover">
+      <canvas id="world" width="255" height="141"></canvas>
+      <div class="wm">LEGACYCRAFT</div>
+      <div class="play"><i></i></div>
+    </button>
+
+    <div class="side" id="download">
+      <img id="mascots" src="assets/animals.png" alt="" onerror="this.hidden=true">
+      <div class="dl">
+        <button class="dl-btn" id="dlBtn" aria-expanded="false" aria-controls="dlMenu">Get LegacyCraft</button>
+        <div class="dl-menu" id="dlMenu" hidden>
+          <a href="downloads/LegacyCraft-Launcher.exe" data-file>Windows (.exe) <small>launcher</small></a>
+          <a href="downloads/LegacyCraft-Launcher.jar" data-file>Any OS (.jar) <small>Java 8+</small></a>
+        </div>
+      </div>
+      <p class="price">Free download</p>
+      <p class="alt">or grab the <a href="downloads/LegacyCraft-Launcher.jar" data-file-alt>.jar for Mac/Linux</a></p>
+      <p class="alt">Already have the launcher?<br><a href="#help">It updates itself</a></p>
+      <p class="dl-note" id="dlNote"></p>
+    </div>
+  </section>
+
+  <section class="blurb" id="game">
+    <p>LegacyCraft is a block-building sandbox rebuilt from scratch to play exactly like the 1.8.9 era. Same movement, same tick timing, same redstone quirks, the way you remember them.</p>
+    <p>Dig a cave, light it with torches, and listen for the water dripping somewhere below. Mine for diamonds, craft in a 3×3 grid, smelt your ore, and hide from whatever comes out at night. Build a portal when you're ready for the Nether.</p>
+    <p><a href="#download">You can download LegacyCraft for Windows</a>, or grab the <a href="#download">.jar</a> for Mac and Linux. The launcher works fully offline: no login, just manage your worlds, pick a skin and cape, and play. LegacyCraft ships with its own textures; if you own 1.8.9, drop your own resource pack in and play with the look you're used to. Every place we knowingly differ from 1.8.9 is written down in the <a href="#help">deviations list</a>.</p>
+  </section>
+
+  <section class="cols" id="community">
+    <div class="news">
+      <h2>LegacyCraft Dev News</h2>
+      <p>We post updates here as each system gets matched against the real 1.8.9 client, side by side.</p>
+      <a href="#render">Render overhaul: vanilla-style chunks</a><time>this week</time>
+      <a href="#sound">Sound is in: footsteps, music, caves</a><time>recently</time>
+      <a href="#craft">Crafting tables and the 2×2 grid</a><time>recently</time>
+      <a href="#fluids">Water and lava flow</a><time>earlier</time>
+      <a href="#launcher">An offline launcher, 1:1</a><time>earlier</time>
+    </div>
+    <div class="log">
+      <h2>Dev Log / #changes</h2>
+      <p>Short notes straight from the build. The full list lives in the repo.</p>
+      <p><span class="at">#sound</span> Ogg playback with 28 channels plus 2 for music. Linear fade over 16 blocks.<time>DEV-023</time></p>
+      <p><span class="at">#crafting</span> Shaped, mirrored and shapeless recipes. Shift-click crafts repeatedly.<time>DEV-024</time></p>
+      <p><span class="at">#fluids</span> Water and lava flow and look right. Lava can't start fires yet.<time>DEV-022</time></p>
+      <p><span class="at">#fire</span> Fire spreads and burns out. Random block ticks still to come.<time>DEV-026</time></p>
+      <p><span class="at">#launcher</span> No login screen. Skin changing and capes work offline.<time>launcher/</time></p>
+    </div>
+  </section>
+
+  <section class="tiles" aria-label="Site textures">
+    <h2>Site textures</h2>
+    <p>The header and background tile any square image (16×16 recommended), scaled up with sharp pixels. On your own host, put <code>assets/dirt.png</code> and <code>assets/stone.png</code> next to index.html. To try one here, pick a file:</p>
+    <div class="tile-row">
+      <label for="tileHeader">Header tile <input type="file" id="tileHeader" accept="image/png,image/gif,image/webp"></label>
+      <label for="tileBg">Background tile <input type="file" id="tileBg" accept="image/png,image/gif,image/webp"></label>
+      <button type="button" id="tileReset">Reset</button>
+    </div>
+  </section>
+
+  <footer id="help">
+    LegacyCraft is an independent fan project, not affiliated with or endorsed by Mojang or Microsoft. — <a href="#help">About</a>
+  </footer>
+</main>
+
+<script>
+(function(){
+  // ---- procedural textures (generated, no image files) ----
+  function noiseTex(w,h,base,spread,seed,dark){
+    var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');
+    var s=seed;function r(){s=(s*16807)%2147483647;return s/2147483647}
+    for(var i=0;i<w;i++)for(var j=0;j<h;j++){
+      var v=(r()-.5)*spread, k=r()<dark?-14:0;
+      x.fillStyle='rgb('+(base[0]+v+k|0)+','+(base[1]+v+k|0)+','+(base[2]+v+k|0)+')';x.fillRect(i,j,1,1);
+    }
+    return c;
+  }
+  function asBg(c,scale){var b=document.createElement('canvas');b.width=c.width*scale;b.height=c.height*scale;
+    var x=b.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(c,0,0,b.width,b.height);return 'url('+b.toDataURL()+')'}
+  var bar=document.querySelector('.bar');
+  var fallback={
+    stone:function(){return asBg(noiseTex(32,32,[33,32,31],8,7,.08),3)},
+    dirt:function(){return asBg(noiseTex(16,16,[66,48,34],18,11,.15),3)}
+  };
+  function tileFromImage(img){ // any square-ish tile, scaled to ~48px with nearest-neighbour
+    var scale=Math.max(1,Math.round(48/Math.max(img.width,img.height)));
+    var c=document.createElement('canvas');c.width=img.width;c.height=img.height;c.getContext('2d').drawImage(img,0,0);
+    return asBg(c,scale);
+  }
+  function setTex(el,prop,src,fb){
+    try{el.style.setProperty(prop,fb())}catch(e){}
+    if(!src)return;
+    var img=new Image();
+    img.onload=function(){try{el.style.setProperty(prop,tileFromImage(img))}catch(e){}};
+    img.src=src;
+  }
+  setTex(document.body,'--stone','assets/stone.png',fallback.stone);
+  setTex(bar,'--dirt','assets/dirt.png',fallback.dirt);
+  function pick(input,el,prop){
+    input.addEventListener('change',function(){
+      var f=input.files&&input.files[0];if(!f)return;
+      var url=URL.createObjectURL(f),img=new Image();
+      img.onload=function(){el.style.setProperty(prop,tileFromImage(img));URL.revokeObjectURL(url)};
+      img.src=url;
+    });
+  }
+  pick(document.getElementById('tileHeader'),bar,'--dirt');
+  pick(document.getElementById('tileBg'),document.body,'--stone');
+  document.getElementById('tileReset').addEventListener('click',function(){
+    bar.style.setProperty('--dirt',fallback.dirt());document.body.style.setProperty('--stone',fallback.stone());
+    document.getElementById('tileHeader').value='';document.getElementById('tileBg').value='';
+  });
+
+  // ---- hero: blocky dusk flyover (heightmap ray-march) ----
+  var cv=document.getElementById('world'),g=cv.getContext('2d'),W=cv.width,H=cv.height;
+  var img=g.createImageData(W,H),px=img.data;
+  function hash(x,y){var n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)}
+  function sm(x,y){var xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+    var a=hash(xi,yi),b=hash(xi+1,yi),c=hash(xi,yi+1),d=hash(xi+1,yi+1);
+    var u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v}
+  var cache={};
+  function cell(x,z){var k=x+','+z,v=cache[k];if(v)return v;
+    var h=Math.floor(sm(x/14,z/14)*10+sm(x/5,z/5)*3)+62, sea=66, t=null;
+    if(h>sea&&hash(x*3.1,z*7.7)>.8){h+=4;t='tree'}
+    v=cache[k]={h:Math.max(h,sea),w:h<=sea,t:t,n:hash(x,z)};return v}
+  var stars=[];for(var i=0;i<60;i++)stars.push([hash(i,1)*W|0,hash(i,2)*H*.45|0,hash(i,3)]);
+  var cam={x:0,z:0,y:84,yaw:0.4},t0=0,running=false,reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function sky(y){var f=y/(H*.55);// top night blue -> red horizon
+    return [12+f*70|0,12+f*14|0,26+f*6|0]}
+  function draw(){
+    var horizon=H*.45|0;
+    for(var y=0;y<H;y++){var c=sky(Math.min(y,horizon+8));for(var x=0;x<W;x++){var o=(y*W+x)*4;px[o]=c[0];px[o+1]=c[1];px[o+2]=c[2];px[o+3]=255}}
+    stars.forEach(function(s){var o=(s[1]*W+s[0])*4;var b=120+s[2]*100|0;px[o]=px[o+1]=px[o+2]=b});
+    var sn=Math.sin(cam.yaw),cs=Math.cos(cam.yaw);
+    for(var x=0;x<W;x++){
+      var ray=(x/W-.5)*1.1, dx=sn+cs*ray, dz=cs-sn*ray, ybuf=H;
+      for(var d=1;d<120;d+=d<30?.5:1){
+        var wx=Math.floor(cam.x+dx*d),wz=Math.floor(cam.z+dz*d),c=cell(wx,wz);
+        var sy=((cam.y-c.h)/d*90+horizon)|0; if(sy<0)sy=0;
+        if(sy<ybuf){
+          var r,gg,b;
+          if(c.w){r=22;gg=38;b=92}else if(c.t){r=18;gg=46;b=20}else{r=40;gg=78;b=30}
+          var sh=1-c.n*.15, fog=Math.min(1,d/110), fc=sky(horizon);
+          // dusk light: dim everything, blend to horizon colour with distance
+          r=r*sh*.55*(1-fog)+fc[0]*fog;gg=gg*sh*.55*(1-fog)+fc[1]*fog;b=b*sh*.55*(1-fog)+fc[2]*fog;
+          for(var y=sy;y<ybuf;y++){var o=(y*W+x)*4,edge=(y===sy)?1.25:1;px[o]=r*edge;px[o+1]=gg*edge;px[o+2]=b*edge}
+          ybuf=sy;
+        }
+      }
+    }
+    g.putImageData(img,0,0);
+  }
+  function tick(ts){if(!running)return;cam.z+=.12;cam.x+=.04;cam.yaw=0.4+Math.sin(ts/9000)*.15;draw();requestAnimationFrame(tick)}
+  draw();
+  document.getElementById('video').addEventListener('click',function(){
+    if(reduce){cam.z+=8;draw();return}
+    running=!running;this.classList.toggle('on',running);if(running)requestAnimationFrame(tick);
+  });
+
+  // ---- download menu: checks the build files actually exist ----
+  var btn=document.getElementById('dlBtn'),menu=document.getElementById('dlMenu'),note=document.getElementById('dlNote');
+  btn.addEventListener('click',function(){menu.hidden=!menu.hidden;btn.setAttribute('aria-expanded',String(!menu.hidden))});
+  document.querySelectorAll('[data-file],[data-file-alt]').forEach(function(a){
+    fetch(a.getAttribute('href'),{method:'HEAD'}).then(function(r){if(!r.ok)throw 0}).catch(function(){
+      a.dataset.missing='1';var sm=a.querySelector('small');if(sm)sm.textContent='not uploaded yet';
+    });
+    a.addEventListener('click',function(e){
+      if(a.dataset.missing){e.preventDefault();note.className='dl-note warn';
+        note.textContent='That build isn\'t on this site yet. Put it in the downloads/ folder next to index.html.';}
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

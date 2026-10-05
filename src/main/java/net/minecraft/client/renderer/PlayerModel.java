@@ -87,6 +87,9 @@ public final class PlayerModel {
         parts = new Part[] {head, body, rightArm, leftArm, rightLeg, leftLeg};
     }
 
+    /** Sitting in a boat (ModelBiped.isRiding): set before {@link #setPose}. */
+    public boolean riding;
+
     /** What the pose depends on (ModelBiped.setRotationAngles and friends). */
     public record Pose(float limbSwing, float limbSwingAmount, float ageInTicks, float headYaw, float headPitch,
                        float swingProgress, boolean sneaking, boolean holdingItem, boolean blocking) {}
@@ -149,6 +152,14 @@ public final class PlayerModel {
         leftArm.angleZ -= (float) Math.cos(age * 0.09f) * 0.05f + 0.05f;
         rightArm.angleX += (float) Math.sin(age * 0.067f) * 0.05f;
         leftArm.angleX -= (float) Math.sin(age * 0.067f) * 0.05f;
+        if (riding) {
+            // Seated (HYPOTHESIS, DEV-038): legs straight out in front and splayed a little, arms reaching forward.
+            rightArm.angleX += -(float) Math.PI / 5f;
+            leftArm.angleX += -(float) Math.PI / 5f;
+            rightLeg.angleX = leftLeg.angleX = -(float) Math.PI * 2f / 5f;
+            rightLeg.angleY = (float) Math.PI / 10f;
+            leftLeg.angleY = -(float) Math.PI / 10f;
+        }
     }
 
     /** Draws the whole posed model (sneaking lowers it 0.2 blocks, as ModelBiped.render). */

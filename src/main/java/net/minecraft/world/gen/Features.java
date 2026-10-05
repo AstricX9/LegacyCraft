@@ -263,7 +263,11 @@ public final class Features {
 
     // ---- Springs (WorldGenLiquids) ---------------------------------------------------------------
 
-    /** A single source in a stone wall with exactly one open side (it would flow out; flow is not simulated). */
+    /**
+     * A source in a stone wall with exactly one open side (WorldGenLiquids):
+     * placed as flowing liquid and ticked at once (World.forceBlockUpdateTick)
+     * so it pours out of the wall as soon as its chunk is in the world.
+     */
     public static void spring(GenWorld w, int x, int y, int z, int liquid) {
         GenBlocks b = w.blocks();
         if (id(w, x, y + 1, z) != b.stoneId || id(w, x, y - 1, z) != b.stoneId) return;
@@ -273,7 +277,9 @@ public final class Features {
         int[] dx = {-1, 1, 0, 0}, dz = {0, 0, -1, 1};
         for (int i = 0; i < 4; i++) if (id(w, x + dx[i], y, z + dz[i]) == b.stoneId) stone++;
         for (int i = 0; i < 4; i++) if (isAir(w, x + dx[i], y, z + dz[i])) open++;
-        if (stone == 3 && open == 1) w.set(x, y, z, liquid);
+        if (stone != 3 || open != 1) return;
+        w.set(x, y, z, liquid == b.WATER ? b.FLOWING_WATER : liquid == b.LAVA ? b.FLOWING_LAVA : liquid);
+        w.scheduleBlockTick(x, y, z);
     }
 
     // ---- Plants ----------------------------------------------------------------------------------

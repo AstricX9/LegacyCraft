@@ -602,6 +602,152 @@ public final class MobRenderer {
         glEnd();
     }
 
+    // ---- guardian (the iron golem's model) -------------------------------------------------------
+
+    /**
+     * The iron golem's model (DEV-039). An ORIGINAL design, not a copy of any
+     * Mojang model or texture: a broad steel body with dark plating, a square
+     * head with a crest and an amber visor, long arms with heavy shoulder
+     * plates and fists, and short legs. Drawn from untextured coloured boxes so
+     * no texture file is needed. Legs swing as it walks, both arms swing up and
+     * over when it attacks, and it flashes red when hurt.
+     */
+    public void renderGuardian(net.minecraft.entity.passive.EntityIronGolem golem, float partialTicks) {
+        double x = golem.renderX(partialTicks), y = golem.renderY(partialTicks), z = golem.renderZ(partialTicks);
+        float body = interpolateRotation(golem.prevRenderYawOffset, golem.renderYawOffset, partialTicks);
+        float head = interpolateRotation(golem.prevRotationYawHead, golem.rotationYawHead, partialTicks);
+        float pitch = golem.prevRotationPitch + (golem.rotationPitch - golem.prevRotationPitch) * partialTicks;
+        float amount = Math.min(1f, golem.prevLimbSwingAmount + (golem.limbSwingAmount - golem.prevLimbSwingAmount) * partialTicks);
+        float swing = golem.limbSwing - golem.limbSwingAmount * (1f - partialTicks);
+        float[] light = light(golem, x, y, z);
+        boolean hurt = golem.hurtTime > 0 || golem.deathTime > 0;
+        float tint = hurt ? 0.4f : 1f;
+        StandardLighting.enable();
+        glPushMatrix();
+        glTranslated(x, y, z);
+        rotateCorpse(golem, body, partialTicks);
+        glEnable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glScalef(-1f, -1f, 1f);
+        glTranslatef(0f, -46f / 16f, 0f);     // model pixels, y down, feet at 46
+        glDisable(GL_CULL_FACE);
+        glDisable(GL_TEXTURE_2D);
+        float[] steel = {0.58f, 0.61f, 0.65f}, plate = {0.34f, 0.36f, 0.41f};
+
+        // Head and crest.
+        glPushMatrix();
+        glTranslatef(0f, 12f / 16f, 0f);
+        glRotatef(head - body, 0, 1, 0);
+        glRotatef(pitch, 1, 0, 0);
+        solid(steel, light, tint, -5, -10, -5, 10, 10, 10);
+        solid(plate, light, tint, -1, -13, -5, 2, 3, 10);
+        glColor4f(1f, 0.72f * tint, 0.2f * tint, 1f);        // the visor glows: not shaded by the light
+        glBegin(GL_QUADS);
+        PlayerModel.box(-4, -6, -5.5f, 8, 2, 0.5f, 0, 0, 0, 64f, 32f);
+        glEnd();
+        glPopMatrix();
+
+        // Torso, chest plate and belt.
+        solid(steel, light, tint, -10, 12, -6, 20, 18, 12);
+        solid(plate, light, tint, -8, 14, -6.5f, 16, 8, 1);
+        solid(plate, light, tint, -10.5f, 28, -6.5f, 21, 3, 13);
+
+        // Arms: swing against the legs, and throw both up and over in an attack.
+        float strike = 0f;
+        if (golem.attackTimer > 0) strike = (float) Math.sin((golem.attackTimer - partialTicks) / 10f * Math.PI);
+        for (int side = -1; side <= 1; side += 2) {
+            float walk = (float) Math.cos(swing * 0.6662f + (side < 0 ? 0 : Math.PI)) * 0.5f * amount;
+            float angle = walk - strike * 2.4f;
+            glPushMatrix();
+            glTranslatef(side * 13f / 16f, 14f / 16f, 0f);
+            glRotatef((float) Math.toDegrees(angle), 1, 0, 0);
+            solid(steel, light, tint, -3, 0, -3, 6, 20, 6);
+            solid(plate, light, tint, -4.5f, -2, -4.5f, 9, 4, 9);
+            solid(plate, light, tint, -3.5f, 18, -3.5f, 7, 6, 7);
+            glPopMatrix();
+        }
+
+        // Legs.
+        for (int side = -1; side <= 1; side += 2) {
+            float angle = (float) Math.cos(swing * 0.6662f + (side < 0 ? Math.PI : 0)) * 1.0f * amount;
+            glPushMatrix();
+            glTranslatef(side * 5f / 16f, 30f / 16f, 0f);
+            glRotatef((float) Math.toDegrees(angle), 1, 0, 0);
+            solid(plate, light, tint, -3.5f, 0, -3.5f, 7, 16, 7);
+            glPopMatrix();
+        }
+        glEnable(GL_TEXTURE_2D);
+        glDisable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glPopMatrix();
+        StandardLighting.disable();
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /** One untextured coloured box in model pixels, lit by {@code light} and dimmed in green and blue when hurt. */
+    private static void solid(float[] colour, float[] light, float tint, float x, float y, float z, float w, float h, float d) {
+        glColor4f(colour[0] * light[0], colour[1] * light[1] * tint, colour[2] * light[2] * tint, 1f);
+        glBegin(GL_QUADS);
+        PlayerModel.box(x, y, z, w, h, d, 0f, 0, 0, 64f, 32f);
+        glEnd();
+    }
+
+    // ---- boats -------------------------------------------------------------------------------
+
+    public static final ResourceLocation BOAT = new ResourceLocation("minecraft:textures/entity/boat.png");
+
+    /**
+     * RenderBoat (HYPOTHESIS: an open wooden hull approximated by eye, see
+     * DEV-038): a floor and four low walls, 24 x 16 pixels outside, texture
+     * areas kept inside a 64 x 32 boat texture, turned to
+     * the boat's yaw, rocking about its length for a moment after a hit, lit
+     * where it floats and textured from the resource pack's boat texture.
+     */
+    public void renderBoat(net.minecraft.entity.EntityBoat boat, float partialTicks) {
+        double x = boat.renderX(partialTicks), y = boat.renderY(partialTicks), z = boat.renderZ(partialTicks);
+        float yaw = interpolateRotation(boat.prevRotationYaw, boat.rotationYaw, partialTicks);
+        float wobbleTime = boat.timeSinceHit - partialTicks;
+        float wobbleDamage = Math.max(0f, boat.damage - partialTicks);
+        float[] light = light(boat, x, y, z);
+        StandardLighting.enable();
+        glPushMatrix();
+        glTranslated(x, y, z);
+        glRotatef(180f - yaw, 0f, 1f, 0f);
+        if (wobbleTime > 0f)
+            glRotatef((float) Math.sin(wobbleTime) * wobbleTime * wobbleDamage / 10f * boat.forwardDirection, 1f, 0f, 0f);
+        glEnable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        textures.bind(BOAT);
+        glColor4f(light[0], light[1], light[2], 1f);
+        // Pixels, origin at the hull's centre-bottom, built along x (24 long, 16 wide) then turned to face +z.
+        glRotatef(90f, 0f, 1f, 0f);
+        glPushMatrix();
+        glRotatef(90f, 1f, 0f, 0f);                                          // floor, 3 thick, laid flat
+        glBegin(GL_QUADS);
+        PlayerModel.box(-12f, -8f, -3f, 24f, 16f, 3f, 0f, 0, 8, 64f, 32f);
+        glEnd();
+        glPopMatrix();
+        glBegin(GL_QUADS);
+        PlayerModel.box(-12f, 3f, -8f, 24f, 6f, 2f, 0f, 0, 0, 64f, 32f);    // side walls
+        PlayerModel.box(-12f, 3f, 6f, 24f, 6f, 2f, 0f, 0, 0, 64f, 32f);
+        glEnd();
+        for (float end : new float[] {-11f, 11f}) {                         // bow and stern
+            glPushMatrix();
+            glTranslatef(end / 16f, 0f, 0f);
+            glRotatef(90f, 0f, 1f, 0f);
+            glBegin(GL_QUADS);
+            PlayerModel.box(-6f, 3f, -1f, 12f, 6f, 2f, 0f, 0, 0, 64f, 32f);
+            glEnd();
+            glPopMatrix();
+        }
+        glDisable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glEnable(GL_CULL_FACE);
+        glPopMatrix();
+        StandardLighting.disable();
+        glColor4f(1, 1, 1, 1);
+    }
+
     // ---- experience orbs ---------------------------------------------------------------------
 
     /**

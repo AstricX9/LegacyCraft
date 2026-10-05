@@ -114,6 +114,13 @@ public abstract class MovingEntity extends Entity {
                     for (AxisAlignedBB box : Block.collisionBoxesAt(world, bx, by, bz))
                         if (box.intersects(area)) result.add(box);
                 }
+        // World.getCollidingBoundingBoxes: boats are solid to every other entity.
+        if (host != null)
+            for (Entity entity : host.entities())
+                if (entity != this && entity instanceof EntityBoat boat && !boat.isRemoved()) {
+                    AxisAlignedBB box = boat.boundingBox();
+                    if (box.intersects(area)) result.add(box);
+                }
         return result;
     }
 
