@@ -34,6 +34,27 @@ public final class PacketRegistry {
         return this;
     }
 
+    /**
+     * Accepts a packet this side reads but does not act on yet: its payload is
+     * kept as raw bytes so the stream stays in step instead of failing on an
+     * unknown id. Nothing can be encoded under an ignored id.
+     */
+    public PacketRegistry ignore(ProtocolState state, Direction direction, int id) {
+        return decodeOnly(state, direction, id, in -> new IgnoredPacket(id, in.readBytes(in.readableBytes())));
+    }
+
+    /**
+     * A decoder for an id whose packet class is encoded under a different id
+     * (several wire ids that read into one record).
+     */
+    public PacketRegistry decodeOnly(ProtocolState state, Direction direction, int id, Function<PacketBuffer, ? extends Packet> decoder) {
+        if (id < 0 || id >= MAX_ID) throw new IllegalArgumentException("Packet id out of range: " + id);
+        int s = slot(state, direction);
+        if (decoders[s][id] != null) throw new IllegalStateException("Duplicate packet id " + id + " in " + state + "/" + direction);
+        decoders[s][id] = decoder;
+        return this;
+    }
+
     /** The decoder for {@code id}, or null if no such packet exists in that state. */
     Function<PacketBuffer, ? extends Packet> decoder(ProtocolState state, Direction direction, int id) {
         return id < 0 || id >= MAX_ID ? null : decoders[slot(state, direction)][id];

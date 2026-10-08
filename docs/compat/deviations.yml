@@ -1265,3 +1265,31 @@
     P2: golems can be built, fight mobs and drop their loot; they use an original
     guardian model, not the vanilla look.
   user_visible: true
+
+- id: DEV-040
+  subsystem: dedicated server
+  vanilla_behavior: >
+    The 1.8.9 dedicated server runs the whole game for its players: survival
+    mining with drops and server-checked dig time, an authoritative
+    inventory, mobs, combat, damage and respawning, dimensions, player data
+    saved per UUID, online-mode authentication and the full command set.
+  replica_behavior: >
+    PARTIAL. net.minecraft.server.dedicated speaks protocol 47 in offline
+    mode (handshake, server-list ping, login with compression) and serves
+    the LegacyCraft overworld: chunks stream around each player, block
+    changes reach everyone, players see each other move, sneak, sprint and
+    swing, chat works, and /list, /seed, /gamemode, /spawn exist. Breaking
+    and placing are reach-checked; refused edits are undone on the client.
+    NOT DONE: survival drops and dig-time checks, a server-side inventory
+    (the item a client says it holds is trusted), item ids 256+ (no vanilla
+    numeric item table yet, so doors, signs, redstone and other item-placed
+    blocks are refused), mobs, damage, the Nether, saving player position,
+    inventory and world time, and the LegacyCraft client cannot connect yet
+    (DEV-013). Online-mode authentication is not planned.
+  reason: >
+    First slice of multiplayer: a stock 1.8.9 client checks the wire format
+    while the rest of the simulation moves behind the server.
+  compatibility_effect: >
+    P1: friends can build together in Creative on a LegacyCraft server;
+    Survival is not playable over the network yet.
+  user_visible: true

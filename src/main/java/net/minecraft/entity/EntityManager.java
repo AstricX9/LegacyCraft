@@ -23,6 +23,8 @@ public final class EntityManager {
         idsByUuid.put(entity.uuid(), id);
         return id;
     }
+    /** An id no entity in this manager will get, for things tracked elsewhere (a server's players). */
+    public int reserveId() { return nextId++; }
     public Entity get(int id) { return byId.get(id); }
     public int idOf(UUID uuid) { return idsByUuid.getOrDefault(uuid, -1); }
     public List<Entity> values() {

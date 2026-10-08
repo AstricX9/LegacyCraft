@@ -42,6 +42,20 @@ application {
     applicationDefaultJvmArgs = launcherJvmArgs?.trim() ? launcherJvmArgs.trim().split(/\s+/).toList() : ['-Xms512m', '-Xmx2g']
 }
 
+// Dedicated server for 1.8.9 clients (offline mode). Its server.properties and world live in run-server/.
+tasks.register('runServer', JavaExec) {
+    group = 'application'
+    description = 'Runs the LegacyCraft dedicated server in run-server/.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'net.minecraft.server.dedicated.DedicatedServer'
+    def serverDirectory = file('run-server')
+    workingDir = serverDirectory
+    args = [serverDirectory.absolutePath]
+    jvmArgs = ['-Xms512m', '-Xmx2g']
+    standardInput = System.in
+    doFirst { serverDirectory.mkdirs() }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

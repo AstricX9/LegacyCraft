@@ -139,6 +139,7 @@ public final class PacketBuffer {
         int i = take(2);
         return (short) ((buf[i] & 0xFF) << 8 | buf[i + 1] & 0xFF);
     }
+    public int readUnsignedShort() { return readShort() & 0xFFFF; }
     public int readInt() {
         int i = take(4);
         return (buf[i] & 0xFF) << 24 | (buf[i + 1] & 0xFF) << 16 | (buf[i + 2] & 0xFF) << 8 | buf[i + 3] & 0xFF;

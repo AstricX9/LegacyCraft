@@ -70,6 +70,17 @@ Worlds saved before this generator keep their old chunks, so walking into
 new land there shows a seam; create a new world to see the terrain as
 intended.
 
+## Dedicated server
+
+`gradlew runServer` starts a headless server in `run-server/` that Minecraft
+1.8.9 clients can join (offline mode, port 25565 by default). The first start
+writes `run-server/server.properties` (vanilla key names: `server-port`,
+`level-seed`, `gamemode`, `view-distance`, `max-players`, `motd`,
+`level-name`); the world is saved every five minutes and when you type
+`stop`. Players can build together, chat and see each other; in-game commands
+are `/list`, `/seed`, `/gamemode <mode>` and `/spawn`. What the server does
+not do yet (survival drops, mobs, the LegacyCraft client joining) is DEV-040.
+
 ## Controls
 
 Defaults are 1.8.9's and can be rebound in Options > Controls.
