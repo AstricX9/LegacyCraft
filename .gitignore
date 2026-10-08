@@ -1,23 +1,26 @@
+```gitignore
+# Gradle
 .gradle/
-.idea/
 build/
 out/
-screenshots/
+
+# IDE
+.idea/
 *.iml
 
-# User-supplied vanilla Minecraft 1.8.9 asset archive: copyrighted Mojang
-# textures/sounds/models/lang files. README and docs/compat/source_policy.md
-# both say this project does not redistribute them — keep that true by never
-# committing this subtree. Original LegacyCraft content
-# (src/main/resources/assets/legacycraft/**) is NOT covered by this rule and
-# should still be tracked normally.
+# Screenshots
+screenshots/
+
+# User-supplied vanilla Minecraft 1.8.9 assets
+# Do not commit Mojang's copyrighted vanilla assets.
 src/main/resources/assets/minecraft/
 
-# Runtime files the client writes into its game directory.
+# Runtime game files
 saves/
 resourcepacks/
 options.txt
 servers.dat
 
-# The dedicated server's game directory (gradlew runServer): server.properties and its world.
+# Dedicated server runtime directory
 run-server/
+```
