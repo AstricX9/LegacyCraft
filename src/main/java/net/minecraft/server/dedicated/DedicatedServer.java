@@ -7,7 +7,9 @@ import net.minecraft.block.BlockRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.resources.ClasspathResourceManager;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityArrow;
 import net.minecraft.entity.EntityItem;
+import net.minecraft.entity.EntityLiving;
 import net.minecraft.entity.EntityManager;
 import net.minecraft.inventory.CraftingGrid;
 import net.minecraft.inventory.InventoryPlayer;
@@ -68,8 +70,8 @@ public final class DedicatedServer {
     private static final int KEEP_ALIVE_TIMEOUT = 30 * TICKS_PER_SECOND;
     /** Past this many changed blocks in one column in one tick, the whole column is resent. */
     private static final int MULTI_CHANGE_LIMIT = 64;
-    /** Dropped items are shown within this many blocks (vanilla's item tracking range). */
-    private static final double ITEM_RANGE = 64;
+    /** Dropped items and arrows are shown within this many blocks, mobs within 80 (vanilla's tracking ranges). */
+    private static final double ITEM_RANGE = 64, MOB_RANGE = 80;
 
     private final ServerProperties properties;
     final BlockRegistry blocks;
@@ -84,11 +86,14 @@ public final class DedicatedServer {
     final Random random = new Random();
 
     private final Queue<PendingJoin> joins = new ConcurrentLinkedQueue<>();
+    /** Work handed to the tick thread from elsewhere, run at the start of the next tick. */
+    private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
     private final Map<UUID, ServerPlayer> players = new LinkedHashMap<>();
     private volatile int playerCount;
     private final PlayHandler handler = new PlayHandler(this);
     final PlayerLife life = new PlayerLife(this);
-    private final EntityManager entities = new EntityManager();
+    final EntityManager entities = new EntityManager();
+    final ServerMobs mobs = new ServerMobs(this);
     private long tick;
     long timeOfDay;
     private volatile boolean running = true;
@@ -213,9 +218,13 @@ public final class DedicatedServer {
 
     void queueJoin(ServerConnection connection, String name, UUID uuid) { joins.add(new PendingJoin(connection, name, uuid)); }
 
+    /** Runs this on the tick thread at the start of the next tick (the world and entities are only touched there). */
+    void execute(Runnable task) { tasks.add(task); }
+
     private void tickOnce() {
         tick++;
         timeOfDay++;
+        for (Runnable task; (task = tasks.poll()) != null; ) task.run();
         for (PendingJoin join; (join = joins.poll()) != null; ) admit(join);
         for (ServerPlayer player : List.copyOf(players.values())) {
             if (player.connection.isClosed()) { remove(player); continue; }
@@ -224,12 +233,14 @@ public final class DedicatedServer {
             keepAlive(player);
         }
         world.tick();
+        mobs.beforeTick();
         entities.tick();
+        mobs.afterTick();
         pickUpItems();
         for (ServerPlayer player : players.values()) streamChunks(player, CHUNKS_PER_TICK);
         flushBlockChanges();
         trackPlayers();
-        trackItems();
+        trackEntities();
         for (ServerPlayer player : players.values()) {
             syncInventory(player, false);
             syncEquipment(player);
@@ -308,6 +319,7 @@ public final class DedicatedServer {
         player.openWindow.close(stack -> player.inventory.addItemStackToInventory(stack));
         if (player.openWindow != player.playerWindow) player.playerWindow.close(stack -> player.inventory.addItemStackToInventory(stack));
         playerData.save(player);
+        mobs.removed(player);
         log(player.name + " left (" + player.connection.closeReason() + ")");
         hideFromOthers(player);
         broadcast(new Clientbound.PlayerListItem(Clientbound.PlayerListItem.REMOVE,
@@ -503,11 +515,18 @@ public final class DedicatedServer {
 
     private byte[] itemMetadata(ItemStack stack) { return new Metadata().putSlot(10, codec.toSlot(stack)).build(); }
 
-    /** Shows each player the dropped items around them and how they move, and forgets the gone ones. */
-    private void trackItems() {
-        Map<Integer, EntityItem> live = new HashMap<>();
-        for (Entity entity : entities.values())
-            if (entity instanceof EntityItem item && !item.isRemoved()) live.put(entities.idOf(item.uuid()), item);
+    /**
+     * Shows each player the dropped items, mobs and arrows around them and
+     * how they move, turn and change, and forgets the gone ones.
+     */
+    private void trackEntities() {
+        Map<Integer, Entity> live = new HashMap<>();
+        for (Entity entity : entities.values()) {
+            if (entity.isRemoved()) continue;
+            if (entity instanceof EntityItem || entity instanceof EntityArrow
+                || entity instanceof EntityLiving mob && ServerMobs.mobType(mob) >= 0)
+                live.put(entities.idOf(entity.uuid()), entity);
+        }
         Set<Integer> playerIds = new HashSet<>();
         for (ServerPlayer player : players.values()) playerIds.add(player.entityId);
         for (ServerPlayer viewer : players.values()) {
@@ -515,27 +534,80 @@ public final class DedicatedServer {
             for (Map.Entry<Integer, ServerPlayer.Tracked> entry : viewer.tracked.entrySet()) {
                 int id = entry.getKey();
                 if (playerIds.contains(id)) continue;
-                EntityItem item = live.get(id);
-                if (item == null || !inRange(viewer, item.x(), item.z(), ITEM_RANGE)) gone.add(id);
-                else sendMove(viewer, id, item.x(), item.y(), item.z(), 0, 0, false, entry.getValue(), item.onGround);
+                Entity entity = live.get(id);
+                if (entity == null || !inRange(viewer, entity.x(), entity.z(), range(entity))) gone.add(id);
+                else update(viewer, id, entity, entry.getValue());
             }
             if (!gone.isEmpty()) {
                 int[] ids = new int[gone.size()];
                 for (int i = 0; i < ids.length; i++) { ids[i] = gone.get(i); viewer.tracked.remove(ids[i]); }
                 viewer.connection.send(new Clientbound.DestroyEntities(ids));
             }
-            for (Map.Entry<Integer, EntityItem> entry : live.entrySet()) {
+            for (Map.Entry<Integer, Entity> entry : live.entrySet()) {
                 int id = entry.getKey();
-                EntityItem item = entry.getValue();
-                if (viewer.tracked.containsKey(id) || !inRange(viewer, item.x(), item.z(), ITEM_RANGE)) continue;
-                int x = Clientbound.fixed(item.x()), y = Clientbound.fixed(item.y()), z = Clientbound.fixed(item.z());
-                viewer.tracked.put(id, new ServerPlayer.Tracked(x, y, z, 0, 0));
-                viewer.connection.send(new Clientbound.SpawnObject(id, Clientbound.SpawnObject.ITEM, x, y, z, 0, 0, 1,
-                    Clientbound.SpawnObject.velocity(item.motionX), Clientbound.SpawnObject.velocity(item.motionY),
-                    Clientbound.SpawnObject.velocity(item.motionZ)));
-                viewer.connection.send(new Clientbound.EntityMetadata(id, itemMetadata(item.stack())));
+                Entity entity = entry.getValue();
+                if (viewer.tracked.containsKey(id) || !inRange(viewer, entity.x(), entity.z(), range(entity))) continue;
+                show(viewer, id, entity);
             }
         }
+    }
+
+    private static double range(Entity entity) { return entity instanceof EntityLiving ? MOB_RANGE : ITEM_RANGE; }
+
+    /** The spawn packet (and what goes with it) for an item, arrow or mob coming into view. */
+    private void show(ServerPlayer viewer, int id, Entity entity) {
+        int x = Clientbound.fixed(entity.x()), y = Clientbound.fixed(entity.y()), z = Clientbound.fixed(entity.z());
+        if (entity instanceof EntityItem item) {
+            viewer.tracked.put(id, new ServerPlayer.Tracked(x, y, z, 0, 0));
+            viewer.connection.send(new Clientbound.SpawnObject(id, Clientbound.SpawnObject.ITEM, x, y, z, 0, 0, 1,
+                Clientbound.SpawnObject.velocity(item.motionX), Clientbound.SpawnObject.velocity(item.motionY),
+                Clientbound.SpawnObject.velocity(item.motionZ)));
+            viewer.connection.send(new Clientbound.EntityMetadata(id, itemMetadata(item.stack())));
+        } else if (entity instanceof EntityArrow arrow) {
+            int yaw = Clientbound.angle(arrow.rotationYaw), pitch = Clientbound.angle(arrow.rotationPitch);
+            viewer.tracked.put(id, new ServerPlayer.Tracked(x, y, z, yaw, pitch));
+            int shooter = arrow.shooter == null ? -1 : entities.idOf(arrow.shooter.uuid());
+            viewer.connection.send(new Clientbound.SpawnObject(id, Clientbound.SpawnObject.ARROW, x, y, z, pitch, yaw,
+                shooter < 0 ? 1 : shooter + 1, Clientbound.SpawnObject.velocity(arrow.motionX),
+                Clientbound.SpawnObject.velocity(arrow.motionY), Clientbound.SpawnObject.velocity(arrow.motionZ)));
+        } else if (entity instanceof EntityLiving mob) {
+            int yaw = Clientbound.angle(mob.rotationYaw), pitch = Clientbound.angle(mob.rotationPitch);
+            ServerPlayer.Tracked shown = new ServerPlayer.Tracked(x, y, z, yaw, pitch);
+            shown.headYaw = Clientbound.angle(mob.rotationYawHead);
+            shown.metadata = ServerMobs.metadata(mob);
+            viewer.tracked.put(id, shown);
+            viewer.connection.send(new Clientbound.SpawnMob(id, ServerMobs.mobType(mob), x, y, z, yaw, pitch, shown.headYaw,
+                Clientbound.SpawnObject.velocity(mob.motionX), Clientbound.SpawnObject.velocity(mob.motionY),
+                Clientbound.SpawnObject.velocity(mob.motionZ), shown.metadata));
+            if (mob.heldItem != null) viewer.connection.send(new Clientbound.EntityEquipment(id, 0, codec.toSlot(mob.heldItem)));
+            if (mob.health <= 0) viewer.connection.send(new Clientbound.EntityStatus(id, Clientbound.EntityStatus.DEAD));
+        }
+    }
+
+    /** What changed about a shown item, arrow or mob since last tick. */
+    private void update(ServerPlayer viewer, int id, Entity entity, ServerPlayer.Tracked shown) {
+        if (entity instanceof EntityItem item) {
+            sendMove(viewer, id, item.x(), item.y(), item.z(), 0, 0, false, shown, item.onGround);
+        } else if (entity instanceof EntityArrow arrow) {
+            sendMove(viewer, id, arrow.x(), arrow.y(), arrow.z(), arrow.rotationYaw, arrow.rotationPitch, true, shown, arrow.onGround);
+        } else if (entity instanceof EntityLiving mob) {
+            sendMove(viewer, id, mob.x(), mob.y(), mob.z(), mob.rotationYaw, mob.rotationPitch, true, shown, mob.onGround);
+            int headYaw = Clientbound.angle(mob.rotationYawHead);
+            if (headYaw != shown.headYaw) {
+                shown.headYaw = headYaw;
+                viewer.connection.send(new Clientbound.EntityHeadLook(id, headYaw));
+            }
+            byte[] metadata = ServerMobs.metadata(mob);
+            if (!java.util.Arrays.equals(metadata, shown.metadata)) {
+                shown.metadata = metadata;
+                viewer.connection.send(new Clientbound.EntityMetadata(id, metadata));
+            }
+        }
+    }
+
+    /** Sends a packet to everyone currently showing this entity. */
+    void sendToViewers(int id, Packet packet) {
+        for (ServerPlayer viewer : players.values()) if (viewer.tracked.containsKey(id)) viewer.connection.send(packet);
     }
 
     private boolean inRange(ServerPlayer viewer, double x, double z, double range) {

@@ -13,6 +13,22 @@ import java.util.List;
 public interface EntityHost {
     /** The player, or null while there is none (dead players still count, so mobs can stop targeting them). */
     Player player();
+    /** Every player in the world: the one player in singleplayer, everyone online on a server. */
+    default List<Player> players() {
+        Player player = player();
+        return player == null ? List.of() : List.of(player);
+    }
+    /** World.getClosestPlayer: the nearest player to this point (dead ones included), or null when there is none. */
+    default Player nearestPlayer(double x, double y, double z) {
+        Player nearest = null;
+        double best = Double.MAX_VALUE;
+        for (Player player : players()) {
+            double dx = player.x - x, dy = player.y - y, dz = player.z - z;
+            double distance = dx * dx + dy * dy + dz * dz;
+            if (distance < best) { best = distance; nearest = player; }
+        }
+        return nearest;
+    }
     /** Every entity in the world, including the caller. */
     List<Entity> entities();
     void spawn(Entity entity);

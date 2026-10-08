@@ -23,6 +23,8 @@ public final class ServerProperties {
     public final String levelName;
     public final String levelSeed;
     public final String serverIp;
+    /** Whether monsters and animals spawn on their own (natural spawning). */
+    public final boolean spawnMonsters, spawnAnimals;
 
     private ServerProperties(Properties p) {
         port = integer(p, "server-port", 25565);
@@ -34,6 +36,8 @@ public final class ServerProperties {
         levelName = string(p, "level-name", "world");
         levelSeed = string(p, "level-seed", "");
         serverIp = string(p, "server-ip", "");
+        spawnMonsters = !string(p, "spawn-monsters", "true").trim().equalsIgnoreCase("false");
+        spawnAnimals = !string(p, "spawn-animals", "true").trim().equalsIgnoreCase("false");
     }
 
     public static ServerProperties load(Path file) throws IOException {

@@ -145,7 +145,7 @@ public abstract class EntityAI {
         }
         @Override public boolean shouldExecute() {
             if (entity.getRNG().nextFloat() >= 0.02f) return false;
-            Player player = entity.host() == null ? null : entity.host().player();
+            Player player = entity.host() == null ? null : entity.host().nearestPlayer(entity.x(), entity.y(), entity.z());
             if (player == null || player.dead) return false;
             if (entity.distanceSqTo(player.x, player.y, player.z) > range * range) return false;
             watched = player;
@@ -251,6 +251,7 @@ public abstract class EntityAI {
      */
     public static final class NearestAttackableTarget extends EntityAI {
         private final EntityLiving entity;
+        private Player target;
         private int unseenTicks;
         public NearestAttackableTarget(EntityLiving entity) {
             this.entity = entity;
@@ -258,16 +259,28 @@ public abstract class EntityAI {
         }
         @Override public boolean shouldExecute() {
             if (entity.getRNG().nextInt(10) != 0) return false;
-            Player player = entity.host() == null ? null : entity.host().player();
-            if (!isSuitable(entity, player)) return false;
-            double range = entity.followRange();
-            if (player.sneaking) range *= 0.8;
-            double dx = player.x - entity.x(), dz = player.z - entity.z(), dy = player.y - entity.y();
-            if (Math.abs(dy) > 4 + range || Math.abs(dx) > range + 1 || Math.abs(dz) > range + 1) return false;
-            return Math.sqrt(dx * dx + dy * dy + dz * dz) <= range;
+            target = nearestSuitable();
+            return target != null;
+        }
+        /** The nearest suitable player in reach (EntityAINearestAttackableTarget's sorted candidates). */
+        private Player nearestSuitable() {
+            if (entity.host() == null) return null;
+            Player best = null;
+            double bestDistance = Double.MAX_VALUE;
+            for (Player player : entity.host().players()) {
+                double range = entity.followRange();
+                if (player.sneaking) range *= 0.8;
+                double dx = player.x - entity.x(), dz = player.z - entity.z(), dy = player.y - entity.y();
+                if (Math.abs(dy) > 4 + range || Math.abs(dx) > range + 1 || Math.abs(dz) > range + 1) continue;
+                double distance = dx * dx + dy * dy + dz * dz;
+                if (distance > range * range || distance >= bestDistance || !isSuitable(entity, player)) continue;
+                best = player;
+                bestDistance = distance;
+            }
+            return best;
         }
         @Override public void startExecuting() {
-            entity.setAttackTarget(entity.host().player());
+            entity.setAttackTarget(target);
             unseenTicks = 0;
         }
         @Override public boolean continueExecuting() { return keepTarget(entity, this); }

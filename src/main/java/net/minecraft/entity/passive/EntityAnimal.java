@@ -251,7 +251,7 @@ public abstract class EntityAnimal extends EntityLiving {
                 delay--;
                 return false;
             }
-            Player p = entity.host() == null ? null : entity.host().player();
+            Player p = entity.host() == null ? null : entity.host().nearestPlayer(entity.x(), entity.y(), entity.z());
             if (p == null || p.dead || entity.distanceSqTo(p.x, p.y, p.z) > 100.0) return false;
             ItemStack held = p.heldItem == null ? null : p.heldItem.get();
             if (held == null || !items.contains(held.item().name().path())) return false;

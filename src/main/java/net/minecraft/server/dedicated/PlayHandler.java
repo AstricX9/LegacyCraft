@@ -54,6 +54,9 @@ final class PlayHandler {
         else if (packet instanceof Serverbound.Animation)
             server.sendToTrackers(player, new Clientbound.Animation(player.entityId, Clientbound.Animation.SWING_ARM));
         else if (packet instanceof Serverbound.EntityAction action) entityAction(player, action);
+        else if (packet instanceof Serverbound.UseEntity use) {
+            if (use.type() == Serverbound.UseEntity.ATTACK) server.mobs.attack(player, use.target());
+        }
         else if (packet instanceof Serverbound.HeldItemChange change) {
             if (change.slot() < 0 || change.slot() > 8) return;
             player.inventory.currentItem = change.slot();

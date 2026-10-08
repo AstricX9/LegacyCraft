@@ -35,6 +35,8 @@ public final class MobRenderer {
     public static final ResourceLocation SHEEP_FUR = new ResourceLocation("minecraft:textures/entity/sheep/sheep_fur.png");
     public static final ResourceLocation CHICKEN = new ResourceLocation("minecraft:textures/entity/chicken.png");
     public static final ResourceLocation PIGMAN = new ResourceLocation("minecraft:textures/entity/zombie_pigman.png");
+    public static final ResourceLocation ZOMBIE = new ResourceLocation("minecraft:textures/entity/zombie/zombie.png");
+    public static final ResourceLocation SPIDER = new ResourceLocation("minecraft:textures/entity/spider/spider.png");
     public static final ResourceLocation SKELETON = new ResourceLocation("minecraft:textures/entity/skeleton/skeleton.png");
     public static final ResourceLocation WITHER_SKELETON = new ResourceLocation("minecraft:textures/entity/skeleton/wither_skeleton.png");
     public static final ResourceLocation BLAZE = new ResourceLocation("minecraft:textures/entity/blaze.png");
@@ -248,6 +250,15 @@ public final class MobRenderer {
         if (mob instanceof net.minecraft.entity.monster.EntityPigZombie pigman) {
             texture = PIGMAN;
             model = () -> MobModels.biped(pose, age, 0f, false, true, pigman.isChild());
+        } else if (mob instanceof net.minecraft.entity.monster.EntityZombie zombie) {
+            texture = ZOMBIE;
+            model = () -> MobModels.biped(pose, age, 0f, false, true, zombie.isChild());
+        } else if (mob instanceof net.minecraft.entity.monster.EntitySpider) {
+            texture = SPIDER;
+            model = () -> {
+                MobModels.spider(pose);
+                return null;
+            };
         } else if (mob instanceof net.minecraft.entity.monster.EntitySkeleton skeleton) {
             texture = skeleton.skeletonType == 1 ? WITHER_SKELETON : SKELETON;
             if (skeleton.skeletonType == 1) glScalef(1.2f, 1.2f, 1.2f);
@@ -427,6 +438,7 @@ public final class MobRenderer {
     /** The shadow radius of a monster (Render.shadowSize; magma cubes 0.25 per size). */
     public static float shadowSize(net.minecraft.entity.EntityLiving mob) {
         if (mob instanceof net.minecraft.entity.monster.EntityMagmaCube cube) return 0.25f * cube.size();
+        if (mob instanceof net.minecraft.entity.monster.EntitySpider) return 1f;
         return mob.isChild() ? 0.25f : 0.5f;
     }
 

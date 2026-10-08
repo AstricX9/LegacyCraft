@@ -102,6 +102,9 @@ public final class ServerPlayer {
     /** Where an entity was last shown to this player, in wire units (fixed point, angle bytes). */
     static final class Tracked {
         int x, y, z, yaw, pitch;
+        /** For mobs: the head yaw and metadata last sent. */
+        int headYaw;
+        byte[] metadata;
         Tracked(int x, int y, int z, int yaw, int pitch) { this.x = x; this.y = y; this.z = z; this.yaw = yaw; this.pitch = pitch; }
     }
 }

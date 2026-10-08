@@ -129,9 +129,9 @@ public final class EntityArrow extends MovingEntity {
                 double d = entryDistance(living.boundingBox().grow(0.3), speed);
                 if (d >= 0 && d < nearest) { nearest = d; hitEntity = living; }
             }
-            Player player = host.player();
-            if (player != null && player.health > 0 && !player.disableDamage && (!shotByPlayer || ticksInAir >= 5)
-                && player.boundingBox().intersects(sweep)) {
+            for (Player player : host.players()) {
+                if (player.health <= 0 || player.disableDamage || shotByPlayer && ticksInAir < 5 && player == host.player()
+                    || !player.boundingBox().intersects(sweep)) continue;
                 double d = entryDistance(player.boundingBox().grow(0.3), speed);
                 if (d >= 0 && d < nearest) { nearest = d; hitEntity = player; }
             }

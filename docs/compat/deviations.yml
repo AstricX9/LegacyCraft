@@ -995,10 +995,13 @@
     /summon and /effect.
   replica_behavior: >
     All of the above (HYPOTHESIS: recalled constants), with these
-    differences. In the overworld only creepers and skeletons exist: the
-    spawn cycle still draws from the whole biome monster list (other draws
-    spawn nothing) and the cap of 70 is cut to their share so they are as
-    common as in vanilla. Nether mobs are DEV-036. Spawning starts at most 7 chunks away only where chunks are
+    differences. In the overworld only creepers, skeletons, zombies and
+    spiders exist: the spawn cycle still draws from the whole biome monster
+    list (slimes, endermen and witches spawn nothing) and the cap of 70 is
+    cut to their share so they are as common as in vanilla. Zombies have no
+    villager zombies, reinforcements, door breaking, item pickup or random
+    armour; spiders have no jockeys, Hard-difficulty effects or glowing
+    eyes, and their model follows the recalled geometry. Nether mobs are DEV-036. Spawning starts at most 7 chunks away only where chunks are
     loaded. Entities are saved together in entities.dat (vanilla keeps them
     in their chunks) and only tick in loaded chunks; dropped items are
     still not saved. The pathfinder searches at most 2000 points, its
@@ -1143,7 +1146,7 @@
     generated after this update (the whole Nether is new, so all of it);
     the ghast model follows the recalled geometry and may float a little
     above its hitbox. The overworld spawn cap is cut to the share of the
-    monsters that exist (creeper and skeleton).
+    monsters that exist (creeper, skeleton, zombie and spider).
   reason: >
     The user asked for the Nether with its mobs, fortresses included;
     the entity and projectile base (arrows, fireballs) carries over to
@@ -1292,15 +1295,29 @@
     spawn. Player position, game mode, health, hunger and inventory are
     saved in <world>/playerdata/<uuid>.dat; the time of day in server.dat.
     Commands: /list, /seed, /gamemode, /spawn, /kill.
-    NOT DONE: mobs and PvP, furnaces, chests and other containers (the
+    Mobs: hostile mobs (zombies, skeletons, creepers, spiders) spawn around
+    every player with the singleplayer rules (DEV-035's spawn cycle over the
+    chunks within 8 of any player, kept 24 blocks from every player), and
+    sheep, pigs, chickens and cows every 400 ticks; server.properties'
+    spawn-monsters and spawn-animals turn either off. Mobs target the
+    nearest suitable player, hurt them through armour with difficulty
+    scaling ("was slain by"), knock them back, shoot arrows and blow up
+    (blocks break and drop, clients get the explosion packet with their
+    push). Players hit mobs with the singleplayer weapon rules (critical
+    hits, Sharpness, Knockback, Fire Aspect, Looting, tool wear). Clients
+    see mobs and arrows spawn, move, turn their heads, flash when hurt,
+    die, burn and swell, and hear their sounds.
+    NOT DONE: PvP, right-clicking mobs (shearing, breeding, saddles),
+    experience orbs (none are made), mobs saved with the world, mobs only
+    ticking near players, furnaces, chests and other containers (the
     client has none yet either), buckets, flint and steel, bows, potions,
-    experience, beds, the Nether, armour reducing damage, item merging on
-    the ground, and the LegacyCraft client cannot connect yet (DEV-013).
+    beds, the Nether, item merging on the ground, and the LegacyCraft
+    client cannot connect yet (DEV-013).
     Online-mode authentication is not planned.
   reason: >
     Multiplayer is built server-first: a stock 1.8.9 client checks the wire
     format while the rest of the simulation moves behind the server.
   compatibility_effect: >
     P1: friends can play basic Survival together (mine, craft, build, eat,
-    die) on a LegacyCraft server, but with no mobs yet.
+    fight mobs, die) on a LegacyCraft server; mobs vanish when it restarts.
   user_visible: true

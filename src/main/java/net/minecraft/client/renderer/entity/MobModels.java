@@ -110,6 +110,42 @@ public final class MobModels {
         return new Arm(rightArm.px, rightArm.py, rightArm.pz, rightArm.rx, rightArm.ry, rightArm.rz);
     }
 
+    /**
+     * ModelSpider (64x32): head, neck and abdomen on a 15-pixel pivot line and
+     * four legs a side splayed out, sweeping forward and back and lifting in
+     * pairs as it walks.
+     */
+    public static void spider(Pose pose) {
+        Part head = new Part(0, 15, -3, cube(-4, -4, -8, 8, 8, 8, 0, 32, 4, false));
+        Part neck = new Part(0, 15, 0, cube(-3, -3, -3, 6, 6, 6, 0, 0, 0, false));
+        Part body = new Part(0, 15, 9, cube(-5, -4, -6, 10, 8, 12, 0, 0, 12, false));
+        Part[] legs = new Part[8];
+        for (int i = 0; i < 8; i++) {
+            boolean right = i % 2 == 0;
+            legs[i] = new Part(right ? -4 : 4, 15, 2 - i / 2,
+                right ? cube(-15, -1, -1, 16, 2, 2, 0, 18, 0, false) : cube(-1, -1, -1, 16, 2, 2, 0, 18, 0, false));
+        }
+        head.ry = (float) Math.toRadians(pose.headYaw());
+        head.rx = (float) Math.toRadians(pose.pitch());
+        float quarter = (float) Math.PI / 4f, eighth = (float) Math.PI / 8f;
+        float[] rz = {-quarter, quarter, -quarter * 0.74f, quarter * 0.74f, -quarter * 0.74f, quarter * 0.74f, -quarter, quarter};
+        float[] ry = {eighth * 2, -eighth * 2, eighth, -eighth, -eighth, eighth, -eighth * 2, eighth * 2};
+        float[] phase = {0f, (float) Math.PI, (float) Math.PI / 2f, (float) Math.PI * 3f / 2f};
+        for (int pair = 0; pair < 4; pair++) {
+            float sweep = -(float) Math.cos(pose.swing() * 0.6662f * 2f + phase[pair]) * 0.4f * pose.amount();
+            float lift = Math.abs((float) Math.sin(pose.swing() * 0.6662f + phase[pair]) * 0.4f) * pose.amount();
+            Part right = legs[pair * 2], left = legs[pair * 2 + 1];
+            right.ry = ry[pair * 2] + sweep;
+            left.ry = ry[pair * 2 + 1] - sweep;
+            right.rz = rz[pair * 2] + lift;
+            left.rz = rz[pair * 2 + 1] - lift;
+        }
+        head.draw();
+        neck.draw();
+        body.draw();
+        for (Part leg : legs) leg.draw();
+    }
+
     /** ModelBlaze: the head and twelve rods circling in three rings at different speeds. */
     public static void blaze(float age, float headYaw, float pitch) {
         Part head = new Part(0, 0, 0, cube(-4, -4, -4, 8, 8, 8, 0, 0, 0, false));

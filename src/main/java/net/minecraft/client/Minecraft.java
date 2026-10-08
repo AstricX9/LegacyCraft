@@ -1774,6 +1774,7 @@ public final class Minecraft implements GuiContext {
                 mobRenderer.renderXPOrb(orb, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.15f, 0.75f);
             } else if (entity instanceof net.minecraft.entity.monster.EntityPigZombie || entity instanceof net.minecraft.entity.monster.EntitySkeleton
+                || entity instanceof net.minecraft.entity.monster.EntityZombie || entity instanceof net.minecraft.entity.monster.EntitySpider
                 || entity instanceof net.minecraft.entity.monster.EntityBlaze || entity instanceof net.minecraft.entity.monster.EntityGhast
                 || entity instanceof net.minecraft.entity.monster.EntityMagmaCube) {
                 EntityLiving mob = (EntityLiving) entity;

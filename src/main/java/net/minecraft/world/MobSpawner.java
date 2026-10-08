@@ -21,10 +21,10 @@ import java.util.Random;
 /**
  * Mob spawning (1.8.9 SpawnerAnimals.findChunksForSpawning, HYPOTHESIS:
  * recalled), first written for the MONSTER type. Every tick, in each chunk within 7 of
- * the player (the 17x17 square counts toward the cap, its edge doesn't
+ * any player (each player's 17x17 square counts toward the cap once, its edge doesn't
  * spawn) a random spot below the chunk's height is tried: three packs of
  * four tries, each step up to 5 blocks sideways, at least 24 blocks from
- * the player and from the world spawn, on a block with a solid top, in
+ * every player and from the world spawn, on a block with a solid top, in
  * air, passing the mob's own check and with nothing in the way; at most 4
  * per chunk per tick. Each pack draws from the monster list of its spot
  * ({@link #monsters}); draws of mobs LegacyCraft doesn't have spawn
@@ -116,7 +116,7 @@ public final class MobSpawner {
     /** The monsters LegacyCraft has. */
     public static boolean monsterExists(String entity) {
         return switch (entity) {
-            case "Creeper", "Skeleton", "PigZombie", "Ghast", "LavaSlime", "Blaze" -> true;
+            case "Creeper", "Skeleton", "Zombie", "Spider", "PigZombie", "Ghast", "LavaSlime", "Blaze" -> true;
             default -> false;
         };
     }
@@ -141,18 +141,10 @@ public final class MobSpawner {
      * exist are as common as in vanilla.
      */
     public static int spawnMonsters(World world, EntityHost host, Random rand, int spawnX, int spawnY, int spawnZ) {
-        Player player = host.player();
-        if (player == null || host.difficulty() == 0 || !host.gameRule("doMobSpawning")) return 0;
-        int pcx = (int) Math.floor(player.x) >> 4, pcz = (int) Math.floor(player.z) >> 4;
+        List<Player> players = host.players();
+        if (players.isEmpty() || host.difficulty() == 0 || !host.gameRule("doMobSpawning")) return 0;
         List<int[]> eligible = new ArrayList<>();
-        int counted = 0;
-        for (int dx = -8; dx <= 8; dx++)
-            for (int dz = -8; dz <= 8; dz++) {
-                counted++;
-                boolean edge = dx == -8 || dx == 8 || dz == -8 || dz == 8;
-                Chunk chunk = world.generatedChunk(pcx + dx, pcz + dz);
-                if (!edge && chunk != null && chunk.isGenerated()) eligible.add(new int[] {pcx + dx, pcz + dz});
-            }
+        int counted = eligibleChunks(world, players, eligible);
         int existing = 0;
         for (Entity entity : host.entities()) if (entity instanceof net.minecraft.entity.monster.IMob && !entity.isRemoved()) existing++;
         int cap = (int) (70 * counted / 289 * implementedShare(world));
@@ -175,8 +167,7 @@ public final class MobSpawner {
                     py += rand.nextInt(1) - rand.nextInt(1);
                     pz += rand.nextInt(6) - rand.nextInt(6);
                     float fx = px + 0.5f, fz = pz + 0.5f;
-                    double pdx = player.x - fx, pdy = player.y - py, pdz = player.z - fz;
-                    if (pdx * pdx + pdy * pdy + pdz * pdz < 576.0) continue;
+                    if (playerWithin24(players, fx, py, fz)) continue;
                     // The world spawn counts in the Nether too (its world info is the overworld's).
                     double sdx = spawnX - fx, sdy = spawnY - py, sdz = spawnZ - fz;
                     if (sdx * sdx + sdy * sdy + sdz * sdz < 576.0) continue;
@@ -295,18 +286,10 @@ public final class MobSpawner {
      * full day, EntityAnimal.getCanSpawnHere). Peaceful doesn't stop it.
      */
     public static int spawnCreatures(World world, EntityHost host, Random rand, long totalTime, int spawnX, int spawnY, int spawnZ) {
-        Player player = host.player();
-        if (player == null || totalTime % 400L != 0L || !host.gameRule("doMobSpawning")) return 0;
-        int pcx = (int) Math.floor(player.x) >> 4, pcz = (int) Math.floor(player.z) >> 4;
+        List<Player> players = host.players();
+        if (players.isEmpty() || totalTime % 400L != 0L || !host.gameRule("doMobSpawning")) return 0;
         List<int[]> eligible = new ArrayList<>();
-        int counted = 0;
-        for (int dx = -8; dx <= 8; dx++)
-            for (int dz = -8; dz <= 8; dz++) {
-                counted++;
-                boolean edge = dx == -8 || dx == 8 || dz == -8 || dz == 8;
-                Chunk chunk = world.generatedChunk(pcx + dx, pcz + dz);
-                if (!edge && chunk != null && chunk.isGenerated()) eligible.add(new int[] {pcx + dx, pcz + dz});
-            }
+        int counted = eligibleChunks(world, players, eligible);
         int existing = 0;
         for (Entity entity : host.entities())
             if (entity instanceof net.minecraft.entity.passive.EntityAnimal && !entity.isRemoved()) existing++;
@@ -329,8 +312,7 @@ public final class MobSpawner {
                     py += rand.nextInt(1) - rand.nextInt(1);
                     pz += rand.nextInt(6) - rand.nextInt(6);
                     float fx = px + 0.5f, fz = pz + 0.5f;
-                    double pdx = player.x - fx, pdy = player.y - py, pdz = player.z - fz;
-                    if (pdx * pdx + pdy * pdy + pdz * pdz < 576.0) continue;
+                    if (playerWithin24(players, fx, py, fz)) continue;
                     double sdx = spawnX - fx, sdy = spawnY - py, sdz = spawnZ - fz;
                     if (sdx * sdx + sdy * sdy + sdz * sdz < 576.0) continue;
                     if (entry == null) {
@@ -356,6 +338,41 @@ public final class MobSpawner {
             }
         }
         return total;
+    }
+
+    /**
+     * The chunks within 8 of any player (each counted once toward the cap),
+     * with the generated ones inside the edge of every player's square put in
+     * {@code eligible}. Returns how many were counted.
+     */
+    private static int eligibleChunks(World world, List<Player> players, List<int[]> eligible) {
+        java.util.Map<Long, Boolean> counted = new java.util.LinkedHashMap<>();
+        for (Player player : players) {
+            int pcx = (int) Math.floor(player.x) >> 4, pcz = (int) Math.floor(player.z) >> 4;
+            for (int dx = -8; dx <= 8; dx++)
+                for (int dz = -8; dz <= 8; dz++) {
+                    boolean edge = dx == -8 || dx == 8 || dz == -8 || dz == 8;
+                    long key = World.chunkKey(pcx + dx, pcz + dz);
+                    if (!edge) counted.put(key, true);
+                    else counted.putIfAbsent(key, false);
+                }
+        }
+        for (var entry : counted.entrySet()) {
+            if (!entry.getValue()) continue;
+            int cx = (int) (entry.getKey() >> 32), cz = (int) (long) entry.getKey();
+            Chunk chunk = world.generatedChunk(cx, cz);
+            if (chunk != null && chunk.isGenerated()) eligible.add(new int[] {cx, cz});
+        }
+        return counted.size();
+    }
+
+    /** Whether some player is within 24 blocks of the spot (getClosestPlayer < 24 refuses it). */
+    private static boolean playerWithin24(List<Player> players, float fx, int py, float fz) {
+        for (Player player : players) {
+            double dx = player.x - fx, dy = player.y - py, dz = player.z - fz;
+            if (dx * dx + dy * dy + dz * dz < 576.0) return true;
+        }
+        return false;
     }
 
     /** EntityAnimal.getCanSpawnHere: grass below, light above 8 (sky light at full day), a spot it likes. */
@@ -417,8 +434,8 @@ public final class MobSpawner {
             if ((entity instanceof EntityLiving || entity instanceof EntityTNTPrimed)
                 && ((MovingEntity) entity).boundingBox().intersects(box)) return false;
         }
-        Player player = host.player();
-        if (player != null && !player.dead && player.boundingBox().intersects(box)) return false;
+        for (Player player : host.players())
+            if (!player.dead && player.boundingBox().intersects(box)) return false;
         return mob.isFreeOfBlocks(box) && !world.isMaterialInBox(box, "water") && !world.isMaterialInBox(box, "lava");
     }
 }

@@ -136,7 +136,7 @@ public final class Clientbound {
      */
     public record SpawnObject(int entityId, int type, int x, int y, int z, int pitch, int yaw, int data,
                               int velocityX, int velocityY, int velocityZ) implements Packet {
-        public static final int ITEM = 2;
+        public static final int ITEM = 2, ARROW = 60;
         @Override public void write(PacketBuffer out) {
             out.writeVarInt(entityId).writeByte(type).writeInt(x).writeInt(y).writeInt(z).writeByte(pitch).writeByte(yaw).writeInt(data);
             if (data != 0) out.writeShort(velocityX).writeShort(velocityY).writeShort(velocityZ);
@@ -149,6 +149,34 @@ public final class Clientbound {
         }
         /** Blocks per tick to the wire unit, clamped as vanilla does to 3.9. */
         public static int velocity(double blocksPerTick) { return (int) (Math.max(-3.9, Math.min(3.9, blocksPerTick)) * 8000.0); }
+    }
+
+    /**
+     * 0x0F: a mob comes into view, by its numeric type (50 creeper, 51
+     * skeleton, 52 spider, 54 zombie, 90 pig...), with its look, head yaw,
+     * velocity in 1/8000 blocks per tick and metadata.
+     */
+    public record SpawnMob(int entityId, int type, int x, int y, int z, int yaw, int pitch, int headYaw,
+                           int velocityX, int velocityY, int velocityZ, byte[] metadata) implements Packet {
+        @Override public void write(PacketBuffer out) {
+            out.writeVarInt(entityId).writeByte(type).writeInt(x).writeInt(y).writeInt(z)
+                .writeByte(yaw).writeByte(pitch).writeByte(headYaw)
+                .writeShort(velocityX).writeShort(velocityY).writeShort(velocityZ);
+            out.writeBytes(metadata, 0, metadata.length);
+        }
+        public static SpawnMob read(PacketBuffer in) {
+            return new SpawnMob(in.readVarInt(), in.readUnsignedByte(), in.readInt(), in.readInt(), in.readInt(),
+                in.readUnsignedByte(), in.readUnsignedByte(), in.readUnsignedByte(), in.readShort(), in.readShort(), in.readShort(),
+                Metadata.read(in));
+        }
+    }
+
+    /** 0x12: an entity's new motion in 1/8000 blocks per tick (for the receiving player: being knocked back). */
+    public record EntityVelocity(int entityId, int velocityX, int velocityY, int velocityZ) implements Packet {
+        @Override public void write(PacketBuffer out) { out.writeVarInt(entityId).writeShort(velocityX).writeShort(velocityY).writeShort(velocityZ); }
+        public static EntityVelocity read(PacketBuffer in) {
+            return new EntityVelocity(in.readVarInt(), in.readShort(), in.readShort(), in.readShort());
+        }
     }
 
     /** 0x13. */
@@ -271,6 +299,42 @@ public final class Clientbound {
             int id = in.readInt();
             long p = in.readLong();
             return new Effect(id, PacketBuffer.unpackX(p), PacketBuffer.unpackY(p), PacketBuffer.unpackZ(p), in.readInt(), in.readBoolean());
+        }
+    }
+
+    /**
+     * 0x27: an explosion: the client plays its sound and particles, clears
+     * the listed blocks (offsets from the centre) and adds the push to its
+     * own player's motion.
+     */
+    public record Explosion(float x, float y, float z, float radius, byte[] offsets, float pushX, float pushY, float pushZ)
+        implements Packet {
+        @Override public void write(PacketBuffer out) {
+            out.writeFloat(x).writeFloat(y).writeFloat(z).writeFloat(radius).writeInt(offsets.length / 3);
+            out.writeBytes(offsets, 0, offsets.length);
+            out.writeFloat(pushX).writeFloat(pushY).writeFloat(pushZ);
+        }
+        public static Explosion read(PacketBuffer in) {
+            float x = in.readFloat(), y = in.readFloat(), z = in.readFloat(), radius = in.readFloat();
+            int n = in.readInt();
+            if (n < 0 || n * 3 > in.readableBytes()) throw new PacketException("Bad explosion record count " + n);
+            byte[] offsets = new byte[n * 3];
+            for (int i = 0; i < offsets.length; i++) offsets[i] = (byte) in.readByte();
+            return new Explosion(x, y, z, radius, offsets, in.readFloat(), in.readFloat(), in.readFloat());
+        }
+    }
+
+    /** 0x29: a sound by its sounds.json event name, at 1/8 block precision; pitch is 63 for normal speed. */
+    public record SoundEffect(String name, int x, int y, int z, float volume, int pitch) implements Packet {
+        @Override public void write(PacketBuffer out) {
+            out.writeString(name).writeInt(x).writeInt(y).writeInt(z).writeFloat(volume).writeByte(pitch);
+        }
+        public static SoundEffect read(PacketBuffer in) {
+            return new SoundEffect(in.readString(256), in.readInt(), in.readInt(), in.readInt(), in.readFloat(), in.readUnsignedByte());
+        }
+        public static SoundEffect at(String name, double x, double y, double z, float volume, float pitch) {
+            return new SoundEffect(name, (int) (x * 8.0), (int) (y * 8.0), (int) (z * 8.0), volume,
+                Math.max(0, Math.min(255, (int) (pitch * 63f))));
         }
     }
 

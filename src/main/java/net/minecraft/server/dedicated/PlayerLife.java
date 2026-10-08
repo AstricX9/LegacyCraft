@@ -65,12 +65,38 @@ final class PlayerLife {
         Clientbound.EntityStatus hurt = new Clientbound.EntityStatus(player.entityId, Clientbound.EntityStatus.HURT);
         player.connection.send(hurt);
         server.sendToTrackers(player, hurt);
-        if (player.health <= 0) die(player, deathKey);
+        if (player.health <= 0) die(player, deathKey, DedicatedServer.translate(deathKey, null, player.name));
         return true;
     }
 
+    /**
+     * Damage the player's body ({@link ServerMobs}) already worked out, armour
+     * and difficulty included: shows the hurt flash, and on 0 health the death
+     * with "was slain by" naming the attacker (a translation key such as
+     * entity.Zombie.name, or null).
+     */
+    void hurtThroughBody(ServerPlayer player, float healthAfter, net.minecraft.entity.DamageSource source, String attacker) {
+        if (player.dead) return;
+        player.health = Math.max(0f, healthAfter);
+        player.hurtCooldown = HURT_COOLDOWN;
+        addExhaustion(player, source.hungerDamage());
+        Clientbound.EntityStatus hurt = new Clientbound.EntityStatus(player.entityId, Clientbound.EntityStatus.HURT);
+        player.connection.send(hurt);
+        server.sendToTrackers(player, hurt);
+        if (player.health > 0) return;
+        String key = source.deathMessageKey();
+        com.google.gson.JsonObject message = DedicatedServer.translate(key, null, player.name);
+        if (source.hasAttacker() && attacker != null) {
+            com.google.gson.JsonObject who = new com.google.gson.JsonObject();
+            if (attacker.startsWith("entity.")) who.addProperty("translate", attacker);
+            else who.addProperty("text", attacker);
+            message.getAsJsonArray("with").add(who);
+        }
+        die(player, key, message);
+    }
+
     /** Health 0: the client shows the death screen; everything carried scatters around the body. */
-    private void die(ServerPlayer player, String deathKey) {
+    private void die(ServerPlayer player, String deathKey, com.google.gson.JsonObject message) {
         player.dead = true;
         player.deathTick = server.tick();
         player.health = 0;
@@ -81,7 +107,7 @@ final class PlayerLife {
         server.sendToTrackers(player, dead);
         dropEverything(player);
         DedicatedServer.log(player.name + " died (" + deathKey + ")");
-        server.broadcast(DedicatedServer.chat(DedicatedServer.translate(deathKey, null, player.name), 1));
+        server.broadcast(DedicatedServer.chat(message, 1));
         syncHealth(player);
     }
 

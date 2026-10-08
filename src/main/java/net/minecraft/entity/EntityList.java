@@ -22,6 +22,8 @@ public final class EntityList {
             case "Pig" -> new net.minecraft.entity.passive.EntityPig(world, x, y, z);
             case "PigZombie" -> new net.minecraft.entity.monster.EntityPigZombie(world, x, y, z);
             case "Skeleton" -> new net.minecraft.entity.monster.EntitySkeleton(world, x, y, z);
+            case "Zombie" -> new net.minecraft.entity.monster.EntityZombie(world, x, y, z);
+            case "Spider" -> new net.minecraft.entity.monster.EntitySpider(world, x, y, z);
             case "Blaze" -> new net.minecraft.entity.monster.EntityBlaze(world, x, y, z);
             case "Ghast" -> new net.minecraft.entity.monster.EntityGhast(world, x, y, z);
             case "LavaSlime" -> new net.minecraft.entity.monster.EntityMagmaCube(world, x, y, z);

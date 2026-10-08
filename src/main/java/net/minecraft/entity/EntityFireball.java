@@ -82,9 +82,9 @@ public abstract class EntityFireball extends MovingEntity {
                 double d = entryDistance(living.boundingBox().grow(0.3), speed);
                 if (d >= 0 && d < nearest) { nearest = d; hitEntity = living; }
             }
-            Player player = host.player();
-            if (player != null && player.health > 0 && !player.noClip && (!deflectedByPlayer || ticksInAir >= 25)
-                && player.boundingBox().intersects(sweep)) {
+            for (Player player : host.players()) {
+                if (player.health <= 0 || player.noClip || deflectedByPlayer && ticksInAir < 25 && player == host.player()
+                    || !player.boundingBox().intersects(sweep)) continue;
                 double d = entryDistance(player.boundingBox().grow(0.3), speed);
                 if (d >= 0 && d < nearest) { nearest = d; hitEntity = player; }
             }

@@ -329,7 +329,7 @@ public abstract class EntityLiving extends MovingEntity {
         };
     }
 
-    private boolean onLadder() {
+    protected boolean onLadder() {
         int by = floor(boundingBox().minY());
         if (by < 0 || by >= World.HEIGHT) return false;
         String name = world.get(floor(x), by, floor(z)).name().path();
@@ -444,8 +444,8 @@ public abstract class EntityLiving extends MovingEntity {
             if (entity == this || !(entity instanceof EntityLiving other) || other.isRemoved()) continue;
             if (other.boundingBox().intersects(near)) push(other.x, other.z, other);
         }
-        Player player = host.player();
-        if (player != null && !player.dead && !player.noClip && player.boundingBox().intersects(near)) push(player.x, player.z, player);
+        for (Player player : host.players())
+            if (!player.dead && !player.noClip && player.boundingBox().intersects(near)) push(player.x, player.z, player);
     }
 
     /** Entity.applyEntityCollision: each is pushed 0.05 x (closeness) away from the other. */
@@ -469,7 +469,7 @@ public abstract class EntityLiving extends MovingEntity {
 
     /**
      * EntityLiving.despawnEntity: unless persistent, a mob more than 128
-     * blocks from the player goes at once; one idle 600+ ticks and more than
+     * blocks from the nearest player goes at once; one idle 600+ ticks and more than
      * 32 blocks away goes 1 time in 800; within 32 blocks it stays awake.
      */
     private void despawnEntity() {
@@ -477,7 +477,7 @@ public abstract class EntityLiving extends MovingEntity {
             entityAge = 0;
             return;
         }
-        Player player = host == null ? null : host.player();
+        Player player = host == null ? null : host.nearestPlayer(x, y, z);
         if (player == null) return;
         double distance = distanceSqTo(player.x, player.y, player.z);
         if (canDespawn() && distance > 16384.0) remove();

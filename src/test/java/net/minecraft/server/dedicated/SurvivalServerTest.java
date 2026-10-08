@@ -21,7 +21,7 @@ class SurvivalServerTest {
     private static DedicatedServer server;
 
     @BeforeAll
-    static void start() throws Exception { server = TestClient.startServer("gamemode=0\ndifficulty=1\n"); }
+    static void start() throws Exception { server = TestClient.startServer("gamemode=0\ndifficulty=1\nspawn-monsters=false\n"); }
 
     @AfterAll
     static void stop() { server.stop(); }

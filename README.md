@@ -80,9 +80,12 @@ writes `run-server/server.properties` (vanilla key names: `server-port`,
 `stop`. Survival works: the server keeps each player's inventory, times
 digging, drops and picks up items, runs crafting (inventory grid and crafting
 table), hunger, fall damage, death and respawning, and saves every player in
-`<world>/playerdata/`. In-game commands are `/list`, `/seed`,
-`/gamemode <mode>`, `/spawn` and `/kill`. What the server does not do yet
-(mobs, furnaces, chests, the LegacyCraft client joining) is DEV-040.
+`<world>/playerdata/`. Zombies, skeletons, creepers and spiders spawn in
+the dark around every player and fight them, and farm animals spawn on
+grass (`spawn-monsters` / `spawn-animals` in `server.properties` turn them
+off). In-game commands are `/list`, `/seed`, `/gamemode <mode>`, `/spawn`
+and `/kill`. What the server does not do yet (furnaces, chests, PvP, the
+LegacyCraft client joining) is DEV-040.
 
 ## Controls
 
