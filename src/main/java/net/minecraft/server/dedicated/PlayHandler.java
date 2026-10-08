@@ -326,7 +326,6 @@ final class PlayHandler {
 
     /** The client already drew its guess; put both the clicked block and the one beside it back. */
     private void undoPlacement(ServerPlayer player, int x, int y, int z, Direction face) {
-        System.err.println("DEBUG undo " + x + "," + y + "," + z + " held=" + player.heldStack() + " mode=" + player.gameMode + " at " + player.x + "," + player.y + "," + player.z);
         server.resendBlock(player, x, y, z);
         server.resendBlock(player, x + face.xOffset, y + face.yOffset, z + face.zOffset);
     }

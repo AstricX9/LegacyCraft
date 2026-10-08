@@ -77,9 +77,12 @@ intended.
 writes `run-server/server.properties` (vanilla key names: `server-port`,
 `level-seed`, `gamemode`, `view-distance`, `max-players`, `motd`,
 `level-name`); the world is saved every five minutes and when you type
-`stop`. Players can build together, chat and see each other; in-game commands
-are `/list`, `/seed`, `/gamemode <mode>` and `/spawn`. What the server does
-not do yet (survival drops, mobs, the LegacyCraft client joining) is DEV-040.
+`stop`. Survival works: the server keeps each player's inventory, times
+digging, drops and picks up items, runs crafting (inventory grid and crafting
+table), hunger, fall damage, death and respawning, and saves every player in
+`<world>/playerdata/`. In-game commands are `/list`, `/seed`,
+`/gamemode <mode>`, `/spawn` and `/kill`. What the server does not do yet
+(mobs, furnaces, chests, the LegacyCraft client joining) is DEV-040.
 
 ## Controls
 

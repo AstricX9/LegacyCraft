@@ -45,13 +45,13 @@ class SurvivalServerTest {
             assertTrue(ground == GRASS || ground == DIRT, "spawn stands on grass, found block " + ground);
             steve.send(new Serverbound.Digging(Serverbound.Digging.START, x, y, z, 1));
             steve.send(new Serverbound.Digging(Serverbound.Digging.FINISH, x, y, z, 1));
-            Clientbound.BlockChange refused = steve.expect(Clientbound.BlockChange.class, c -> c.x() == x && c.y() == y && c.z() == z);
-            assertEquals(ground, refused.state() >> 4, "a too-quick dig puts the block back");
+            steve.expectBlock(x, y, z, server.world.getState(x, y, z).packed());
+            assertEquals(ground, server.world.getState(x, y, z).packed() >> 4, "a too-quick dig leaves the block");
 
             steve.send(new Serverbound.Digging(Serverbound.Digging.START, x, y, z, 1));
             Thread.sleep(1100);                                         // grass by hand: 0.6 hardness, 18 ticks
             steve.send(new Serverbound.Digging(Serverbound.Digging.FINISH, x, y, z, 1));
-            assertEquals(0, steve.expect(Clientbound.BlockChange.class, c -> c.x() == x && c.y() == y && c.z() == z).state());
+            steve.expectBlock(x, y, z, 0);
             Clientbound.SpawnObject drop = steve.expect(Clientbound.SpawnObject.class, o -> o.type() == Clientbound.SpawnObject.ITEM);
 
             // Drop into the hole and the dirt is picked up into the first hotbar slot.
@@ -126,7 +126,7 @@ class SurvivalServerTest {
             assertNotNull(column, "no flat column near spawn");
             int x = column[0], top = column[1], z = column[2];
             alex.send(new Serverbound.BlockPlacement(x, top, z, 1, new Slot(58, 1, 0, null), 8, 16, 8));
-            alex.expect(Clientbound.BlockChange.class, c -> c.x() == x && c.y() == top + 1 && c.state() >> 4 == 58);
+            alex.expectBlock(x, top + 1, z, 58 << 4);
             alex.send(new Serverbound.BlockPlacement(x, top + 1, z, 1, new Slot(58, 1, 0, null), 8, 16, 8));
             Clientbound.OpenWindow open = alex.expect(Clientbound.OpenWindow.class, o -> true);
             assertEquals("minecraft:crafting_table", open.type());

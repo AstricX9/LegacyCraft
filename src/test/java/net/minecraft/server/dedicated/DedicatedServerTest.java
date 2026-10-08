@@ -124,12 +124,10 @@ class DedicatedServerTest {
             int x = found[0], top = found[1], z = found[2];
             alice.send(new Serverbound.CreativeInventoryAction(36, new Slot(1, 64, 0, null)));
             alice.send(new Serverbound.BlockPlacement(x, top, z, 1, new Slot(1, 1, 0, null), 8, 16, 8));
-            Clientbound.BlockChange placed = bob.expect(Clientbound.BlockChange.class, c -> c.x() == x && c.y() == top + 1 && c.z() == z);
-            assertEquals(1 << 4, placed.state(), "stone, metadata 0");
+            bob.expectBlock(x, top + 1, z, 1 << 4);              // stone, metadata 0
 
             alice.send(new Serverbound.Digging(Serverbound.Digging.START, x, top + 1, z, 1));
-            Clientbound.BlockChange broken = bob.expect(Clientbound.BlockChange.class, c -> c.x() == x && c.y() == top + 1 && c.z() == z);
-            assertEquals(0, broken.state());
+            bob.expectBlock(x, top + 1, z, 0);
         }
     }
 }

@@ -1271,25 +1271,36 @@
   vanilla_behavior: >
     The 1.8.9 dedicated server runs the whole game for its players: survival
     mining with drops and server-checked dig time, an authoritative
-    inventory, mobs, combat, damage and respawning, dimensions, player data
-    saved per UUID, online-mode authentication and the full command set.
+    inventory and containers, mobs, combat, damage and respawning,
+    dimensions, player data saved per UUID, online-mode authentication and
+    the full command set.
   replica_behavior: >
     PARTIAL. net.minecraft.server.dedicated speaks protocol 47 in offline
     mode (handshake, server-list ping, login with compression) and serves
-    the LegacyCraft overworld: chunks stream around each player, block
-    changes reach everyone, players see each other move, sneak, sprint and
-    swing, chat works, and /list, /seed, /gamemode, /spawn exist. Breaking
-    and placing are reach-checked; refused edits are undone on the client.
-    NOT DONE: survival drops and dig-time checks, a server-side inventory
-    (the item a client says it holds is trusted), item ids 256+ (no vanilla
-    numeric item table yet, so doors, signs, redstone and other item-placed
-    blocks are refused), mobs, damage, the Nether, saving player position,
-    inventory and world time, and the LegacyCraft client cannot connect yet
-    (DEV-013). Online-mode authentication is not planned.
+    the LegacyCraft overworld. Chunks stream around each player, block
+    changes reach everyone, players see each other move, sneak, sprint,
+    swing and what they hold and wear, and chat works.
+    Survival: the server owns the inventory (window 0 and the crafting
+    table's 3x3 window; clicks, shift-clicks, number keys, drags, double
+    clicks and the drop key are applied with the shared inventory rules and
+    the window is resent after each click), digging is timed against the
+    held tool (0.7 tolerance, counted in ticks or wall time, whichever is
+    longer) and drops items that are tracked, picked up and thrown; tools
+    wear; placing uses up the held item; hunger, natural regeneration,
+    starving, fall damage, the void, eating food and cake, putting on armour,
+    death (everything dropped, death message) and respawning at the world
+    spawn. Player position, game mode, health, hunger and inventory are
+    saved in <world>/playerdata/<uuid>.dat; the time of day in server.dat.
+    Commands: /list, /seed, /gamemode, /spawn, /kill.
+    NOT DONE: mobs and PvP, furnaces, chests and other containers (the
+    client has none yet either), buckets, flint and steel, bows, potions,
+    experience, beds, the Nether, armour reducing damage, item merging on
+    the ground, and the LegacyCraft client cannot connect yet (DEV-013).
+    Online-mode authentication is not planned.
   reason: >
-    First slice of multiplayer: a stock 1.8.9 client checks the wire format
-    while the rest of the simulation moves behind the server.
+    Multiplayer is built server-first: a stock 1.8.9 client checks the wire
+    format while the rest of the simulation moves behind the server.
   compatibility_effect: >
-    P1: friends can build together in Creative on a LegacyCraft server;
-    Survival is not playable over the network yet.
+    P1: friends can play basic Survival together (mine, craft, build, eat,
+    die) on a LegacyCraft server, but with no mobs yet.
   user_visible: true

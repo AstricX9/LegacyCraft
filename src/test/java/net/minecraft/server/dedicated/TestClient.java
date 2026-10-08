@@ -87,5 +87,33 @@ final class TestClient implements AutoCloseable {
         return fail("No " + type.getSimpleName() + " arrived");
     }
 
+    /**
+     * Waits until the server says this block has the state {@code wanted}
+     * ({@code id << 4 | metadata}), whichever way it comes: a single change, a
+     * batch for its column, or the whole column resent. Earlier states are skipped.
+     */
+    void expectBlock(int x, int y, int z, int wanted) throws IOException {
+        int[] state = {-1};
+        expect(Packet.class, p -> {
+            if (p instanceof Clientbound.BlockChange c && c.x() == x && c.y() == y && c.z() == z) state[0] = c.state();
+            else if (p instanceof Clientbound.MultiBlockChange m && m.chunkX() == x >> 4 && m.chunkZ() == z >> 4) {
+                short position = (short) ((x & 15) << 12 | (z & 15) << 8 | y);
+                for (int i = 0; i < m.positions().length; i++) if (m.positions()[i] == position) state[0] = m.states()[i];
+            } else if (p instanceof Clientbound.ChunkData c && c.chunkX() == x >> 4 && c.chunkZ() == z >> 4 && c.groundUp()) {
+                int section = y >> 4;
+                if ((c.sectionMask() & 1 << section) == 0) state[0] = 0;
+                else {
+                    int before = Integer.bitCount(c.sectionMask() & ((1 << section) - 1));
+                    int at = before * 8192 + ((y & 15) << 8 | (z & 15) << 4 | (x & 15)) * 2;
+                    state[0] = (c.data()[at] & 0xFF) | (c.data()[at + 1] & 0xFF) << 8;
+                }
+            }
+            boolean match = state[0] == wanted;
+            state[0] = -1;
+            return match;
+        });
+
+    }
+
     @Override public void close() throws IOException { socket.close(); }
 }
