@@ -122,7 +122,8 @@ public final class SoundSystem {
 
     /**
      * Plays a sound file; returns a handle for {@link #isPlaying}, or 0 when
-     * nothing plays (no device, unreadable file, every channel busy).
+     * nothing plays (no device, unreadable file, every stream channel busy).
+     * With every ordinary channel busy the oldest sound is cut off for it.
      *
      * @param range distance at which a positional sound has faded out; 0 for a non-positional sound
      */
@@ -177,17 +178,25 @@ public final class SoundSystem {
         return channel.handle;
     }
 
-    /** Ordinary sounds share the first channels; the last two are kept for streams. */
+    /**
+     * Ordinary sounds share the first channels; the last two are kept for
+     * streams. When every ordinary channel is busy the one playing longest
+     * is taken over, as paulscode interrupts its oldest non-priority source,
+     * so a burst of sounds never silences the newest ones.
+     */
     private Channel freeChannel(boolean stream) {
         int from = stream ? CHANNELS : 0, to = stream ? channels.size() : CHANNELS;
+        Channel oldest = null;
         for (int i = from; i < to; i++) {
             Channel channel = channels.get(i);
             if (!busy(channel)) {
                 release(channel);
                 return channel;
             }
+            if (!stream && !channel.paused && (oldest == null || channel.handle < oldest.handle)) oldest = channel;
         }
-        return null;
+        if (oldest != null) release(oldest);
+        return oldest;
     }
 
     private boolean busy(Channel channel) {
