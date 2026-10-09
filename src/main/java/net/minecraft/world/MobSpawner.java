@@ -97,7 +97,8 @@ public final class MobSpawner {
     public static List<SpawnEntry> monsters(World world, int x, int y, int z) {
         if (world.isNether()) {
             var generator = world.netherGenerator();
-            boolean onBrick = y >= 1 && y < World.HEIGHT && world.get(x, y - 1, z).name().path().equals("nether_brick");
+            boolean onBrick = y >= 1 && y < World.HEIGHT && world.generatedChunk(x >> 4, z >> 4) != null
+                && world.get(x, y - 1, z).name().path().equals("nether_brick");
             if (generator != null && generator.fortresses().isInside(x, y, z, onBrick)) return FORTRESS;
             return HELL;
         }
@@ -417,13 +418,25 @@ public final class MobSpawner {
      * a full cube above.
      */
     public static boolean canSpawnOnGround(World world, int x, int y, int z) {
-        if (y < 1 || y >= World.HEIGHT - 1) return false;
+        if (y < 1 || y >= World.HEIGHT - 1 || !generatedAround(world, x, z)) return false;
         BlockState below = world.getState(x, y - 1, z);
         if (!Block.hasSolidTop(below)) return false;
         String name = below.block().name().path();
         if (name.equals("bedrock") || name.equals("barrier")) return false;
         Block here = world.get(x, y, z);
         return !here.isNormalCube() && !net.minecraft.block.Liquids.isLiquid(here) && !world.get(x, y + 1, z).isNormalCube();
+    }
+
+    /**
+     * Whether the chunks within 2 blocks of a spot exist, so checking it (the
+     * ground, the light around it, the mob's box) never generates terrain. A
+     * spot in a chunk that isn't there reads as air in vanilla, so it can't
+     * be spawned on anyway; asking the world here would generate the chunk on
+     * the tick thread instead.
+     */
+    private static boolean generatedAround(World world, int x, int z) {
+        return world.generatedChunk((x - 2) >> 4, (z - 2) >> 4) != null && world.generatedChunk((x + 2) >> 4, (z - 2) >> 4) != null
+            && world.generatedChunk((x - 2) >> 4, (z + 2) >> 4) != null && world.generatedChunk((x + 2) >> 4, (z + 2) >> 4) != null;
     }
 
     /** EntityLiving.isNotColliding: no other mob or lit TNT, block or liquid in its box. */

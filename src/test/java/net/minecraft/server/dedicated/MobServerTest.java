@@ -104,8 +104,9 @@ class MobServerTest {
             // Every one keeps at least 24 blocks from the player.
             for (Entity entity : onTick(() -> server.entities.values()))
                 if (entity instanceof IMob && entity instanceof net.minecraft.entity.EntityLiving mob && mob.ticksExisted < 2) {
-                    double dx = mob.x() - spawn.x(), dz = mob.z() - spawn.z();
-                    assertTrue(dx * dx + dz * dz >= 24 * 24 - 4, "a monster spawned within 24 blocks");
+                    // Measured in 3D like the spawner, so one in a cave below can be closer across the ground.
+                    double dx = mob.x() - spawn.x(), dy = mob.y() - spawn.y(), dz = mob.z() - spawn.z();
+                    assertTrue(dx * dx + dy * dy + dz * dz >= 24 * 24 - 4, "a monster spawned within 24 blocks");
                 }
         }
     }
