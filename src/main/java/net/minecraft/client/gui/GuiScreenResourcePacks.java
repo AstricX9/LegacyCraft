@@ -150,7 +150,7 @@ public class GuiScreenResourcePacks extends GuiScreen {
 
     private void bindIcon(ResourcePackRepository.Entry entry) {
         if (entry == null) {
-            // LegacyCraft doesn't ship 1.8.9's pack.png, so the Default pack shows the unknown-pack icon unless a pack adds one.
+            // The Default pack shows LegacyCraft's own pack.png, or the unknown-pack icon if it is missing.
             mc.textures().bind(mc.resources().exists(DEFAULT_ICON) ? DEFAULT_ICON : PACK_ICON);
             return;
         }
