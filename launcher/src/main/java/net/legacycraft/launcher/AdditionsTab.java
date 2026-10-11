@@ -131,7 +131,7 @@ final class AdditionsTab extends JPanel {
         row.add(name, c);
         c.gridy = 1; c.insets = new Insets(4, 0, 0, 0);
         row.add(description("LegacyCraft's own mod system: optional changes to 1.8.9, switched on one by one below. "
-            + "While Additions are off this instance plays as plain 1.8.9 and the title screen has no Additions button."), c);
+            + "While Additions are off this instance plays as plain 1.8.9, with no Additions button on the title screen or pause menu."), c);
         JToggleButton toggle = toggle(enabled, 80, 36);
         toggle.addActionListener(ev -> {
             game.put(Additions.ENABLED, toggle.isSelected());

@@ -51,8 +51,8 @@ mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
     run Gradle, and extra JVM arguments.
 - **Additions**: LegacyCraft's own mod system, for the instance picked in
   the bottom bar. The switch at the top turns Additions on or off for the
-  instance; off plays as plain 1.8.9 and the title screen has no Additions
-  button. Under it, the **Faithful** (every addition off) and **Recommended**
+  instance; off plays as plain 1.8.9 and the title screen and pause menu have no
+  Additions button. Under it, the **Faithful** (every addition off) and **Recommended**
   presets set all the switches at once; any other mix shows as **Custom**.
   Below that, each addition has its own On/Off switch, by category. An
   addition with settings has a settings button next to its switch (the
