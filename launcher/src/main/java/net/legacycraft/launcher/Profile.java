@@ -7,7 +7,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** One entry of launcher_profiles.json, in the shape the 1.6-era launcher wrote. */
+/**
+ * One instance: an entry of launcher_profiles.json, in the shape the 1.6-era
+ * launcher wrote, plus the memory and last-played time the instance manager
+ * shows. Each instance plays from its own game directory (saves,
+ * resourcepacks, options.txt, servers.dat).
+ */
 final class Profile {
     enum Visibility {
         CLOSE_ON_START("close launcher when game starts", "Close launcher when game starts"),
@@ -27,13 +32,16 @@ final class Profile {
     }
 
     static final Visibility DEFAULT_VISIBILITY = Visibility.HIDE_LAUNCHER;
-    static final String DEFAULT_JAVA_ARGS = "-Xmx2G";
+    static final String DEFAULT_JAVA_ARGS = "";
+    static final int DEFAULT_MEMORY_MB = 2048;
 
     String name;
-    String gameDir;           // null = the LegacyCraft install folder
+    String gameDir;           // null = the LegacyCraft install folder (profiles from before instances)
     String lastVersionId;     // null = "Use Latest Version"
     String javaDir;           // null = default Java
     String javaArgs;          // null = defaults from the game's build
+    Integer memoryMb;         // null = whatever javaArgs or the game's build says
+    Long lastPlayed;          // epoch millis, null = never
     Integer resolutionWidth, resolutionHeight;
     Visibility visibility;    // null = DEFAULT_VISIBILITY
     boolean useHopperCrashService;
@@ -44,10 +52,18 @@ final class Profile {
     Profile copy(String newName) {
         Profile p = new Profile(newName);
         p.gameDir = gameDir; p.lastVersionId = lastVersionId; p.javaDir = javaDir; p.javaArgs = javaArgs;
+        p.memoryMb = memoryMb;
         p.resolutionWidth = resolutionWidth; p.resolutionHeight = resolutionHeight;
         p.visibility = visibility; p.useHopperCrashService = useHopperCrashService;
         p.allowedReleaseTypes.addAll(allowedReleaseTypes);
         return p;
+    }
+
+    /** The JVM arguments for the game: the memory setting first, so an -Xmx in javaArgs still wins. */
+    String jvmArgs() {
+        String args = javaArgs == null ? "" : javaArgs.trim();
+        if (memoryMb != null) args = ("-Xmx" + memoryMb + "M " + args).trim();
+        return args;
     }
 
     Visibility effectiveVisibility() { return visibility == null ? DEFAULT_VISIBILITY : visibility; }
@@ -59,6 +75,8 @@ final class Profile {
         if (lastVersionId != null) json.put("lastVersionId", lastVersionId);
         if (javaDir != null) json.put("javaDir", javaDir);
         if (javaArgs != null) json.put("javaArgs", javaArgs);
+        if (memoryMb != null) json.put("memoryMb", memoryMb);
+        if (lastPlayed != null) json.put("lastPlayed", lastPlayed);
         if (resolutionWidth != null && resolutionHeight != null) {
             Map<String, Object> res = new LinkedHashMap<>();
             res.put("width", resolutionWidth);
@@ -77,6 +95,8 @@ final class Profile {
         p.lastVersionId = Json.string(json.get("lastVersionId"), null);
         p.javaDir = Json.string(json.get("javaDir"), null);
         p.javaArgs = Json.string(json.get("javaArgs"), null);
+        p.memoryMb = Json.integer(json.get("memoryMb"));
+        if (json.get("lastPlayed") instanceof Number n) p.lastPlayed = n.longValue();
         Map<String, Object> res = Json.object(json.get("resolution"));
         p.resolutionWidth = Json.integer(res.get("width"));
         p.resolutionHeight = Json.integer(res.get("height"));
