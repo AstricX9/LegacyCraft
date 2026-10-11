@@ -71,16 +71,20 @@ final class ScreenFlowTest {
         assertTrue(options.yPosition + 20 <= 240 - 12, "Options clear the bottom-corner text");
         click("Additions");
         assertInstanceOf(GuiAdditions.class, mc.screen);
-        click("Look: Faithful");
+        assertFalse(button("Faithful", false).enabled, "the current look shows as picked");
+        click("Recommended");
         assertEquals(net.minecraft.client.additions.Additions.Look.RECOMMENDED, mc.additions.look());
-        click("Toggle Sneak: options.off");
-        click("Look: Custom");
+        assertFalse(button("Custom", false).enabled, "Custom is a result, not a button to press");
+        click("OFF");
+        assertEquals(net.minecraft.client.additions.Additions.Look.CUSTOM, mc.additions.look());
+        click("Faithful");
         assertEquals(net.minecraft.client.additions.Additions.Look.FAITHFUL, mc.additions.look());
         click("Interface");
-        click("FPS Counter: options.off");
+        click("OFF");
+        assertEquals("Interface (1)", button("Interface", true).displayString);
         click("gui.done");
         assertSame(title, mc.screen);
-        assertTrue(Files.readAllLines(mc.directory.resolve("additions.txt")).contains("fpsCounter:true"));
+        assertTrue(Files.readAllLines(mc.directory.resolve("additions.txt")).contains("coordinates:true"));
     }
 
     @Test
