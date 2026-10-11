@@ -1,74 +1,71 @@
 <html>
 <!--
   LegacyCraft launcher news page.
-  Layout and colours follow the "Photo Minimal" Tumblr theme (William Rainbird)
-  as tweaked by Mojang for the Minecraft Launcher's Update Notes tab. Swing
-  renders it, as it did in the real launcher; the tiled dark background is
-  painted by the launcher behind this page.
+  Flat and black on white like the rest of the launcher (World of Mods
+  style): grey section header bars, plain underlined black links.
 
   To change the news, copy this file to %USERPROFILE%\.legacycraft-launcher\news.html
   and edit it there; the launcher prefers that copy.
   Links starting with "launcher:" are handled by the launcher itself
-  (skins, profiles, console, gamedir, skinsdir, capesdir, datadir).
+  (instances, newinstance, skins, console, gamedir, instancesdir, skinsdir,
+  capesdir, datadir).
   Font sizes are in pt because Swing's HTML renderer treats pt as screen pixels.
 -->
 <head>
 <style type="text/css">
-  body { font-family: sans-serif; font-size: 15pt; color: #e0d0d0; margin: 0; }
-  a { color: #aaaaff; }
-  h1 { font-family: sans-serif; font-size: 27pt; font-weight: bold; color: #e0d0d0; margin-top: 20px; margin-bottom: 20px; }
-  h2 { font-family: sans-serif; font-size: 19pt; font-weight: bold; color: #e0d0d0; margin-top: 20px; margin-bottom: 12px; }
-  h3 { font-family: sans-serif; font-size: 16pt; font-weight: bold; color: #ffffff; margin-top: 14px; margin-bottom: 14px; }
-  p { margin-top: 0; margin-bottom: 14px; }
-  .tumblr { font-size: 9pt; color: #555555; }
+  body { font-family: sans-serif; font-size: 13pt; color: #1a1a1a; background-color: #ffffff; margin: 0; }
+  a { color: #111111; text-decoration: underline; }
+  h1 { font-family: sans-serif; font-size: 22pt; font-weight: normal; color: #1a1a1a; margin-top: 18px; margin-bottom: 4px; }
+  h3 { font-family: sans-serif; font-size: 16pt; font-weight: normal; margin-top: 16px; margin-bottom: 8px; }
+  p { margin-top: 0; margin-bottom: 10px; }
+  .muted { color: #6b6b6b; }
+  .head { font-weight: bold; color: #1a1a1a; }
 </style>
 </head>
 <body>
 <table width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td valign="top" style="padding-left: 26px; padding-right: 26px;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td valign="top"><h1>Minecraft News</h1></td>
-      <td valign="top" align="right" style="padding-top: 30px;"><a href="launcher:datadir"><font class="tumblr" color="#555555">Powered by LegacyCraft</font></a></td>
-    </tr>
-  </table>
-  <br><br>
+<td valign="top" style="padding-left: 22px; padding-right: 22px; padding-bottom: 20px;">
+  <h1>LegacyCraft 1.8.9</h1>
+  <p class="muted">An offline launcher for a from-scratch recreation of Minecraft 1.8.9.</p>
 
-  <h3><a href="launcher:skins">Skins and capes in the launcher</a></h3>
-  <p>You can now choose what you wear without leaving the launcher!</p>
+  <h3><a href="launcher:instances">Instances</a></h3>
+  <p>Each instance is its own copy of the game: its own worlds, resource packs, options and server
+  list, kept in its own folder, with its own memory, window size and Java settings.</p>
   <p>
-  + Add any 64x64 skin, or an old 64x32 one<br>
-  + Choose Classic or Slim arms for each skin<br>
-  + Add capes (64x32, like the official ones) and wear them in game<br>
-  + Spin your player around in the preview<br>
-  * Steve and Alex are always there if you want to go back
+  + <a href="launcher:newinstance">Make a new instance</a> for a fresh start<br>
+  + Copy an instance to try something out without touching your worlds<br>
+  + Pick the instance to play at the bottom left, then press <b>Play</b>
   </p>
-  <p>Open the <b>Skins &amp; Capes</b> tab to try it out, enjoy!</p>
-  <br>
 
-  <h3><a href="launcher:profiles">Profiles</a></h3>
-  <p>Each profile can have its own game directory, window resolution, launcher visibility and Java
-  arguments. Use <b>New Profile</b> and <b>Edit Profile</b> at the bottom of the window.</p>
-  <p>No account is needed: press <b>Switch User</b> to pick the name you play with.</p>
-  <br>
+  <h3><a href="launcher:skins">Skins and capes</a></h3>
+  <p>Choose what you wear without leaving the launcher. Add any 64x64 skin (or an old 64x32 one),
+  pick Classic or Slim arms, add 64x32 capes, and spin your player around in the preview.
+  Steve and Alex are always there if you want to go back.</p>
 
-  <h3><a href="https://minecraft.wiki/w/Java_Edition_1.8.9">LegacyCraft 1.8.9</a></h3>
-  <p>LegacyCraft is a from-scratch recreation of Minecraft 1.8.9. Press <b>Play</b> to start it;
-  what the game prints shows up in the <b>Launcher Log</b> tab.</p>
+  <h3><a href="https://minecraft.wiki/w/Java_Edition_1.8.9">About 1.8.9</a></h3>
+  <p>No account is needed: use <b>Change name</b> to pick the name you play with. What the game
+  prints shows up in the <a href="launcher:console">Launcher Log</a>.</p>
 </td>
-<td width="210" valign="top" style="padding-right: 10px;">
-  <h2>Official links:</h2>
-  <a href="https://minecraft.net/">Minecraft.net</a><br>
-  <a href="https://minecraft.wiki/w/Java_Edition_1.8.9">Minecraft 1.8.9 on the Wiki</a><br>
+<td width="230" valign="top" style="padding-top: 18px; padding-right: 14px;">
+  <table width="100%" cellpadding="7" cellspacing="0" border="0">
+    <tr><td bgcolor="#e3dfdb" class="head">Links</td></tr>
+    <tr><td style="padding-left: 10px;">
+      <a href="https://minecraft.wiki/w/Java_Edition_1.8.9">Minecraft 1.8.9 on the Wiki</a><br>
+      <a href="https://bugs.mojang.com/">Bug tracker</a>
+    </td></tr>
+  </table>
   <br>
-  <a href="https://bugs.mojang.com/">Bug tracker</a><br>
-
-  <h2>Launcher links:</h2>
-  <a href="launcher:gamedir">Open game folder</a><br>
-  <a href="launcher:skinsdir">Open skins folder</a><br>
-  <a href="launcher:capesdir">Open capes folder</a><br>
-  <a href="launcher:datadir">Open launcher folder</a><br>
+  <table width="100%" cellpadding="7" cellspacing="0" border="0">
+    <tr><td bgcolor="#e3dfdb" class="head">Folders</td></tr>
+    <tr><td style="padding-left: 10px;">
+      <a href="launcher:gamedir">This instance's folder</a><br>
+      <a href="launcher:instancesdir">All instances</a><br>
+      <a href="launcher:skinsdir">Skins</a><br>
+      <a href="launcher:capesdir">Capes</a><br>
+      <a href="launcher:datadir">Launcher data</a>
+    </td></tr>
+  </table>
 </td>
 </tr>
 </table>

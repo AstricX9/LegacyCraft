@@ -16,11 +16,14 @@ final class ConsoleTab extends JScrollPane {
 
     ConsoleTab() {
         text.setEditable(false);
-        text.setMargin(null);
+        text.setMargin(new java.awt.Insets(8, 12, 8, 12));
+        text.setBackground(Theme.PANEL);
+        text.setForeground(Theme.TEXT);
         text.setLineWrap(true);
         text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         setViewportView(text);
         setBorder(null);
+        getVerticalScrollBar().setUnitIncrement(16);
     }
 
     /** A launcher message in the launcher's log format. */

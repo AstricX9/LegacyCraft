@@ -14,7 +14,6 @@ import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
@@ -63,10 +62,9 @@ final class SkinTab extends JPanel {
     private File lastFolder;
 
     SkinTab(LauncherData data, Runnable onChange) {
-        super(new BorderLayout(4, 0));
+        super(new BorderLayout(0, 0));
         this.data = data;
         this.onChange = onChange;
-        setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
         skinList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         skinList.setCellRenderer(new Renderer());
@@ -96,20 +94,21 @@ final class SkinTab extends JPanel {
         removeCape.addActionListener(e -> removeCape());
         JPanel capeBox = section("Cape", capeList, row(addCape, renameCape, removeCape), null);
 
-        JPanel left = new JPanel(new GridLayout(2, 1, 0, 4));
-        left.setPreferredSize(new Dimension(270, 100));
+        JPanel left = new JPanel(new GridLayout(2, 1, 0, 0));
+        left.setPreferredSize(new Dimension(290, 100));
+        left.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Theme.LINE));
         left.add(skinBox);
         left.add(capeBox);
 
         JCheckBox outer = new JCheckBox("Show second layer", true);
         outer.addActionListener(e -> preview.setOuterLayer(outer.isSelected()));
-        JLabel hint = new JLabel("Drag to turn. Drop PNG files on a list to add them.");
-        hint.setEnabled(false);
+        JLabel hint = Theme.muted("Drag to turn. Drop PNG files on a list to add them.");
         JPanel under = new JPanel(new BorderLayout());
+        under.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
         under.add(outer, BorderLayout.WEST);
         under.add(hint, BorderLayout.EAST);
-        JPanel right = new JPanel(new BorderLayout(0, 2));
-        preview.setBorder(BorderFactory.createLoweredBevelBorder());
+        JPanel right = new JPanel(new BorderLayout(0, 0));
+        right.add(Theme.header("Preview"), BorderLayout.NORTH);
         right.add(preview, BorderLayout.CENTER);
         right.add(under, BorderLayout.SOUTH);
 
@@ -123,11 +122,13 @@ final class SkinTab extends JPanel {
     }
 
     private static JPanel section(String title, JList<?> list, JComponent buttons, JComponent extra) {
-        JPanel p = new JPanel(new BorderLayout(0, 3));
-        p.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(title),
-            BorderFactory.createEmptyBorder(0, 3, 3, 3)));
-        p.add(new JScrollPane(list), BorderLayout.CENTER);
+        JPanel p = new JPanel(new BorderLayout(0, 0));
+        p.add(Theme.header(title), BorderLayout.NORTH);
+        JScrollPane scroll = Theme.scroll(list);
+        scroll.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.LINE));
+        p.add(scroll, BorderLayout.CENTER);
         JPanel south = new JPanel();
+        south.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
         buttons.setAlignmentX(LEFT_ALIGNMENT);
         south.add(buttons);
@@ -271,7 +272,7 @@ final class SkinTab extends JPanel {
     // ---- adding, renaming, removing ----
 
     private void choose(String title, String filter, Consumer<File[]> importer) {
-        JFileChooser chooser = new JFileChooser(lastFolder);
+        JFileChooser chooser = new Windows.FileChooser(lastFolder);
         chooser.setDialogTitle(title);
         chooser.setMultiSelectionEnabled(true);
         chooser.setFileFilter(new FileNameExtensionFilter(filter, "png"));
@@ -296,7 +297,7 @@ final class SkinTab extends JPanel {
             onChange.run();
         }
         if (errors.length() > 0)
-            JOptionPane.showMessageDialog(this, errors.toString().trim(), "Can't add " + what, JOptionPane.ERROR_MESSAGE);
+            Windows.error(this, "Can't add " + what, errors.toString().trim());
     }
 
     private void importSkins(File[] files) {
@@ -308,13 +309,12 @@ final class SkinTab extends JPanel {
     }
 
     private String askName(String title, String current) {
-        Object name = JOptionPane.showInputDialog(this, "Name:", title, JOptionPane.PLAIN_MESSAGE, null, null, current);
-        return name == null || name.toString().isBlank() ? null : name.toString().trim();
+        String name = Windows.input(this, title, "Name:", current);
+        return name == null || name.isBlank() ? null : name.trim();
     }
 
     private boolean confirmRemove(String name) {
-        return JOptionPane.showConfirmDialog(this, "Are you sure you want to remove " + name + "?", "Remove",
-            JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+        return Windows.confirm(this, "Remove", "Are you sure you want to remove " + name + "?");
     }
 
     private void renameSkin() {

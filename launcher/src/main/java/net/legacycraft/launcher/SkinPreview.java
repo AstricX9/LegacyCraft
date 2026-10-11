@@ -67,9 +67,10 @@ final class SkinPreview extends JComponent {
 
     @Override protected void paintComponent(Graphics raw) {
         Graphics2D g = (Graphics2D) raw.create();
-        Textures.tile(g, Textures.darkTile(), 0, 0, getWidth(), getHeight());
+        g.setColor(Theme.PAGE);
+        g.fillRect(0, 0, getWidth(), getHeight());
         if (skin == null) {
-            g.setColor(new Color(0xe0d0d0));
+            g.setColor(Theme.MUTED);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setFont(getFont().deriveFont(Font.PLAIN, 13f));
             String text = message == null ? "No skin" : message;
