@@ -385,6 +385,55 @@ public final class ItemRenderer {
     }
 
     /**
+     * A dropped item entity's model, centred on the origin (1.8.9
+     * RenderEntityItem then RenderItem.renderItem): block items as their
+     * cube a quarter block wide, any other item as its layer textures
+     * extruded one pixel thick and half a block wide, so it keeps its depth
+     * when seen edge-on. The extruded faces carry normals for
+     * {@link StandardLighting}, which the caller enables; block items keep
+     * their own per-face shading and are drawn unlit.
+     */
+    public void renderDropped(ItemStack stack, float red, float green, float blue) {
+        if (stack == null) return;
+        Item item = stack.item();
+        ItemModel model = models.computeIfAbsent(item, this::resolve);
+        if (isBlockModel(item)) {
+            boolean lit = glIsEnabled(GL_LIGHTING);
+            if (lit) glDisable(GL_LIGHTING);
+            renderItemInWorld(stack, red, green, blue);
+            if (lit) glEnable(GL_LIGHTING);
+            return;
+        }
+        if (model.layers().isEmpty()) return;
+        glPushMatrix();
+        glScalef(0.5f, 0.5f, 0.5f);
+        glTranslatef(-0.5f, -0.5f, -0.5f);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        for (int layer = 0; layer < model.layers().size(); layer++) {
+            ResourceLocation texture = model.layers().get(layer);
+            ItemMesh mesh = meshes.computeIfAbsent(texture, this::extrude);
+            if (mesh == null) continue;
+            textures.bind(texture);
+            int tint = layerTint(item, layer);
+            glColor4f((tint >> 16 & 255) / 255f * red, (tint >> 8 & 255) / 255f * green, (tint & 255) / 255f * blue, 1);
+            mesh.draw();
+        }
+        if (net.minecraft.enchantment.EnchantmentHelper.hasGlint(stack)) {
+            Glint.item(textures, () -> {
+                for (ResourceLocation texture : model.layers()) {
+                    ItemMesh mesh = meshes.get(texture);
+                    if (mesh != null) mesh.draw();
+                }
+            });
+        }
+        glColor4f(1, 1, 1, 1);
+        glPopMatrix();
+    }
+
+    /**
      * A block's model filling the unit cube at the current origin, shaded
      * per face and tinted by the colour (BlockRendererDispatcher.renderBlockBrightness,
      * as primed TNT is drawn).
