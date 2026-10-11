@@ -200,8 +200,13 @@
     neighbour flammability, repeaters locked by a powered side repeater, and
     biome-dependent grass/foliage/water colours (master context §56).
   replica_behavior: >
-    Tile-entity blocks draw the missing-model cube, except mob heads, which
-    TileEntitySkullRenderer draws (DEV-037); fluids use FluidMesher
+    Tile-entity blocks are drawn by their 1.8.9 renderers (BlockEntityRenderer,
+    HYPOTHESIS: recalled models and transforms): chests, trapped chests and
+    ender chests (single and double, lids always shut: chests can't be
+    opened yet), signs without text (sign text isn't stored yet), banners
+    in their base colour only (no patterns; placed banners have no stored
+    colour, so they are black like vanilla's default), the end portal's star
+    layers, and mob heads (DEV-037); fluids use FluidMesher
     (sloped corners, flow-oriented texture, DEV-022); flower pots always look empty; fire picks its
     shape from its flammable neighbours (DEV-026); repeater `locked` is always false; grass/foliage
     colours are the fixed `tintColor` constants (spruce/birch leaves, lily
@@ -413,7 +418,7 @@
     shift-double-click follow the recalled GuiContainer rules (HYPOTHESIS;
     the second press of a shift-double-click keeps the first press's item,
     which the recalled code would clear). But: builtin/entity items
-    other than mob heads (DEV-037) draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
+    other than mob heads (DEV-037), chests and banners (DEV-006) draw nothing (the inventory player model, hand and swing are DEV-019); dropped flat items are
     flat double-sided quads; names use the enchantment rarity colours
     (aqua enchanted, yellow enchanted books, white otherwise; other
     rarities are not modelled) and the registry-name tooltip line is
@@ -1146,7 +1151,7 @@
     are loaded or saved (vanilla generates chunks while searching); only
     the dimension the player is in ticks; entities other than the player
     don't use portals and portals don't spawn zombie pigmen; beds don't
-    explode in the Nether (no beds yet); fortress chests are empty and
+    explode in the Nether (beds can be placed but not slept in); fortress chests are empty and
     spawners don't show the spinning mob; fortress generation is clipped
     to the chunk being populated, so pieces only appear in chunks
     generated after this update (the whole Nether is new, so all of it);

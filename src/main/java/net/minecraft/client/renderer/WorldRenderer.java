@@ -106,6 +106,8 @@ public final class WorldRenderer {
     private static final class Section {
         final int x, y, z;
         int opaqueBuffer, opaqueVertices, cutoutBuffer, cutoutVertices, translucentBuffer, translucentVertices;
+        /** x, y, z of the chests, signs, banners and end portals in it, drawn by their tile-entity renderers. */
+        int[] blockEntities = NO_BLOCK_ENTITIES;
         /** Kept for re-sorting as the camera moves. */
         SectionMesher.Buffer translucent;
         float sortedFromX = Float.NaN, sortedFromY, sortedFromZ;
@@ -116,6 +118,21 @@ public final class WorldRenderer {
     }
 
     private record Built(Section section, SectionMesher.Mesh mesh) {}
+
+    private static final int[] NO_BLOCK_ENTITIES = new int[0];
+    /** Sections in view last frame that hold tile-entity-drawn blocks. */
+    private final List<Section> blockEntitySections = new ArrayList<>();
+
+    /** Receives a tile-entity-drawn block's position. */
+    public interface BlockEntityVisitor { void visit(int x, int y, int z); }
+
+    /** Every chest, sign, banner and end portal in the sections drawn this frame. */
+    public void forEachBlockEntity(BlockEntityVisitor visitor) {
+        for (Section section : blockEntitySections) {
+            int[] positions = section.blockEntities;
+            for (int i = 0; i + 2 < positions.length; i += 3) visitor.visit(positions[i], positions[i + 1], positions[i + 2]);
+        }
+    }
 
     public void render(Player player, int renderDistance) {
         long frameStart = System.nanoTime();
@@ -227,6 +244,8 @@ public final class WorldRenderer {
     }
 
     private void upload(Section section, SectionMesher.Mesh mesh, double eyeX, double eyeY, double eyeZ) {
+        section.blockEntities = mesh.blockEntityCount == 0 ? NO_BLOCK_ENTITIES
+            : java.util.Arrays.copyOf(mesh.blockEntities, mesh.blockEntityCount * 3);
         section.opaqueBuffer = store(section.opaqueBuffer, mesh.opaque);
         section.opaqueVertices = mesh.opaque.size / SectionMesher.INTS_PER_VERTEX;
         section.cutoutBuffer = store(section.cutoutBuffer, mesh.cutout);
@@ -266,10 +285,14 @@ public final class WorldRenderer {
     private void draw(List<Column> visible, double eyeX, double eyeY, double eyeZ) {
         readFrustum();
         List<Section> opaque = new ArrayList<>(), cutout = new ArrayList<>(), translucent = new ArrayList<>();
+        blockEntitySections.clear();
         for (Column column : visible) {
             for (Section section : column.sections) {
-                if (section.opaqueVertices == 0 && section.cutoutVertices == 0 && section.translucentVertices == 0) continue;
+                boolean blockEntities = section.blockEntities.length > 0;
+                if (section.opaqueVertices == 0 && section.cutoutVertices == 0 && section.translucentVertices == 0
+                    && !blockEntities) continue;
                 if (!inFrustum(section.x * 16, section.y * 16, section.z * 16)) continue;
+                if (blockEntities) blockEntitySections.add(section);
                 if (section.opaqueVertices > 0 || section.cutoutVertices > 0) opaque.add(section);
                 if (section.cutoutVertices > 0) cutout.add(section);
                 if (section.translucentVertices > 0) translucent.add(section);

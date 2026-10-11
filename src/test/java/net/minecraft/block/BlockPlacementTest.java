@@ -72,6 +72,20 @@ final class BlockPlacementTest {
     }
 
     @Test
+    void bedsLieAlongThePlayersFacingOnTopOfABlock() {
+        TestBlockAccess world = stoneWorld().set(0, 64, -1, "minecraft:stone", 0);
+        var bed = click(world, "minecraft:bed", 0, Direction.UP, 1f, Direction.NORTH);
+        assertEquals(List.of(
+            new BlockPlacement.Placement(0, 65, 0, BlockState.of(blocks.get("minecraft:bed"), 0)
+                .with("facing", "north").with("part", "foot")),
+            new BlockPlacement.Placement(0, 65, -1, BlockState.of(blocks.get("minecraft:bed"), 0)
+                .with("facing", "north").with("part", "head"))), bed);
+        // Not on the side of a block, and not with the head over air.
+        assertTrue(click(world, "minecraft:bed", 0, Direction.EAST, .5f, Direction.NORTH).isEmpty());
+        assertTrue(click(stoneWorld(), "minecraft:bed", 0, Direction.UP, 1f, Direction.NORTH).isEmpty());
+    }
+
+    @Test
     void doorsAndDoublePlantsOccupyTwoBlocks() {
         var door = click(stoneWorld(), "minecraft:wooden_door", 0, Direction.UP, 1f, Direction.NORTH);
         assertEquals(2, door.size());

@@ -40,6 +40,7 @@ public final class BlockModelManager {
     private final Map<BakeKey, BakedModel> baked = new HashMap<>();
     private final Map<StateMapper.ModelLocation, WeightedModel> variants = new HashMap<>();
     private final Map<ResourceLocation, WeightedModel> overrides = new HashMap<>();
+    private final Map<String, WeightedModel> builtin = new HashMap<>();
     private final Set<String> reported = new HashSet<>();
     private final WeightedModel missing = WeightedModel.of(missingModel());
 
@@ -64,6 +65,7 @@ public final class BlockModelManager {
         baked.clear();
         variants.clear();
         overrides.clear();
+        builtin.clear();
         reported.clear();
         baker = new ModelBaker(resources);
         bakeDefaults();
@@ -81,12 +83,36 @@ public final class BlockModelManager {
         return models == null ? null : models.first();
     }
 
+    /**
+     * A block model baked on its own, unrotated: what an item model whose
+     * parent is a block model draws (the piston's inventory model, the fence's
+     * two posts, a dispenser facing north), or {@code null} if it can't be baked.
+     */
+    public synchronized BakedModel itemModel(ResourceLocation model) {
+        BakeKey key = new BakeKey(model, 0, 0, false);
+        BakedModel cached = baked.get(key);
+        if (cached != null) return cached == missing.first() ? null : cached;
+        BakedModel bakedModel;
+        try {
+            bakedModel = baker.bake(model, 0, 0, false);
+        } catch (IOException | RuntimeException error) {
+            report("Could not bake item model " + model + ": " + error.getMessage());
+            bakedModel = missing.first();
+        }
+        baked.put(key, bakedModel);
+        return bakedModel == missing.first() ? null : bakedModel;
+    }
+
     /** The model list for a state, or {@code null} when the block is not drawn from a model. */
     public synchronized WeightedModel variantsFor(ActualState state) {
         Block block = state.block();
         if (block.modelOverride() != null) {
             return overrides.computeIfAbsent(block.modelOverride(),
                 model -> bakeList(List.of(new VariantSpec(model, 0, 0, false, 1)), model.toString()));
+        }
+        if (block.renderType() == Block.RenderType.ENTITY) {
+            return builtin.computeIfAbsent(block.name().path(),
+                name -> WeightedModel.of(new BakedModel(List.of(), builtinParticle(name), false)));
         }
         if (block.renderType() != Block.RenderType.MODEL) {
             return block.renderType() == Block.RenderType.INVISIBLE ? null : missing;
@@ -172,6 +198,22 @@ public final class BlockModelManager {
             json.has("y") ? json.get("y").getAsInt() : 0,
             json.has("uvlock") && json.get("uvlock").getAsBoolean(),
             json.has("weight") ? json.get("weight").getAsInt() : 1);
+    }
+
+    /**
+     * Blocks drawn by tile-entity renderers have no quads, only the texture
+     * their breaking flecks are cut from (BlockModelShapes.getTexture):
+     * oak planks for chests, signs and banners, obsidian for the ender chest,
+     * soul sand for mob heads. The end portal has none in 1.8.9 (the missing
+     * texture); obsidian stands in, though nothing can break it.
+     */
+    private static ResourceLocation builtinParticle(String block) {
+        String texture = switch (block) {
+            case "ender_chest", "end_portal" -> "obsidian";
+            case "skull" -> "soul_sand";
+            default -> "planks_oak";
+        };
+        return new ResourceLocation("minecraft:textures/blocks/" + texture + ".png");
     }
 
     private void report(String message) {

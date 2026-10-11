@@ -196,6 +196,8 @@ public final class Minecraft implements GuiContext {
     private SkyRenderer sky;
     private ParticleManager particles;
     private net.minecraft.client.renderer.entity.MobRenderer mobRenderer;
+    /** Chests, signs, banners and the end portal (their tile-entity renderers). */
+    private net.minecraft.client.renderer.entity.BlockEntityRenderer blockEntityRenderer;
     /** The mob or lit TNT under the crosshair, nearer than any block (objectMouseOver ENTITY), or null. */
     private MovingEntity pointedEntity;
     /** The boat the player sits in, or null (Entity.ridingEntity). */
@@ -411,8 +413,9 @@ public final class Minecraft implements GuiContext {
         biomeColors = BiomeColors.load(resourceManager);
         itemRenderer = new ItemRenderer(resourceManager, guiTextures, atlas, modelManager, biomeColors);
         itemRenderer.modelState = this::heldModelState;
-        itemRenderer.builtin = headItems;
+        itemRenderer.builtin = builtinItems;
         mobRenderer = new net.minecraft.client.renderer.entity.MobRenderer(guiTextures, itemRenderer);
+        blockEntityRenderer = new net.minecraft.client.renderer.entity.BlockEntityRenderer(guiTextures);
         localSkin = new LocalSkin(launcherSkin);
         localSkin.load();
         localCape = new LocalCape(launcherCape);
@@ -1887,6 +1890,7 @@ public final class Minecraft implements GuiContext {
             }
         }
         renderSkulls(limit);
+        renderBlockEntities(limit);
         if (mobRenderer.bossRendered && ingameGui != null)
             ingameGui.setBossStatus(I18n.format(mobRenderer.bossName), mobRenderer.bossHealthScale);
         if (shadows && gameSettings.thirdPersonView != 0 && !player.dead)
@@ -1896,16 +1900,43 @@ public final class Minecraft implements GuiContext {
         glColor4f(1, 1, 1, 1);
     }
 
-    /** TileEntityItemStackRenderer for mob heads: the head standing on the floor of the item's block, turned round. */
-    private final ItemRenderer.Builtin headItems = new ItemRenderer.Builtin() {
+    /**
+     * TileEntityItemStackRenderer: mob heads standing on the floor of the item's block, turned round;
+     * chests and banners drawn by their block's renderer.
+     */
+    private final ItemRenderer.Builtin builtinItems = new ItemRenderer.Builtin() {
         @Override public boolean handles(Item item) {
-            return net.minecraft.client.renderer.entity.SkullRenderer.typeOf(item.name().path()) >= 0;
+            return net.minecraft.client.renderer.entity.SkullRenderer.typeOf(item.name().path()) >= 0
+                || net.minecraft.client.renderer.entity.BlockEntityRenderer.drawsItem(item.vanillaId().path());
         }
         @Override public void draw(Item item, float red, float green, float blue) {
             int type = net.minecraft.client.renderer.entity.SkullRenderer.typeOf(item.name().path());
-            net.minecraft.client.renderer.entity.SkullRenderer.render(guiTextures, 0, 0, 0, 1, 180f, type, new float[] {red, green, blue});
+            if (type >= 0) {
+                net.minecraft.client.renderer.entity.SkullRenderer.render(guiTextures, 0, 0, 0, 1, 180f, type, new float[] {red, green, blue});
+                return;
+            }
+            blockEntityRenderer.renderItem(item.vanillaId().path(), item.vanillaData(), red, green, blue);
         }
     };
+
+    /**
+     * The chests, signs, banners and end portals in the sections drawn this frame, within the
+     * render distance (TileEntityRendererDispatcher), lit by the light where they stand.
+     */
+    private void renderBlockEntities(double limit) {
+        double[] camera = {player.x, player.y, player.z};
+        renderer.forEachBlockEntity((x, y, z) -> {
+            double dx = x + 0.5 - player.x, dz = z + 0.5 - player.z;
+            if (dx * dx + dz * dz > limit) return;
+            BlockState state = world.getState(x, y, z);
+            if (!net.minecraft.client.renderer.entity.BlockEntityRenderer.draws(state.block().name().path())) return;
+            float[] light = net.minecraft.client.renderer.LightMap.color(world.getSkyLight(x, y, z), world.getBlockLight(x, y, z));
+            boolean lit = !state.block().name().path().equals("end_portal");
+            if (lit) net.minecraft.client.renderer.StandardLighting.enable();
+            blockEntityRenderer.render(state, x, y, z, world::getState, light, levelInfo.totalTime, partialTicks, camera);
+            if (lit) net.minecraft.client.renderer.StandardLighting.disable();
+        });
+    }
 
     /** Placed mob heads within the render distance (TileEntitySkullRenderer); heads whose block has gone are forgotten. */
     private void renderSkulls(double limit) {
@@ -4410,7 +4441,7 @@ public final class Minecraft implements GuiContext {
         biomeColors.reload(resourceManager);
         itemRenderer = new ItemRenderer(resourceManager, guiTextures, atlas, modelManager, biomeColors);
         itemRenderer.modelState = this::heldModelState;
-        itemRenderer.builtin = headItems;
+        itemRenderer.builtin = builtinItems;
         mobRenderer = new net.minecraft.client.renderer.entity.MobRenderer(guiTextures, itemRenderer);
         firstPersonRenderer = new FirstPersonRenderer(guiTextures, itemRenderer, localSkin, launcherSlim);
         if (renderer != null) renderer.markAllDirty();
