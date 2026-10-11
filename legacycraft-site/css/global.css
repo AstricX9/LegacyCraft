@@ -1,0 +1,64 @@
+/* global.css: colours, page background, header bar, main column, headings, footer.
+   Every page loads this first, then elements.css, then its own page stylesheet. */
+
+:root{
+  --bg:#1f1e1d; --bar:#3a2c20; --ink:#d9d6cf; --dim:#8a867d; --faint:#55524c;
+  --link:#a9b8ff; --head:#ffffff; --orange:#f39a1e; --orange-dk:#c56a08;
+  --panel:#2a2826; --line:#3d3a36;
+  --f-body:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --f-mono:Consolas,"Liberation Mono",Menlo,monospace;
+  --col:800px;
+  /* Dark wash over the stone tile so text stays readable on any texture. */
+  --shade:linear-gradient(rgba(22,21,20,.84),rgba(22,21,20,.84));
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+
+/* The stone and dirt tiles are 16x16 textures, drawn 3x with sharp pixels. */
+body{
+  margin:0;min-height:100vh;display:flex;flex-direction:column;
+  background:var(--shade),url(../assets/stone.png) var(--bg);background-size:auto,48px 48px;image-rendering:pixelated;
+  color:var(--ink);font:13px/1.55 var(--f-body);
+}
+body>*{image-rendering:auto}
+
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+img{max-width:100%}
+
+/* ---- header ---- */
+.bar{
+  background:var(--bar) url(../assets/dirt.png) repeat;background-size:48px 48px;image-rendering:pixelated;
+  box-shadow:0 2px 0 rgba(0,0,0,.35);
+}
+.bar-in{max-width:calc(var(--col) + 120px);margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;image-rendering:auto}
+.logo{display:block;line-height:0;flex:none}
+.logo img{width:230px;height:auto;filter:drop-shadow(2px 3px 0 rgba(0,0,0,.45))}
+.nav{display:flex;gap:14px;flex-wrap:wrap}
+.nav a{color:var(--head);font-weight:700;font-size:16px;text-shadow:1px 1px 0 rgba(0,0,0,.6)}
+.nav a[aria-current="page"]{color:#f3d49a}
+.acct{margin-left:auto;color:var(--ink);font-size:12px;white-space:nowrap;text-shadow:1px 1px 0 rgba(0,0,0,.6)}
+.acct b{color:var(--link);font-size:15px}
+
+/* ---- main column ---- */
+.wrap{flex:1;width:100%;max-width:var(--col);margin:0 auto;padding:26px 16px 40px}
+.prose{max-width:640px}
+
+h1,h2,h3{color:var(--head);font-weight:700;line-height:1.25}
+h1{font-size:26px;margin:4px 0 22px}
+h2{font-size:18px;margin:46px 0 16px}
+h3{font-size:14px;margin:26px 0 8px}
+p{margin:0 0 1.1em}
+
+/* ---- footer ---- */
+.foot{text-align:center;color:var(--faint);font-size:11px;padding:30px 16px 26px}
+.foot a{color:var(--dim)}
+
+@media (max-width:640px){
+  .acct{margin-left:0}
+  .logo img{width:190px}
+  h2{margin-top:36px}
+}
