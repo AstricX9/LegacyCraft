@@ -845,6 +845,7 @@ public final class Minecraft implements GuiContext {
     private void tickItemEntities() {
         pickUpArrows();
         tickSpawners();
+        itemPickups.removeIf(pickup -> ++pickup.ticks >= ItemPickup.DURATION);
         List<EntityItem> items = new ArrayList<>();
         for (Entity entity : server.entities().values()) if (entity instanceof EntityItem item && !item.isRemoved()) items.add(item);
         for (EntityItem item : items) {
@@ -866,6 +867,7 @@ public final class Minecraft implements GuiContext {
             inventory.addItemStackToInventory(item.stack());
             // EntityItem.onCollideWithPlayer: a pop when anything was picked up.
             if (item.stack().count() < before) {
+                itemPickups.add(new ItemPickup(item, item.stack().withCount(before - item.stack().count())));
                 String earned = net.minecraft.stats.AchievementList.forPickedUp(item.stack().item().name().path());
                 if (earned != null) triggerAchievement(earned);
             }
@@ -1252,6 +1254,7 @@ public final class Minecraft implements GuiContext {
         portalCounter = timeUntilPortal = 0;
         if (renderer != null) renderer.destroy();
         if (sky != null) sky.destroy();
+        itemPickups.clear();
         if (particles != null) particles.clear();
         particles = null;
         server = null;
@@ -2629,7 +2632,8 @@ public final class Minecraft implements GuiContext {
     /**
      * Dropped items: bobbing 0-0.2 blocks and turning once every ~6 seconds
      * (1.8.9 RenderEntityItem), lit by the light where they are, with extra
-     * copies for bigger stacks (2 above 1 item, 3 above 16, 4 above 32, 5 above 48).
+     * copies for bigger stacks (2 above 1 item, 3 above 16, 4 above 32, 5 above 48);
+     * then the items being picked up, on their way to the player.
      */
     private void renderItemEntities(int renderDistance) {
         double limit = (double) renderDistance * renderDistance;
@@ -2641,36 +2645,74 @@ public final class Minecraft implements GuiContext {
             double z = item.prevZ + (item.z() - item.prevZ) * partialTicks;
             double dx = x - player.x, dz = z - player.z;
             if (dx * dx + dz * dz > limit) continue;
-            int bx = (int) Math.floor(x), by = (int) Math.floor(y), bz = (int) Math.floor(z);
-            boolean inWorld = by >= 0 && by < World.HEIGHT;
-            float[] light = net.minecraft.client.renderer.LightMap.color(inWorld ? world.getSkyLight(bx, by, bz) : 15,
-                inWorld ? world.getBlockLight(bx, by, bz) : 0);
-            float time = item.age + partialTicks;
-            float bob = (float) Math.sin(time / 10.0f + item.hoverStart) * 0.1f + 0.1f;
-            float spin = (float) Math.toDegrees(time / 20.0f + item.hoverStart);
-            int count = item.stack().count();
-            int copies = count > 48 ? 5 : count > 32 ? 4 : count > 16 ? 3 : count > 1 ? 2 : 1;
-            boolean block = itemRenderer.isBlockModel(item.stack().item());
-            Random spread = new Random(187L);
-            glPushMatrix();
-            glTranslated(x, y + bob + 0.25, z);
-            glRotatef(spin, 0, 1, 0);
-            for (int copy = 0; copy < copies; copy++) {
-                glPushMatrix();
-                if (copy > 0) {
-                    if (block) glTranslatef((spread.nextFloat() * 2 - 1) * 0.15f * 0.5f, (spread.nextFloat() * 2 - 1) * 0.15f * 0.5f,
-                        (spread.nextFloat() * 2 - 1) * 0.15f * 0.5f);
-                    else glTranslatef(0, 0, copy * -0.046875f);
-                }
-                itemRenderer.renderItemInWorld(item.stack(), light[0], light[1], light[2]);
-                glPopMatrix();
-            }
-            glPopMatrix();
+            renderDroppedItem(item.stack(), x, y, z, item.age + partialTicks, item.hoverStart);
             if (item.isBurning()) renderEntityFire(x, y, z, (float) EntityItem.SIZE, (float) EntityItem.SIZE);
+        }
+        for (ItemPickup pickup : itemPickups) {
+            // EntityPickupFX.renderParticle: from where the item was to half a block above the player's feet, easing in.
+            float progress = (pickup.ticks + partialTicks) / ItemPickup.DURATION;
+            progress *= progress;
+            double x = pickup.x + (player.x - pickup.x) * progress;
+            double y = pickup.y + (player.y + 0.5 - pickup.y) * progress;
+            double z = pickup.z + (player.z - pickup.z) * progress;
+            renderDroppedItem(pickup.stack, x, y, z, pickup.age + partialTicks, pickup.hoverStart);
         }
         glEnable(GL_TEXTURE_2D);
         glColor4f(1, 1, 1, 1);
     }
+
+    /** One dropped stack at a point, {@code time} ticks old (bob and spin), under the standard item lighting. */
+    private void renderDroppedItem(ItemStack stack, double x, double y, double z, float time, float hoverStart) {
+        int bx = (int) Math.floor(x), by = (int) Math.floor(y), bz = (int) Math.floor(z);
+        boolean inWorld = by >= 0 && by < World.HEIGHT;
+        float[] light = net.minecraft.client.renderer.LightMap.color(inWorld ? world.getSkyLight(bx, by, bz) : 15,
+            inWorld ? world.getBlockLight(bx, by, bz) : 0);
+        float bob = (float) Math.sin(time / 10.0f + hoverStart) * 0.1f + 0.1f;
+        float spin = (float) Math.toDegrees(time / 20.0f + hoverStart);
+        int count = stack.count();
+        int copies = count > 48 ? 5 : count > 32 ? 4 : count > 16 ? 3 : count > 1 ? 2 : 1;
+        boolean block = itemRenderer.isBlockModel(stack.item());
+        Random spread = new Random(187L);
+        StandardLighting.enable();
+        glPushMatrix();
+        glTranslated(x, y + bob + 0.25, z);
+        glRotatef(spin, 0, 1, 0);
+        for (int copy = 0; copy < copies; copy++) {
+            glPushMatrix();
+            if (copy > 0) {
+                if (block) glTranslatef((spread.nextFloat() * 2 - 1) * 0.15f * 0.5f, (spread.nextFloat() * 2 - 1) * 0.15f * 0.5f,
+                    (spread.nextFloat() * 2 - 1) * 0.15f * 0.5f);
+                // Flat items stack up one behind the other, 0.046875 apart.
+                else glTranslatef(0, 0, copy * 0.046875f);
+            }
+            itemRenderer.renderDropped(stack, light[0], light[1], light[2]);
+            glPopMatrix();
+        }
+        glPopMatrix();
+        StandardLighting.disable();
+    }
+
+    /**
+     * An item the player just picked up, still drawn for three ticks as it
+     * slides into them (1.8.9 EntityPickupFX, spawned by onItemPickup).
+     */
+    private static final class ItemPickup {
+        static final int DURATION = 3;
+        final ItemStack stack;
+        final double x, y, z;
+        final int age;
+        final float hoverStart;
+        int ticks;
+
+        ItemPickup(EntityItem item, ItemStack stack) {
+            this.stack = stack;
+            this.x = item.x(); this.y = item.y(); this.z = item.z();
+            this.age = item.age;
+            this.hoverStart = item.hoverStart;
+        }
+    }
+
+    private final List<ItemPickup> itemPickups = new ArrayList<>();
 
     /**
      * Flames on a burning entity (Render.renderEntityOnFire, HYPOTHESIS):
