@@ -1,0 +1,13 @@
+enabled:false
+toggleSneak:false
+toggleSprint:true
+fullBright:false
+shaders:false
+coordinates:true
+fpsCounter:false
+noHurtTilt:false
+solidCrosshair:false
+steadyFov:false
+fullBright.brightness:100
+shaders.shader:Vibrant
+solidCrosshair.color:White
