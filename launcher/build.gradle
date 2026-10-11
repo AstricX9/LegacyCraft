@@ -19,9 +19,10 @@ application {
     mainClass = 'net.legacycraft.launcher.LauncherApp'
 }
 
-// The Additions list is the game's; a copy goes with the launcher for when it can't find the LegacyCraft folder.
+// The Additions are the game's; a copy goes with the launcher for when it can't find the LegacyCraft folder.
 processResources {
-    from('../src/main/resources/assets/legacycraft/additions.json') {
-        into 'net/legacycraft/launcher'
+    from('../src/main/resources/assets/legacycraft/additions') {
+        include '*.json'
+        into 'net/legacycraft/launcher/additions'
     }
 }

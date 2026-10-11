@@ -61,6 +61,54 @@ final class AdditionsTest {
     }
 
     @Test
+    void theTemplateIsSkippedButShowsEveryKindOfSetting() throws Exception {
+        assertNull(Additions.defaults().find("myAddition"), "files starting with _ aren't additions");
+        Addition template;
+        try (var in = AdditionsTest.class.getResourceAsStream("/assets/legacycraft/additions/_template.json")) {
+            template = Additions.parse(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        Set<Addition.Setting.Type> types = new HashSet<>();
+        for (Addition.Setting s : template.settings()) types.add(s.type());
+        assertEquals(Set.of(Addition.Setting.Type.values()), types);
+    }
+
+    @Test
+    void settingsSaveAsAdditionDotSettingLinesAndStayValid() throws Exception {
+        Path dir = Files.createTempDirectory("lc-additions");
+        Path file = dir.resolve("additions.txt");
+        Files.writeString(file, "enabled:true\nfullBright:true\nfullBright.brightness:banana\nfullBright.fromTheFuture:1\n");
+        Additions additions = Additions.load(file);
+        assertEquals("100", additions.setting(Additions.FULL_BRIGHT, "brightness"), "a value it can't use is the default");
+        additions.setSetting(Additions.FULL_BRIGHT, "brightness", "54");
+        assertEquals(50, additions.number(Additions.FULL_BRIGHT, "brightness"), "slider values snap to the step");
+        additions.setSetting(Additions.FULL_BRIGHT, "brightness", "500");
+        assertEquals("100", additions.setting(Additions.FULL_BRIGHT, "brightness"), "and stay in range");
+        additions.setSetting(Additions.SOLID_CROSSHAIR, "color", "Green");
+        additions.setSetting(Additions.SOLID_CROSSHAIR, "color", "Plaid");
+        assertEquals("Green", additions.setting(Additions.SOLID_CROSSHAIR, "color"));
+        additions.setSetting(Additions.COORDINATES, "showFacing", "false");
+        additions.setSetting(Additions.SHADERS, "file", "../secret.fsh");
+        assertEquals("", additions.setting(Additions.SHADERS, "file"), "files come from the addition's own folder");
+        additions.save();
+        List<String> lines = Files.readAllLines(file);
+        assertTrue(lines.contains("fullBright.brightness:100"));
+        assertTrue(lines.contains("solidCrosshair.color:Green"));
+        assertTrue(lines.contains("fullBright.fromTheFuture:1"), "settings a newer game knows are kept");
+        Additions again = Additions.load(file);
+        assertFalse(again.settingOn(Additions.COORDINATES, "showFacing"));
+        again.resetSettings(Additions.COORDINATES);
+        assertTrue(again.settingOn(Additions.COORDINATES, "showFacing"));
+        assertNull(again.setting(Additions.COORDINATES, "nothing"));
+
+        Addition.Setting shader = again.find(Additions.SHADERS).setting("file");
+        Files.createDirectories(dir.resolve("shaders"));
+        Files.writeString(dir.resolve("shaders/b.fsh"), "");
+        Files.writeString(dir.resolve("shaders/A.glsl"), "");
+        Files.writeString(dir.resolve("shaders/notes.txt"), "");
+        assertEquals(List.of("A.glsl", "b.fsh"), again.files(shader));
+    }
+
+    @Test
     void toggleSprintLatchesOnOnePressAndLetsGoOnTheNext() {
         KeyBinding sprint = new KeyBinding("key.sprint", 29, "key.categories.movement");
         KeyBinding sneak = new KeyBinding("key.sneak", 42, "key.categories.movement");

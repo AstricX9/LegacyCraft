@@ -1,0 +1,9 @@
+{
+  "id": "fpsCounter",
+  "category": "interface",
+  "scope": "game",
+  "default": false,
+  "recommended": false,
+  "name": "FPS Counter",
+  "description": "Shows the frames per second in the top-right corner."
+}

@@ -53,15 +53,15 @@ listed in `docs/compat/deviations.yml` (DEV-009 to DEV-014).
 Files are kept next to where the game runs (change with `--gamedir=<path>`):
 `saves/<world>/` (a vanilla-shaped `level.dat` plus LegacyCraft chunk files,
 DEV-003), `options.txt` (vanilla option names and key codes), `additions.txt`
-(see Additions below), `servers.dat`,
+and `shaders/` (see Additions below), `servers.dat`,
 `resourcepacks/` and `screenshots/`.
 
 ## Additions
 
 Additions are LegacyCraft's own mod system: optional changes to 1.8.9, so
 each player chooses how faithful the game looks. They are grouped as
-Gameplay, Graphics, Interface, Accessibility and Launcher, and listed in
-`src/main/resources/assets/legacycraft/additions.json`.
+Gameplay, Graphics, Interface, Accessibility and Launcher. Each addition is
+its own file in `src/main/resources/assets/legacycraft/additions/`.
 
 Each instance turns Additions on or off as a whole in the launcher's
 **Additions** tab. Off (the default) is plain 1.8.9: no addition is active
@@ -69,18 +69,52 @@ and the title screen has no Additions button. On, each addition is switched
 on or off in that tab, or in game from the **Additions** button under
 Minecraft Realms. Both edit `additions.txt` in the game folder, so each
 instance has its own. The current additions are Toggle Sprint, Toggle Sneak,
-Full Bright, Coordinates, FPS Counter, No Damage Tilt, Steady Field of View
-and Solid Crosshair in the game, and Remember Tab, What's New and Additions on
-Instances in the launcher (DEV-041).
+Full Bright, Shaders, Coordinates, FPS Counter, No Damage Tilt, Steady Field
+of View and Solid Crosshair in the game, and Remember Tab, What's New and
+Additions on Instances in the launcher (DEV-041).
 
 The launcher's tab also has the **Faithful** (all off) and **Recommended**
 presets; the in-game screen just has the switches.
 
-To add one: put an entry in `additions.json` (`id`, `category`, `scope` of
-`game` or `launcher`, `default`, `recommended`, `name`, `description`), add its id to
-`net.minecraft.client.additions.Additions` (or the launcher's `Additions`), and
-check `additions.isOn(id)` where it changes the game (it is false while
-Additions are off). The screens pick it up from the list.
+### Settings
+
+An addition can have settings: switches, sliders, lists of choices, and
+files picked from a folder in the instance. Its row then has a settings
+button (`textures/gui/settings.png`, so a resource pack can change it; a
+small gear is drawn while that image is missing) that opens them, in game
+and in the launcher. They are saved per instance in `additions.txt` as
+`<addition>.<setting>:<value>` lines.
+
+### Shaders
+
+The Shaders addition runs a fragment shader over the picture (not the HUD).
+It has built-in looks (Vibrant, Warm, Cool, Sepia, Grayscale) and a Custom
+File setting that picks your own shader from the instance's `shaders`
+folder (`.fsh`, `.frag` or `.glsl`). A shader is GLSL 1.20 and gets:
+
+```glsl
+uniform sampler2D scene;   // the picture
+uniform float strength;    // the Strength setting, 0-1
+uniform float time;        // seconds since the game started
+uniform vec2 resolution;   // the window size in pixels
+varying vec2 uv;           // where on screen, 0-1
+```
+
+and writes `gl_FragColor`. `assets/legacycraft/shaders/grayscale.fsh` is a
+small one to start from. A shader that doesn't compile is reported in the
+chat, and the file is reloaded when it changes.
+
+### Making an addition
+
+Copy `additions/_template.json` to `additions/<id>.json` (files starting
+with `_` are skipped) and fill it in: `id`, `category`, `scope` (`game`, or
+`launcher` for the launcher's own), `default`, `recommended`, `name`,
+`description`, and any `settings` (the template has one of each kind). Then
+add the id to `net.minecraft.client.additions.Additions` (or the launcher's
+`Additions`) and check `additions.isOn(id)` where it changes the game (it is
+false while Additions are off); read settings with
+`additions.setting(id, "setting")`, `settingOn` or `number`. Both Additions
+screens and the launcher pick it up from the folder.
 
 ## World generation
 

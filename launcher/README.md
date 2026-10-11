@@ -54,7 +54,11 @@ mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
   instance; off plays as plain 1.8.9 and the title screen has no Additions
   button. Under it, the **Faithful** (every addition off) and **Recommended**
   presets set all the switches at once; any other mix shows as **Custom**.
-  Below that, each addition has its own On/Off switch, by category.
+  Below that, each addition has its own On/Off switch, by category. An
+  addition with settings has a settings button next to its switch (the
+  game's `textures/gui/settings.png`, or a drawn gear while that image isn't
+  there) that opens them under its row: switches, sliders, lists, and files
+  from a folder in the instance (with a **Folder** link to open it).
   Changes are saved straight away to `additions.txt` in the instance folder,
   the same file the game's Additions screen edits. The Launcher section at
   the bottom applies to every instance: **Remember Tab** (open on the tab you

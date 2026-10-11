@@ -1,0 +1,25 @@
+{
+  "id": "solidCrosshair",
+  "category": "accessibility",
+  "scope": "game",
+  "default": false,
+  "recommended": false,
+  "name": "Solid Crosshair",
+  "description": "Draws the crosshair white with a dark outline, so it shows up on any background.",
+  "settings": [
+    {
+      "id": "color",
+      "type": "choice",
+      "name": "Color",
+      "description": "The crosshair's colour inside its outline.",
+      "options": [
+        "White",
+        "Green",
+        "Yellow",
+        "Cyan",
+        "Red"
+      ],
+      "default": "White"
+    }
+  ]
+}

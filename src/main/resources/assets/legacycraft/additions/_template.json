@@ -1,0 +1,53 @@
+{
+  "comment": "A template for a new addition. Copy this file into this folder under a new name (files starting with _ are skipped), change the id to match, and fill in the rest. Then check additions.isOn(\"<id>\") in the game code where it changes something, and read each setting with additions.setting(\"<id>\", \"<setting id>\") (or settingOn / number). The game and the launcher list it on their own. Fields: id (letters, no '.' or ':'), category (gameplay, graphics, interface, accessibility or launcher), scope (game, or launcher for launcher-only additions), default (switched on to begin with), recommended (turned on by the launcher's Recommended preset), name, description, and settings (optional). Setting types: toggle (default true/false), slider (min, max, step, unit), choice (options, default one of them), file (folder under the instance folder, extensions; the value is a file name, empty for none). Settings are saved per instance in additions.txt as <id>.<setting id>:<value>.",
+  "id": "myAddition",
+  "category": "gameplay",
+  "scope": "game",
+  "default": false,
+  "recommended": false,
+  "name": "My Addition",
+  "description": "One sentence saying what changes when this is on.",
+  "settings": [
+    {
+      "id": "someSwitch",
+      "type": "toggle",
+      "name": "Some Switch",
+      "description": "What this switch does.",
+      "default": true
+    },
+    {
+      "id": "amount",
+      "type": "slider",
+      "name": "Amount",
+      "description": "What this number changes.",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 50
+    },
+    {
+      "id": "mode",
+      "type": "choice",
+      "name": "Mode",
+      "description": "Pick one of a few options.",
+      "options": [
+        "First",
+        "Second",
+        "Third"
+      ],
+      "default": "First"
+    },
+    {
+      "id": "file",
+      "type": "file",
+      "name": "File",
+      "description": "Pick a file from a folder in the instance folder.",
+      "folder": "myaddition",
+      "extensions": [
+        ".txt"
+      ],
+      "default": ""
+    }
+  ]
+}
