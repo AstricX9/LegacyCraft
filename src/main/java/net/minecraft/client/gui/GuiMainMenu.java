@@ -18,7 +18,8 @@ import static org.lwjgl.opengl.GL11.*;
 /**
  * The 1.8.9 title screen (master context §66): blurred rotating panorama,
  * the logo (with the rare "Minceraft" misspelling), a pulsing splash, and
- * Singleplayer / Multiplayer / Minecraft Realms / language / Options / Quit.
+ * Singleplayer / Multiplayer / Minecraft Realms / language / Options / Quit,
+ * plus LegacyCraft's Additions under Realms.
  *
  * <p>Layout, panorama pass counts and splash maths are HYPOTHESIS until
  * screenshot-compared (unknowns.yml "GUI pixel layout"). Branding text is a
@@ -54,13 +55,17 @@ public class GuiMainMenu extends GuiScreen {
     @Override
     public void initGui() {
         if (splashText.equals("missingno")) splashText = pickSplash();
-        int top = height / 4 + 48;
+        // The extra Additions row would run into the bottom-corner text on short windows, so the buttons move up there.
+        int top = Math.min(height / 4 + 48, height - 12 - (24 * 4 + 12 + 20));
         buttonList.add(new GuiButton(1, width / 2 - 100, top, I18n.format("menu.singleplayer")));
         buttonList.add(new GuiButton(2, width / 2 - 100, top + 24, I18n.format("menu.multiplayer")));
         buttonList.add(new GuiButton(14, width / 2 - 100, top + 24 * 2, I18n.format("menu.online")));
-        buttonList.add(new GuiButton(0, width / 2 - 100, top + 72 + 12, 98, 20, I18n.format("menu.options")));
-        buttonList.add(new GuiButton(4, width / 2 + 2, top + 72 + 12, 98, 20, I18n.format("menu.quit")));
-        buttonList.add(new GuiButtonLanguage(5, width / 2 - 124, top + 72 + 12));
+        // LegacyCraft's Additions (DEV-041) get their own row under Realms, pushing Options and Quit down one row.
+        buttonList.add(new GuiButton(20, width / 2 - 100, top + 72, GuiAdditions.TITLE));
+        int bottom = top + 72 + 24 + 12;
+        buttonList.add(new GuiButton(0, width / 2 - 100, bottom, 98, 20, I18n.format("menu.options")));
+        buttonList.add(new GuiButton(4, width / 2 + 2, bottom, 98, 20, I18n.format("menu.quit")));
+        buttonList.add(new GuiButtonLanguage(5, width / 2 - 124, bottom));
     }
 
     /** A random splashes.txt line, replaced by vanilla's date-specific splashes on their days. */
@@ -98,6 +103,7 @@ public class GuiMainMenu extends GuiScreen {
             case 2 -> mc.displayGuiScreen(new GuiMultiplayer(this));
             case 4 -> mc.shutdown();
             case 5 -> mc.displayGuiScreen(new GuiLanguage(this));
+            case 20 -> mc.displayGuiScreen(new GuiAdditions(this));
             case 14 -> mc.displayGuiScreen(new GuiDisconnected(this, "menu.online",
                 "Realms needs Mojang's online services, which LegacyCraft does not connect to.", "gui.back"));
             default -> {}

@@ -1,0 +1,31 @@
+{
+  "comment": "Optional changes to the 1.8.9 experience. Every addition is off in the Faithful look; Recommended turns on the ones marked recommended. The game reads this file, and so does the launcher (from the LegacyCraft folder). Game additions are saved per instance in additions.txt; launcher additions in launcher_profiles.json.",
+  "additions": [
+    {"id": "toggleSprint", "category": "gameplay", "scope": "game", "recommended": true,
+     "name": "Toggle Sprint", "description": "Press Sprint once to keep sprinting, press it again to stop."},
+    {"id": "toggleSneak", "category": "gameplay", "scope": "game", "recommended": false,
+     "name": "Toggle Sneak", "description": "Press Sneak once to keep sneaking, press it again to stand up."},
+
+    {"id": "fullBright", "category": "graphics", "scope": "game", "recommended": false,
+     "name": "Full Bright", "description": "Caves and nights are lit as if you had Night Vision."},
+
+    {"id": "coordinates", "category": "interface", "scope": "game", "recommended": true,
+     "name": "Coordinates", "description": "Shows your position and the way you face in the top-left corner, without F3."},
+    {"id": "fpsCounter", "category": "interface", "scope": "game", "recommended": false,
+     "name": "FPS Counter", "description": "Shows the frames per second in the top-right corner."},
+
+    {"id": "noHurtTilt", "category": "accessibility", "scope": "game", "recommended": false,
+     "name": "No Damage Tilt", "description": "The view no longer rolls when you get hurt."},
+    {"id": "steadyFov", "category": "accessibility", "scope": "game", "recommended": false,
+     "name": "Steady Field of View", "description": "Sprinting, flying and potions no longer widen or narrow the view."},
+    {"id": "solidCrosshair", "category": "accessibility", "scope": "game", "recommended": false,
+     "name": "Solid Crosshair", "description": "Draws the crosshair white with a dark outline, so it shows up on any background."},
+
+    {"id": "rememberTab", "category": "launcher", "scope": "launcher", "recommended": true,
+     "name": "Remember Tab", "description": "The launcher opens on the tab you used last instead of News."},
+    {"id": "whatsNew", "category": "launcher", "scope": "launcher", "recommended": true,
+     "name": "What's New", "description": "When an update brings new Additions, the launcher lists them when it starts."},
+    {"id": "instanceSummary", "category": "launcher", "scope": "launcher", "recommended": true,
+     "name": "Look on Instances", "description": "Each instance in the list shows its look (Faithful, Recommended or Custom)."}
+  ]
+}

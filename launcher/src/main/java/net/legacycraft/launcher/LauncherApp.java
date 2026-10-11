@@ -101,7 +101,38 @@ public final class LauncherApp {
         frame.setLocationRelativeTo(null);
         Windows.resizable(frame);
         refreshProfiles();
+        if (data.launcherAddition(Additions.REMEMBER_TAB)) {
+            for (int i = 0; i < tabs.getTabCount(); i++) if (tabs.getTitleAt(i).equals(data.lastTab)) tabs.setSelectedIndex(i);
+        }
+        tabs.addChangeListener(e -> {
+            String title = tabs.getTitleAt(tabs.getSelectedIndex());
+            if (title.equals(data.lastTab)) return;
+            data.lastTab = title;
+            data.save();
+        });
         frame.setVisible(true);
+        SwingUtilities.invokeLater(this::whatsNew);
+    }
+
+    /** The What's New addition: lists Additions the launcher hasn't told you about yet, once. */
+    private void whatsNew() {
+        List<Additions.Entry> fresh = new ArrayList<>();
+        for (Additions.Entry e : data.additions().entries) if (!data.seenAdditions.contains(e.id())) fresh.add(e);
+        if (fresh.isEmpty()) return;
+        boolean firstTime = data.seenAdditions.isEmpty();
+        for (Additions.Entry e : fresh) data.seenAdditions.add(e.id());
+        data.save();
+        if (!data.launcherAddition(Additions.WHATS_NEW)) return;
+        StringBuilder text = new StringBuilder("<html><body style='width:380px'>");
+        text.append(firstTime
+            ? "<p>LegacyCraft now has <b>Additions</b>: optional changes you can switch on for each instance. "
+                + "Everything is off in the <b>Faithful</b> look, so the game stays plain 1.8.9 until you choose otherwise.</p>"
+            : "<p>This update brings new Additions:</p>");
+        text.append("<ul>");
+        for (Additions.Entry e : fresh)
+            text.append("<li><b>").append(e.name()).append("</b> (").append(e.category().title).append("): ").append(e.description()).append("</li>");
+        text.append("</ul><p>Open them from <b>Additions</b> under the instance, or from the Additions button on the title screen.</p></body></html>");
+        Windows.message(frame, firstTime ? "Additions" : "What's new", text.toString());
     }
 
     // ------------------------------------------------------------------ tabs
@@ -206,6 +237,8 @@ public final class LauncherApp {
         links.setOpaque(false);
         links.setAlignmentX(0);
         links.add(Theme.link("Edit", () -> { if (data.selected() != null) instances.edit(data.selected()); }));
+        links.add(Box.createHorizontalStrut(12));
+        links.add(Theme.link("Additions", () -> { if (data.selected() != null) instances.additions(data.selected()); }));
         links.add(Box.createHorizontalStrut(12));
         links.add(Theme.link("New", () -> instances.create(null)));
         links.add(Box.createHorizontalStrut(12));

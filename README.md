@@ -52,8 +52,31 @@ listed in `docs/compat/deviations.yml` (DEV-009 to DEV-014).
 
 Files are kept next to where the game runs (change with `--gamedir=<path>`):
 `saves/<world>/` (a vanilla-shaped `level.dat` plus LegacyCraft chunk files,
-DEV-003), `options.txt` (vanilla option names and key codes), `servers.dat`,
+DEV-003), `options.txt` (vanilla option names and key codes), `additions.txt`
+(see Additions below), `servers.dat`,
 `resourcepacks/` and `screenshots/`.
+
+## Additions
+
+Additions are optional changes to 1.8.9, so each player chooses how faithful
+the game looks. They are grouped as Gameplay, Graphics, Interface,
+Accessibility and Launcher, and listed in
+`src/main/resources/assets/legacycraft/additions.json`. Everything is off by
+default (the **Faithful** look, plain 1.8.9); **Recommended** turns on a few
+that don't change how the game looks; any other mix is **Custom**.
+
+Open them from the **Additions** button under Minecraft Realms on the title
+screen, or from **Additions** next to an instance in the launcher. Both edit
+`additions.txt` in the game folder, so each instance has its own. The current
+additions are Toggle Sprint, Toggle Sneak, Full Bright, Coordinates, FPS
+Counter, No Damage Tilt, Steady Field of View and Solid Crosshair in the game,
+and Remember Tab, What's New and Look on Instances in the launcher (DEV-041).
+
+To add one: put an entry in `additions.json` (`id`, `category`, `scope` of
+`game` or `launcher`, `recommended`, `name`, `description`), add its id to
+`net.minecraft.client.additions.Additions` (or the launcher's `Additions`), and
+check `additions.isOn(id)` where it changes the game. The screens pick it up
+from the list.
 
 ## World generation
 

@@ -122,7 +122,14 @@ public class GuiIngame extends Gui {
 
         mc.textures().bind(GuiTextures.ICONS);
         glColor4f(1, 1, 1, 1);
-        if (crosshair) {
+        if (crosshair && mc.additions().isOn(net.minecraft.client.additions.Additions.SOLID_CROSSHAIR)) {
+            // Solid Crosshair: a dark outline (the cross shifted a pixel each way), then the cross in white.
+            glColor4f(0.1f, 0.1f, 0.1f, 1);
+            for (int[] d : new int[][] {{-1, 0}, {1, 0}, {0, -1}, {0, 1}})
+                drawTexturedModalRect(width / 2 - 7 + d[0], height / 2 - 7 + d[1], 0, 0, 16, 16);
+            glColor4f(1, 1, 1, 1);
+            drawTexturedModalRect(width / 2 - 7, height / 2 - 7, 0, 0, 16, 16);
+        } else if (crosshair) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
             drawTexturedModalRect(width / 2 - 7, height / 2 - 7, 0, 0, 16, 16);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
