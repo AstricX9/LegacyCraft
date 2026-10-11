@@ -1342,7 +1342,9 @@
     folder; off by default, and then the game is plain 1.8.9 with no
     Additions button), and switches each game addition there (id:true|false
     lines, unknown lines kept). Files from before the enabled line count as
-    on when any addition is switched on. So far: Toggle
+    on when any addition is switched on. The launcher also offers presets
+    (Faithful: all off; Recommended: Toggle Sprint and Coordinates; anything
+    else shows as Custom); the in-game screen has none. So far: Toggle
     Sprint, Toggle Sneak, Full Bright (the lightmap as under Night Vision),
     Coordinates and FPS Counter (top corners, hidden while F3 is open), No
     Damage Tilt (the hurt roll; the death tilt stays), Steady Field of View

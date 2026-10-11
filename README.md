@@ -73,8 +73,11 @@ Full Bright, Coordinates, FPS Counter, No Damage Tilt, Steady Field of View
 and Solid Crosshair in the game, and Remember Tab, What's New and Additions on
 Instances in the launcher (DEV-041).
 
+The launcher's tab also has the **Faithful** (all off) and **Recommended**
+presets; the in-game screen just has the switches.
+
 To add one: put an entry in `additions.json` (`id`, `category`, `scope` of
-`game` or `launcher`, `default`, `name`, `description`), add its id to
+`game` or `launcher`, `default`, `recommended`, `name`, `description`), add its id to
 `net.minecraft.client.additions.Additions` (or the launcher's `Additions`), and
 check `additions.isOn(id)` where it changes the game (it is false while
 Additions are off). The screens pick it up from the list.
