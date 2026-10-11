@@ -18,8 +18,8 @@ in IDEs: `gradle run`.
   from the game's dirt texture in grey; `#e0d0d0` text, `#aaaaff` links). To write your own news, copy
   `src/main/resources/net/legacycraft/launcher/news.html` to
   `%USERPROFILE%\.legacycraft-launcher\news.html` and edit the copy. Links
-  starting with `launcher:` (`skins`, `profiles`, `console`, `gamedir`,
-  `skinsdir`, `capesdir`, `datadir`) are handled by the launcher.
+  starting with `launcher:` (`skins`, `profiles`, `console`, `worlds`, `gamedir`,
+  `savesdir`, `skinsdir`, `capesdir`, `datadir`) are handled by the launcher.
 - **Launcher Log**: the launcher log, plus the game's output prefixed
   with `Client>`.
 - **Profile Editor**: the profile table. Double-click a profile to edit it;
@@ -33,6 +33,19 @@ in IDEs: `gradle run`.
     Only the cape part is used; the elytra area of newer capes is ignored.
   - Drag the preview to turn the player; double-click it to stop spinning.
   - Drop PNG files onto a list to add them.
+- **Worlds** (new): the selected profile's `saves` folder, with each world's
+  name, folder, last played date and whether it's ready or still needs
+  converting.
+  - **Import World Folder...** / **Import .zip...** (or drop either onto the
+    list) copy a world in, e.g. from `%APPDATA%\.minecraft\saves`. The folder
+    keeps its name; if that name is taken, `-` is added until it's free, so
+    nothing is overwritten. The original is never changed.
+  - The launcher checks level.dat first and refuses worlds the game can't
+    read: 1.13+ worlds (block palette) and Beta (McRegion) worlds.
+  - Vanilla 1.8.9 worlds are converted by the game the first time you open
+    them in Singleplayer ("Converting world"): blocks, metadata, light and the
+    Nether come along; chest/furnace contents, sign text, mobs and dropped
+    items don't yet, and blocks added after 1.8.9 become air.
 
 ## Bottom bar
 

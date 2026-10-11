@@ -290,6 +290,8 @@ public final class Minecraft implements GuiContext {
     /** Save folder of the running world, or null for a throwaway command-line world. */
     private String worldFolder;
     private SpawnPreparation preparing;
+    /** A vanilla world being converted on a background thread before it opens. */
+    private volatile WorldConversion converting;
 
     private GuiScreen currentScreen;
     private int lastScaledWidth, lastScaledHeight, lastScaleFactor;
@@ -578,6 +580,7 @@ public final class Minecraft implements GuiContext {
             previous = now;
             glfwPollEvents();
 
+            if (converting != null) stepConversion();
             if (preparing != null) stepSpawnPreparation();
             tickAccumulator += frame;
             while (tickAccumulator >= tickStep) {
@@ -890,6 +893,63 @@ public final class Minecraft implements GuiContext {
     }
 
     // ---- world session ----------------------------------------------------------------------
+
+    private static final class WorldConversion {
+        final String folder, name;
+        volatile int progress;
+        volatile WorldStorage.Conversion result;
+        volatile Exception error;
+        volatile boolean done;
+        WorldConversion(String folder, String name) { this.folder = folder; this.name = name; }
+    }
+
+    @Override
+    public void convertAndLaunch(String folderName, String worldName) {
+        LevelInfo info = saveFormat.getWorldInfo(folderName);
+        if (info == null) {
+            displayGuiScreen(new net.minecraft.client.gui.GuiDisconnected(new GuiMainMenu(), "selectWorld.title",
+                "Couldn't read " + folderName + "/level.dat", "gui.toTitle"));
+            return;
+        }
+        Path directory = saveFormat.worldDirectory(folderName);
+        WorldConversion conversion = new WorldConversion(folderName, worldName);
+        loadingScreen.setTitle("Converting world");
+        loadingScreen.setMessage(worldName);
+        loadingScreen.setProgress(0);
+        displayGuiScreen(loadingScreen);
+        int registrySize = blockRegistry.size();
+        Thread worker = new Thread(() -> {
+            try {
+                conversion.result = WorldStorage.convertAnvil(directory, info.randomSeed, registrySize, p -> conversion.progress = p);
+            } catch (IOException | RuntimeException error) {
+                conversion.error = error;
+            }
+            conversion.done = true;
+        }, "World conversion");
+        worker.setDaemon(true);
+        converting = conversion;
+        worker.start();
+    }
+
+    private void stepConversion() {
+        WorldConversion conversion = converting;
+        loadingScreen.setProgress(conversion.progress);
+        if (!conversion.done) return;
+        converting = null;
+        if (conversion.error != null) {
+            System.err.println("Couldn't convert " + conversion.folder + ": " + conversion.error);
+            displayGuiScreen(new net.minecraft.client.gui.GuiDisconnected(new GuiMainMenu(), "selectWorld.title",
+                "Couldn't convert world: " + conversion.error.getMessage(), "gui.toTitle"));
+            return;
+        }
+        WorldStorage.Conversion result = conversion.result;
+        System.out.println("Converted " + conversion.folder + ": " + result.chunks() + " chunks"
+            + (result.damagedChunks() > 0 ? ", " + result.damagedChunks() + " damaged chunks skipped" : "")
+            + (result.unknownBlocks() > 0 ? ", " + result.unknownBlocks() + " unknown blocks became air" : "")
+            + (result.tileEntities() > 0 ? ", " + result.tileEntities() + " block entities (chest contents, signs...) not carried over" : "")
+            + (result.entities() > 0 ? ", " + result.entities() + " entities not carried over" : ""));
+        launchIntegratedServer(conversion.folder, conversion.name, null);
+    }
 
     @Override
     public void launchIntegratedServer(String folderName, String worldName, WorldSettings settings) {

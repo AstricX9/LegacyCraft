@@ -99,12 +99,23 @@ public final class WorldStorage {
         List<long[]> ordered = new ArrayList<>(entries.values());
         ordered.sort(Comparator.comparingLong(entry -> entry[2]));
 
+        writeIndex(directory, world.seed(), ordered);
+        if (world.chunkSource() == null) world.setChunkSource(saved);
+        writeTicks(directory, world);
+        writeFurnaces(directory, world);
+        writeSpawners(directory, world);
+        writeStructures(directory, world);
+        writeSkulls(directory, world);
+    }
+
+    /** Writes the chunk index: {x, z, generationIndex} entries in generation order. */
+    private static void writeIndex(Path directory, long seed, List<long[]> ordered) throws IOException {
         Path target = directory.resolve(INDEX_FILE);
         Path temporary = directory.resolve(INDEX_FILE + ".tmp");
         try (var output = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary)))) {
             output.writeInt(INDEX_MAGIC);
             output.writeInt(FORMAT);
-            output.writeLong(world.seed());
+            output.writeLong(seed);
             output.writeInt(ordered.size());
             for (long[] entry : ordered) {
                 output.writeInt((int) entry[0]);
@@ -113,12 +124,113 @@ public final class WorldStorage {
             }
         }
         moveAtomically(temporary, target);
-        if (world.chunkSource() == null) world.setChunkSource(saved);
-        writeTicks(directory, world);
-        writeFurnaces(directory, world);
-        writeSpawners(directory, world);
-        writeStructures(directory, world);
-        writeSkulls(directory, world);
+    }
+
+    /** What {@link #convertAnvil} carried over and what it had to leave behind. */
+    public record Conversion(int chunks, int damagedChunks, int unknownBlocks, int tileEntities, int entities) {}
+
+    /**
+     * Converts a vanilla 1.8.9 Anvil world in place: every chunk in
+     * {@code region/} (and {@code DIM-1/region/} for the Nether) is written as
+     * a LegacyCraft chunk with its blocks, metadata, light and population
+     * flag, then the index is written last so a failed conversion leaves the
+     * world unconverted. The region files are left as they are. Damaged
+     * chunks are skipped (the game generates them again); block IDs this game
+     * doesn't know become air; tile-entity data (chest contents,
+     * sign text...) and entities are not carried over and are only counted.
+     * {@code progress} gets 0-100.
+     */
+    public static Conversion convertAnvil(Path directory, long seed, int registrySize,
+                                          java.util.function.IntConsumer progress) throws IOException {
+        List<Path> overworld = net.minecraft.world.storage.anvil.RegionFile.list(directory.resolve("region"));
+        Path netherDirectory = directory.resolve(net.minecraft.world.Dimension.NETHER.folder());
+        List<Path> nether = net.minecraft.world.storage.anvil.RegionFile.list(netherDirectory.resolve("region"));
+        int total = Math.max(1, overworld.size() + nether.size());
+        int[] done = {0};
+        int[] counts = new int[5];
+        Runnable step = () -> progress.accept(++done[0] * 100 / total);
+        convertDimension(directory, overworld, seed, registrySize, counts, step);
+        if (!nether.isEmpty()) convertDimension(netherDirectory, nether, seed, registrySize, counts, step);
+        return new Conversion(counts[0], counts[1], counts[2], counts[3], counts[4]);
+    }
+
+    private static void convertDimension(Path directory, List<Path> regions, long seed, int registrySize,
+                                         int[] counts, Runnable step) throws IOException {
+        Path chunksDirectory = directory.resolve("chunks");
+        Files.createDirectories(chunksDirectory);
+        List<long[]> entries = new ArrayList<>();
+        long next = 0;
+        for (Path file : regions) {
+            // Vanilla leaves empty region files behind; they hold no chunks.
+            if (Files.size(file) < 2 * 4096) { step.run(); continue; }
+            var region = net.minecraft.world.storage.anvil.RegionFile.open(file);
+            int baseX = region.regionX() * net.minecraft.world.storage.anvil.RegionFile.CHUNKS;
+            int baseZ = region.regionZ() * net.minecraft.world.storage.anvil.RegionFile.CHUNKS;
+            for (int localZ = 0; localZ < net.minecraft.world.storage.anvil.RegionFile.CHUNKS; localZ++) {
+                for (int localX = 0; localX < net.minecraft.world.storage.anvil.RegionFile.CHUNKS; localX++) {
+                    int chunkX = baseX + localX, chunkZ = baseZ + localZ;
+                    net.minecraft.nbt.NbtTag.Compound root;
+                    try {
+                        root = region.readChunk(chunkX, chunkZ);
+                    } catch (IOException | RuntimeException damaged) {
+                        System.err.println("Skipping chunk " + chunkX + "," + chunkZ + " in " + file.getFileName() + ": " + damaged);
+                        counts[1]++;
+                        continue;
+                    }
+                    if (root == null) continue;
+                    Chunk chunk = convertChunk(root, next, registrySize, counts, file, chunkX, chunkZ);
+                    if (chunk == null) continue;
+                    writeChunk(chunksDirectory, chunk);
+                    entries.add(new long[]{chunk.chunkX(), chunk.chunkZ(), next++});
+                    counts[0]++;
+                }
+            }
+            step.run();
+        }
+        writeIndex(directory, seed, entries);
+    }
+
+    /** The converted chunk, or null when it is damaged. */
+    private static Chunk convertChunk(net.minecraft.nbt.NbtTag.Compound root, long generationIndex, int registrySize,
+                                      int[] counts, Path file, int chunkX, int chunkZ) throws IOException {
+        var level = root.has("Level") ? root.getCompound("Level") : null;
+        require(level != null && level.has("Sections"), "Chunk " + chunkX + "," + chunkZ + " in " + file.getFileName()
+            + " has no block sections; is this a 1.8.9 world?");
+        var sections = level.getList("Sections");
+        for (int i = 0; i < sections.size(); i++)
+            require(sections.compound(i).has("Blocks"), "Chunk " + chunkX + "," + chunkZ + " in " + file.getFileName()
+                + " uses the block palette format of Minecraft 1.13 or newer, which LegacyCraft can't read");
+        net.minecraft.world.storage.anvil.AnvilChunkReader.Imported imported;
+        try {
+            imported = net.minecraft.world.storage.anvil.AnvilChunkReader.read(root, generationIndex);
+            if (imported.chunk().chunkX() != chunkX || imported.chunk().chunkZ() != chunkZ)
+                throw new IllegalStateException("it says it is " + imported.chunk().chunkX() + "," + imported.chunk().chunkZ());
+        } catch (RuntimeException damaged) {
+            System.err.println("Skipping chunk " + chunkX + "," + chunkZ + " in " + file.getFileName() + ": " + damaged);
+            counts[1]++;
+            return null;
+        }
+        Chunk chunk = imported.chunk();
+        for (int y = 0; y < Chunk.HEIGHT; y++) {
+            if (chunk.section(y >> 4) == null) { y |= 15; continue; }
+            for (int z = 0; z < Chunk.SIZE; z++)
+                for (int x = 0; x < Chunk.SIZE; x++) {
+                    int packed = chunk.get(x, y, z);
+                    if (packed != 0 && packed >>> BlockState.METADATA_BITS >= registrySize) {
+                        chunk.set(x, y, z, 0);
+                        counts[2]++;
+                    }
+                }
+        }
+        byte[] light = chunk.lightData();
+        for (int y = 0; y < Chunk.HEIGHT; y++)
+            for (int z = 0; z < Chunk.SIZE; z++)
+                for (int x = 0; x < Chunk.SIZE; x++)
+                    light[(y << 8) | (z << 4) | x] = (byte) (imported.vanillaSkyLight(x, y, z) << 4 | imported.vanillaBlockLight(x, y, z));
+        if (imported.populated()) chunk.markPopulated();
+        counts[3] += level.getList("TileEntities").size();
+        counts[4] += level.getList("Entities").size();
+        return chunk;
     }
 
     private static final int SPAWNERS_MAGIC = 0x4c435350; // LCSP
