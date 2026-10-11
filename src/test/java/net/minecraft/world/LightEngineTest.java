@@ -84,4 +84,17 @@ final class LightEngineTest {
             }
         }
     }
+
+    @Test
+    void theLightQueueIsFirstInFirstOutThroughGrowthAndReuse() {
+        LightEngine.LongQueue queue = new LightEngine.LongQueue();
+        long next = 0, expected = 0;
+        // Interleaved adds and polls make the queue slide its contents forward as well as grow.
+        for (int round = 0; round < 50; round++) {
+            for (int i = 0; i < 300 + round * 7; i++) queue.add(next++);
+            for (int i = 0; i < 250; i++) assertEquals(expected++, queue.poll());
+        }
+        while (!queue.isEmpty()) assertEquals(expected++, queue.poll());
+        assertEquals(next, expected);
+    }
 }

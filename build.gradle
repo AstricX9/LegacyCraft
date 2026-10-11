@@ -300,6 +300,35 @@ test {
     }
 }
 
+// Headless engine benchmarks (docs/performance-benchmarks.md): gradlew benchmark -Pbench=worldgen
+sourceSets {
+    benchmark {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    benchmarkImplementation.extendsFrom implementation
+    benchmarkRuntimeOnly.extendsFrom runtimeOnly
+}
+
+tasks.register('benchmark', JavaExec) {
+    group = 'verification'
+    description = 'Runs one headless engine benchmark (-Pbench=worldgen|snapshot|blockaccess|relight|mobs).'
+    classpath = sourceSets.benchmark.runtimeClasspath
+    mainClass = 'net.minecraft.benchmark.EngineBenchmark'
+    jvmArgs = ['-Xms2g', '-Xmx2g']
+    args = [project.findProperty('bench') ?: 'all']
+}
+
+// For comparing two checkouts in fresh JVMs: java -cp "$(gradlew -q printBenchmarkClasspath)" net.minecraft.benchmark.EngineBenchmark worldgen
+tasks.register('printBenchmarkClasspath') {
+    group = 'verification'
+    dependsOn 'benchmarkClasses'
+    doLast { println sourceSets.benchmark.runtimeClasspath.asPath }
+}
+
 tasks.register('oracleTest', Test) {
     description = 'Compares LegacyCraft with a real 1.8.9 world (the @Oracle tests).'
     group = 'verification'
