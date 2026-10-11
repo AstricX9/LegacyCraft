@@ -1,0 +1,4 @@
+/* download.css: only what download.html needs on top of global.css and elements.css. */
+
+.prose section h2{padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.07)}
+#java h2{margin-top:34px}
