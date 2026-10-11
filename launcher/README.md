@@ -17,6 +17,14 @@ buttons on the right. Dialogs and file choosers get the same flat title strip.
 Windows 11 only rounds the corners of windows that have a system frame, so the
 launcher's corners stay square there too. Drag any edge to resize.
 
+## Light and dark
+
+The half-filled circle next to the window buttons switches between light
+(black on white) and dark (white on charcoal). The choice is saved. Links are
+blue and Play is green in both. A custom `news.html` is recoloured for dark
+mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
+`#0b57b0`, `#45403c`, `#d5cfc9`).
+
 ## Tabs
 
 - **News**: the news page. To write your own, copy

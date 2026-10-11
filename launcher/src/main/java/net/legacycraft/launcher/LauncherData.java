@@ -44,6 +44,7 @@ final class LauncherData {
     /** Additions the What's New addition has already announced. */
     final java.util.Set<String> seenAdditions = new java.util.LinkedHashSet<>();
     String lastTab;
+    boolean darkMode;
     private Additions additions;
     private Path additionsFrom;
 
@@ -89,6 +90,7 @@ final class LauncherData {
 
         Map<String, Object> ours = Json.object(root.get("legacycraft"));
         username = Json.string(ours.get("username"), username);
+        darkMode = "dark".equals(Json.string(ours.get("theme"), "light"));
         String install = Json.string(ours.get("installDir"), null);
         if (install != null) installDir = Path.of(install);
         selectedSkin = Json.string(ours.get("selectedSkin"), STEVE);
@@ -151,6 +153,7 @@ final class LauncherData {
         root.put("clientToken", clientToken);
         Map<String, Object> ours = new LinkedHashMap<>();
         ours.put("username", username);
+        ours.put("theme", darkMode ? "dark" : "light");
         if (installDir != null) ours.put("installDir", installDir.toString());
         ours.put("selectedSkin", selectedSkin);
         List<Object> skinJson = new ArrayList<>();

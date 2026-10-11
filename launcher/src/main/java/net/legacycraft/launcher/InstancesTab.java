@@ -8,7 +8,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -118,7 +117,7 @@ final class InstancesTab extends JPanel {
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             if (profile.name.equals(data.selectedProfile)) {
-                g.setColor(Color.BLACK);
+                g.setColor(Theme.ACCENT);
                 g.fillRect(0, 0, 4, getHeight() - 1);
             }
         }

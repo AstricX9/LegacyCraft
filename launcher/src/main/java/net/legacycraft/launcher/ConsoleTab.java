@@ -26,6 +26,14 @@ final class ConsoleTab extends JScrollPane {
         getVerticalScrollBar().setUnitIncrement(16);
     }
 
+    String text() { return text.getText(); }
+
+    /** Carries the log over when the window is rebuilt (switching light and dark). */
+    void restore(String log) {
+        text.setText(log);
+        text.setCaretPosition(text.getDocument().getLength());
+    }
+
     /** A launcher message in the launcher's log format. */
     void log(String message) { append("[" + time.format(new Date()) + " INFO]: " + message); }
 
