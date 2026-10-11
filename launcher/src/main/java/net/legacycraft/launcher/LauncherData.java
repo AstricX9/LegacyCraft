@@ -15,8 +15,9 @@ import java.util.Properties;
 import java.util.UUID;
 
 /**
- * Everything the launcher remembers: profiles (in the 1.6-era
- * launcher_profiles.json shape), the offline player name, the LegacyCraft
+ * Everything the launcher remembers: instances (stored as profiles in the
+ * 1.6-era launcher_profiles.json shape, each with its own folder under
+ * instances/), the offline player name, the LegacyCraft
  * install folder and the skin library. Stored in ~/.legacycraft-launcher.
  */
 final class LauncherData {
@@ -27,6 +28,7 @@ final class LauncherData {
     final Path profilesFile = dataDir.resolve("launcher_profiles.json");
     final Path skinsDir = dataDir.resolve("skins");
     final Path capesDir = dataDir.resolve("capes");
+    final Path instancesDir = dataDir.resolve("instances");
 
     final Map<String, Profile> profiles = new LinkedHashMap<>();
     final List<SkinEntry> skins = new ArrayList<>();
@@ -102,7 +104,9 @@ final class LauncherData {
         migrateOldSettings();
         if (installDir == null || !isInstall(installDir)) installDir = findInstall();
         if (profiles.isEmpty()) {
-            Profile p = new Profile(username);
+            Profile p = new Profile("LegacyCraft");
+            p.gameDir = newInstanceDir(p.name).toString();
+            p.memoryMb = Profile.DEFAULT_MEMORY_MB;
             profiles.put(p.name, p);
         }
         if (selectedProfile == null || !profiles.containsKey(selectedProfile)) selectedProfile = sortedProfiles().get(0).name;
@@ -175,6 +179,28 @@ final class LauncherData {
         String name = base;
         for (int i = 2; profiles.containsKey(name); i++) name = base + " (" + i + ")";
         return name;
+    }
+
+    /** A fresh folder under instances/ named after the instance (made safe for the file system). */
+    Path newInstanceDir(String name) {
+        String base = name.replaceAll("[^A-Za-z0-9 ._()-]", "_").trim().replaceAll("^[. ]+|[. ]+$", "");
+        if (base.isEmpty()) base = "instance";
+        if (base.length() > 48) base = base.substring(0, 48).trim();
+        Path dir = instancesDir.resolve(base);
+        for (int i = 2; Files.exists(dir) || claimed(dir); i++) dir = instancesDir.resolve(base + " (" + i + ")");
+        return dir.toAbsolutePath().normalize();
+    }
+
+    private boolean claimed(Path dir) {
+        for (Profile p : profiles.values()) if (gameDirFor(p).equals(dir.toAbsolutePath().normalize())) return true;
+        return false;
+    }
+
+    /** True when the folder is one the launcher made under instances/ (so it may offer to delete it). */
+    boolean managedDir(Path dir) {
+        Path root = instancesDir.toAbsolutePath().normalize();
+        Path d = dir.toAbsolutePath().normalize();
+        return d.startsWith(root) && !d.equals(root);
     }
 
     Path gameDirFor(Profile p) {
@@ -250,12 +276,6 @@ final class LauncherData {
         if (!entry.builtIn()) return skinsDir.resolve(entry.file);
         if (installDir == null) return null;
         Path p = installDir.resolve("src/main/resources/assets/minecraft/textures/entity").resolve(entry.id + ".png");
-        return Files.isRegularFile(p) ? p : null;
-    }
-
-    Path dirtTexture() {
-        if (installDir == null) return null;
-        Path p = installDir.resolve("src/main/resources/assets/minecraft/textures/blocks/dirt.png");
         return Files.isRegularFile(p) ? p : null;
     }
 

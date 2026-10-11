@@ -36,6 +36,15 @@ public final class RegionFile implements AutoCloseable {
         return new RegionFile(Files.readAllBytes(file), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
     }
 
+    /** The {@code r.X.Z.mca} files in a region folder, sorted by name; empty when there is no folder. */
+    public static java.util.List<Path> list(Path directory) throws IOException {
+        if (!Files.isDirectory(directory)) return java.util.List.of();
+        try (var files = Files.list(directory)) {
+            return files.filter(file -> file.getFileName().toString().matches("r\\.-?\\d+\\.-?\\d+\\.mca"))
+                .filter(Files::isRegularFile).sorted().toList();
+        }
+    }
+
     public int regionX() { return regionX; }
     public int regionZ() { return regionZ; }
 
