@@ -10,7 +10,6 @@ import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
@@ -36,7 +35,7 @@ final class TabStrip extends JPanel {
     private final JTabbedPane tabs;
     private final JPanel cells = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 
-    TabStrip(JTabbedPane tabs, JFrame frame, Image icon) {
+    TabStrip(JTabbedPane tabs, JFrame frame, Image icon, Runnable toggleDarkMode) {
         super(new BorderLayout());
         this.tabs = tabs;
         setBackground(Theme.STRIP);
@@ -74,6 +73,7 @@ final class TabStrip extends JPanel {
             }
         };
         controls.setOpaque(false);
+        controls.add(new Windows.Control(Windows.Control.Kind.THEME, toggleDarkMode));
         controls.add(new Windows.Control(Windows.Control.Kind.MINIMIZE, () -> frame.setExtendedState(frame.getExtendedState() | Frame.ICONIFIED)));
         controls.add(new Windows.Control(Windows.Control.Kind.MAXIMIZE, () -> Windows.toggleMaximized(frame)));
         controls.add(new Windows.Control(Windows.Control.Kind.CLOSE, () -> frame.dispatchEvent(
@@ -119,14 +119,15 @@ final class TabStrip extends JPanel {
         @Override protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
             boolean selected = tabs.getSelectedIndex() == index;
-            g.setColor(selected ? Theme.PANEL : hover ? new Color(0xE4E1DE) : Theme.STRIP);
+            g.setColor(selected ? Theme.PANEL : hover ? Theme.TAB_HOVER : Theme.STRIP);
             g.fillRect(0, 0, getWidth(), getHeight());
             g.setColor(Theme.LINE);
             g.drawLine(getWidth() - 1, 0, getWidth() - 1, getHeight());
             if (!selected) g.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
+            else { g.setColor(Theme.ACCENT); g.fillRect(0, 0, getWidth() - 1, 3); }
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setFont(getFont());
-            g.setColor(selected ? Theme.TEXT : new Color(0x3A3A3A));
+            g.setColor(Theme.TEXT);
             java.awt.FontMetrics fm = g.getFontMetrics();
             g.drawString(title(), (getWidth() - fm.stringWidth(title())) / 2, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
             g.dispose();

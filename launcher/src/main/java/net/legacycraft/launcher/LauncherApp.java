@@ -49,7 +49,7 @@ import java.util.Map;
 public final class LauncherApp {
     static final String LAUNCHER_VERSION = "1.6.93";
 
-    private final LauncherData data = new LauncherData();
+    private final LauncherData data;
     private JFrame frame;
     private JTabbedPane tabs;
     private ConsoleTab console;
@@ -65,14 +65,37 @@ public final class LauncherApp {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            Theme.install();
-            new LauncherApp().start();
+            LauncherData data = new LauncherData();
+            data.load();
+            Theme.install(data.darkMode);
+            new LauncherApp(data).start(null);
         });
     }
 
-    private void start() {
+    private LauncherApp(LauncherData data) { this.data = data; }
+
+    /** Switches between light and dark: the palette changes, so the window is rebuilt in the same place, on the same tab. */
+    private void toggleDarkMode() {
+        if (game != null && game.isAlive()) {
+            Windows.message(frame, "Dark mode", "Switch modes after the game has closed.");
+            return;
+        }
+        data.darkMode = !data.darkMode;
+        data.save();
+        Theme.install(data.darkMode);
+        LauncherApp next = new LauncherApp(data);
+        next.start(this);
+        frame.dispose();
+    }
+
+    /** Builds the window; `previous` is the window being replaced when switching modes (its log, place and tab carry over). */
+    private void start(LauncherApp previous) {
         console = new ConsoleTab();
-        data.load();
+        if (previous != null) {
+            console.restore(previous.console.text());
+            buildWindow(previous);
+            return;
+        }
         console.log("LegacyCraft Launcher " + LAUNCHER_VERSION + " started on "
             + (LauncherData.isWindows() ? "windows" : System.getProperty("os.name").toLowerCase()) + "...");
         console.log("Current time is " + new java.util.Date());
@@ -85,26 +108,36 @@ public final class LauncherApp {
         if (data.installDir != null) console.log("LegacyCraft found at " + data.installDir);
         else console.warn("Couldn't find the LegacyCraft folder (with " + LauncherData.wrapperName() + "); you'll be asked for it when you press Play.");
 
+        buildWindow(null);
+    }
+
+    private void buildWindow(LauncherApp previous) {
         frame = new JFrame("LegacyCraft Launcher");
         frame.setUndecorated(true);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         List<java.awt.Image> icons = icons();
         frame.setIconImages(icons);
         JPanel root = new JPanel(new BorderLayout());
-        root.setBorder(BorderFactory.createLineBorder(Windows.OUTLINE));
-        root.add(new TabStrip(createTabs(), frame, icons.isEmpty() ? null : icons.get(icons.size() - 1)), BorderLayout.NORTH);
+        root.setBorder(BorderFactory.createLineBorder(Theme.OUTLINE));
+        root.add(new TabStrip(createTabs(), frame, icons.isEmpty() ? null : icons.get(icons.size() - 1), this::toggleDarkMode), BorderLayout.NORTH);
         root.add(tabs, BorderLayout.CENTER);
         root.add(createBottomBar(), BorderLayout.SOUTH);
         frame.setContentPane(root);
         frame.setMinimumSize(new Dimension(760, 480));
         frame.setPreferredSize(new Dimension(960, 620));
         frame.pack();
-        frame.setLocationRelativeTo(null);
+        if (previous != null) {
+            frame.setBounds(previous.frame.getBounds());
+            frame.setExtendedState(previous.frame.getExtendedState());
+        } else {
+            frame.setLocationRelativeTo(null);
+        }
         Windows.resizable(frame);
         refreshProfiles();
         if (data.launcherAddition(Additions.REMEMBER_TAB)) {
             for (int i = 0; i < tabs.getTabCount(); i++) if (tabs.getTitleAt(i).equals(data.lastTab)) tabs.setSelectedIndex(i);
         }
+        if (previous != null) tabs.setSelectedIndex(previous.tabs.getSelectedIndex());
         tabs.addChangeListener(e -> {
             String title = tabs.getTitleAt(tabs.getSelectedIndex());
             if (title.equals(data.lastTab)) return;
@@ -112,7 +145,7 @@ public final class LauncherApp {
             data.save();
         });
         frame.setVisible(true);
-        SwingUtilities.invokeLater(this::whatsNew);
+        if (previous == null) SwingUtilities.invokeLater(this::whatsNew);
     }
 
     /** The What's New addition: lists Additions the launcher hasn't told you about yet, once. */
@@ -161,12 +194,26 @@ public final class LauncherApp {
             Path custom = data.dataDir.resolve("news.html");
             URL url = Files.isRegularFile(custom) ? custom.toUri().toURL() : LauncherApp.class.getResource("news.html");
             if (url == null) throw new IOException("news.html is missing from the launcher");
-            page.setPage(url);
+            String html;
+            try (InputStream in = url.openStream()) { html = new String(in.readAllBytes(), StandardCharsets.UTF_8); }
+            page.setText(recolour(html));
+            page.setCaretPosition(0);
         } catch (IOException e) {
-            page.setText("<html><body style='font-family:sans-serif; padding:16px'>"
+            page.setText("<html><body style='font-family:sans-serif; padding:16px; color:" + Theme.hex(Theme.TEXT)
+                + "; background-color:" + Theme.hex(Theme.PANEL) + "'>"
                 + "<h1>News</h1><p>Couldn't load the news: " + e.getMessage() + "</p></body></html>");
         }
         return Theme.scroll(page);
+    }
+
+    /** The news page is written in the light palette's colours; this swaps them for the current palette's. */
+    private static String recolour(String html) {
+        String[][] map = {
+            {"#ffffff", Theme.hex(Theme.PANEL)}, {"#000000", Theme.hex(Theme.TEXT)}, {"#0b57b0", Theme.hex(Theme.LINK)},
+            {"#45403c", Theme.hex(Theme.MUTED)}, {"#d5cfc9", Theme.hex(Theme.HEADER)},
+        };
+        for (String[] m : map) html = html.replaceAll("(?i)" + m[0], m[1]);
+        return html;
     }
 
     private void openLink(HyperlinkEvent e) {

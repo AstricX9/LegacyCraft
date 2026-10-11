@@ -40,7 +40,6 @@ import java.awt.event.MouseEvent;
  * outline, and nothing else.
  */
 final class Windows {
-    static final Color OUTLINE = new Color(0x8F8881);
     private static final int EDGE = 5;
 
     private Windows() {}
@@ -154,7 +153,7 @@ final class Windows {
 
     /** A flat title-bar button: minimise, maximise or close. */
     static final class Control extends JComponent {
-        enum Kind { MINIMIZE, MAXIMIZE, CLOSE }
+        enum Kind { THEME, MINIMIZE, MAXIMIZE, CLOSE }
 
         private final Kind kind;
         private boolean hover;
@@ -162,7 +161,7 @@ final class Windows {
         Control(Kind kind, Runnable action) {
             this.kind = kind;
             setPreferredSize(new Dimension(42, 30));
-            setToolTipText(switch (kind) { case MINIMIZE -> "Minimise"; case MAXIMIZE -> "Maximise"; case CLOSE -> "Close"; });
+            setToolTipText(switch (kind) { case THEME -> Theme.dark ? "Switch to light mode" : "Switch to dark mode"; case MINIMIZE -> "Minimise"; case MAXIMIZE -> "Maximise"; case CLOSE -> "Close"; });
             addMouseListener(new MouseAdapter() {
                 @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
                 @Override public void mouseExited(MouseEvent e) { hover = false; repaint(); }
@@ -173,13 +172,19 @@ final class Windows {
         @Override protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
             if (hover) {
-                g.setColor(kind == Kind.CLOSE ? Color.BLACK : new Color(0x00000018, true));
+                g.setColor(kind == Kind.CLOSE ? Theme.DANGER : Theme.TAB_HOVER);
                 g.fillRect(0, 0, getWidth(), getHeight());
             }
-            g.setColor(hover && kind == Kind.CLOSE ? Color.WHITE : Theme.TEXT);
+            g.setColor(hover && kind == Kind.CLOSE ? (Theme.dark ? Color.BLACK : Color.WHITE) : Theme.TEXT);
             g.setStroke(new BasicStroke(1f));
             int cx = getWidth() / 2, cy = getHeight() / 2;
             switch (kind) {
+                case THEME -> {
+                    // A circle, half filled: light/dark.
+                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g.drawOval(cx - 6, cy - 6, 12, 12);
+                    g.fillArc(cx - 6, cy - 6, 12, 12, 90, 180);
+                }
                 case MINIMIZE -> g.drawLine(cx - 5, cy, cx + 5, cy);
                 case MAXIMIZE -> g.drawRect(cx - 5, cy - 5, 10, 10);
                 case CLOSE -> {
@@ -202,7 +207,7 @@ final class Windows {
             super(windowOf(parent), title, ModalityType.APPLICATION_MODAL);
             setUndecorated(true);
             setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-            root.setBorder(BorderFactory.createLineBorder(OUTLINE));
+            root.setBorder(BorderFactory.createLineBorder(Theme.OUTLINE));
             root.setBackground(Theme.PANEL);
             JPanel bar = new JPanel(new BorderLayout());
             bar.setBackground(Theme.STRIP);
