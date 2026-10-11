@@ -40,7 +40,7 @@ import java.awt.event.MouseEvent;
  * outline, and nothing else.
  */
 final class Windows {
-    static final Color OUTLINE = new Color(0x8F8881);
+    static final Color OUTLINE = new Color(0x3D3833);
     private static final int EDGE = 5;
 
     private Windows() {}

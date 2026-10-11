@@ -119,14 +119,15 @@ final class TabStrip extends JPanel {
         @Override protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
             boolean selected = tabs.getSelectedIndex() == index;
-            g.setColor(selected ? Theme.PANEL : hover ? new Color(0xE4E1DE) : Theme.STRIP);
+            g.setColor(selected ? Theme.PANEL : hover ? new Color(0xDAD4CE) : Theme.STRIP);
             g.fillRect(0, 0, getWidth(), getHeight());
             g.setColor(Theme.LINE);
             g.drawLine(getWidth() - 1, 0, getWidth() - 1, getHeight());
             if (!selected) g.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
+            else { g.setColor(Theme.TEXT); g.fillRect(0, 0, getWidth() - 1, 3); }
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setFont(getFont());
-            g.setColor(selected ? Theme.TEXT : new Color(0x3A3A3A));
+            g.setColor(selected ? Theme.TEXT : new Color(0x1A1A1A));
             java.awt.FontMetrics fm = g.getFontMetrics();
             g.drawString(title(), (getWidth() - fm.stringWidth(title())) / 2, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
             g.dispose();

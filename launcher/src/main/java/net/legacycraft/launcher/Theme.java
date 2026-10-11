@@ -47,16 +47,16 @@ import java.util.Map;
  * painters so it needs no libraries and looks the same on every OS.
  */
 final class Theme {
-    static final Color PAGE = new Color(0xEFECE9);      // window background around panels
+    static final Color PAGE = new Color(0xE9E5E1);      // window background around panels
     static final Color PANEL = Color.WHITE;
-    static final Color HEADER = new Color(0xE3DFDB);    // section header bars ("Subcategories")
-    static final Color STRIP = new Color(0xD9D5D1);     // the tab strip
-    static final Color LINE = new Color(0xCFCAC5);
-    static final Color HOVER = new Color(0xF4F2F0);
-    static final Color SELECTED = new Color(0xE9E6E3);
-    static final Color TEXT = new Color(0x1A1A1A);
-    static final Color MUTED = new Color(0x6B6B6B);
-    static final Color LINK = new Color(0x111111);
+    static final Color HEADER = new Color(0xD5CFC9);    // section header bars ("Subcategories")
+    static final Color STRIP = new Color(0xC6BFB8);     // the tab strip
+    static final Color LINE = new Color(0xA39C95);
+    static final Color HOVER = new Color(0xEDEAE6);
+    static final Color SELECTED = new Color(0xDAD4CE);
+    static final Color TEXT = new Color(0x000000);
+    static final Color MUTED = new Color(0x45403C);
+    static final Color LINK = new Color(0x000000);
     static final Color DANGER = new Color(0xB00020);
 
     static final Font FONT = new Font("SansSerif", Font.PLAIN, 13);
@@ -126,7 +126,7 @@ final class Theme {
         @Override protected javax.swing.plaf.ColorUIResource getSecondary3() { return new ColorUIResource(PANEL); }
         @Override protected javax.swing.plaf.ColorUIResource getBlack() { return new ColorUIResource(TEXT); }
         @Override public javax.swing.plaf.ColorUIResource getMenuSelectedBackground() { return new ColorUIResource(SELECTED); }
-        @Override public javax.swing.plaf.ColorUIResource getTextHighlightColor() { return new ColorUIResource(0xD5D1CC); }
+        @Override public javax.swing.plaf.ColorUIResource getTextHighlightColor() { return new ColorUIResource(0xC2BAB2); }
         @Override public javax.swing.plaf.ColorUIResource getFocusColor() { return new ColorUIResource(LINE); }
         @Override public FontUIResource getControlTextFont() { return new FontUIResource(FONT); }
         @Override public FontUIResource getSystemTextFont() { return new FontUIResource(FONT); }
@@ -219,12 +219,12 @@ final class Theme {
             boolean primary = Boolean.TRUE.equals(b.getClientProperty(PRIMARY));
             Color fill, edge;
             if (primary) {
-                fill = !b.isEnabled() ? new Color(0x8A8A8A) : m.isPressed() ? new Color(0x333333) : m.isRollover() ? new Color(0x2A2A2A) : Color.BLACK;
+                fill = !b.isEnabled() ? new Color(0x6E6E6E) : m.isPressed() ? new Color(0x333333) : m.isRollover() ? new Color(0x2A2A2A) : Color.BLACK;
                 edge = fill;
             } else {
                 boolean on = m.isPressed() || m.isSelected();
                 fill = on ? SELECTED : m.isRollover() && b.isEnabled() ? HOVER : PANEL;
-                edge = b.isEnabled() ? new Color(0xB9B3AD) : LINE;
+                edge = b.isEnabled() ? new Color(0x5E5852) : LINE;
             }
             g.setColor(fill);
             g.fillRect(0, 0, c.getWidth(), c.getHeight());
@@ -240,7 +240,7 @@ final class Theme {
 
         @Override protected void paintText(Graphics g, AbstractButton b, Rectangle r, String text) {
             boolean primary = Boolean.TRUE.equals(b.getClientProperty(PRIMARY));
-            g.setColor(primary ? Color.WHITE : b.isEnabled() ? TEXT : new Color(0xA09A94));
+            g.setColor(primary ? Color.WHITE : b.isEnabled() ? TEXT : new Color(0x7D7770));
             g.setFont(b.getFont());
             java.awt.FontMetrics fm = g.getFontMetrics();
             int mnemonic = b.getDisplayedMnemonicIndex();
@@ -254,7 +254,7 @@ final class Theme {
 
         @Override protected void installDefaults() {
             super.installDefaults();
-            comboBox.setBorder(BorderFactory.createLineBorder(new Color(0xB9B3AD)));
+            comboBox.setBorder(BorderFactory.createLineBorder(new Color(0x5E5852)));
             comboBox.setBackground(PANEL);
         }
 
@@ -294,7 +294,7 @@ final class Theme {
         public static ComponentUI createUI(JComponent c) { return new FlatScrollBarUI(); }
 
         @Override protected void configureScrollBarColors() {
-            thumbColor = new Color(0xC4BEB8);
+            thumbColor = new Color(0x9C958E);
             trackColor = PAGE;
         }
 
@@ -315,7 +315,7 @@ final class Theme {
 
         @Override protected void paintThumb(Graphics g, JComponent c, Rectangle r) {
             if (r.isEmpty() || !scrollbar.isEnabled()) return;
-            g.setColor(isThumbRollover() || isDragging ? new Color(0x8F8881) : thumbColor);
+            g.setColor(isThumbRollover() || isDragging ? new Color(0x3D3833) : thumbColor);
             if (scrollbar.getOrientation() == JScrollBar.VERTICAL) g.fillRect(r.x + 3, r.y + 2, r.width - 6, r.height - 4);
             else g.fillRect(r.x + 2, r.y + 3, r.width - 4, r.height - 6);
         }
@@ -335,10 +335,10 @@ final class Theme {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setColor(m.isPressed() ? SELECTED : PANEL);
             g2.fillRect(x, y, 13, 13);
-            g2.setColor(c.isEnabled() ? new Color(0x8F8881) : LINE);
+            g2.setColor(c.isEnabled() ? new Color(0x3D3833) : LINE);
             g2.drawRect(x, y, 13, 13);
             if (m.isSelected()) {
-                g2.setColor(c.isEnabled() ? TEXT : new Color(0xA09A94));
+                g2.setColor(c.isEnabled() ? TEXT : new Color(0x7D7770));
                 if (radio) g2.fillRect(x + 4, y + 4, 6, 6);
                 else {
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
