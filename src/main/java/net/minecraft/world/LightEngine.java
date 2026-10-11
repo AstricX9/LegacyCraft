@@ -6,7 +6,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.util.Direction;
 import net.minecraft.world.chunk.Chunk;
 
-import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -25,6 +25,9 @@ import java.util.Set;
  */
 final class LightEngine {
     enum Type { SKY, BLOCK }
+
+    /** Direction.values() copies its array on every call; spreading asks once per queued position. */
+    private static final Direction[] DIRECTIONS = Direction.values();
 
     private final World world;
     private final int[] opacity, emission;
@@ -49,7 +52,7 @@ final class LightEngine {
     /** Lights a freshly generated or loaded chunk and exchanges light with its loaded neighbours. */
     void lightChunk(Chunk chunk) {
         int baseX = chunk.chunkX() * Chunk.SIZE, baseZ = chunk.chunkZ() * Chunk.SIZE;
-        ArrayDeque<Long> sky = new ArrayDeque<>(), block = new ArrayDeque<>();
+        LongQueue sky = new LongQueue(), block = new LongQueue();
         for (int z = 0; z < Chunk.SIZE; z++) {
             for (int x = 0; x < Chunk.SIZE; x++) {
                 // VERIFIED against 1.8.9 saves: sky light falls straight down at full strength
@@ -105,18 +108,20 @@ final class LightEngine {
     }
 
     private void relight(Type type, int x, int y, int z) {
-        ArrayDeque<Long> sources = new ArrayDeque<>();
-        ArrayDeque<long[]> removal = new ArrayDeque<>();
+        LongQueue sources = new LongQueue();
+        // (position, level) pairs.
+        LongQueue removal = new LongQueue();
         int old = get(type, x, y, z);
         if (old > 0) {
             set(type, x, y, z, 0);
-            removal.add(new long[]{pack(x, y, z), old});
+            removal.add(pack(x, y, z));
+            removal.add(old);
         }
         while (!removal.isEmpty()) {
-            long[] entry = removal.poll();
-            int px = unpackX(entry[0]), py = unpackY(entry[0]), pz = unpackZ(entry[0]);
-            int level = (int) entry[1];
-            for (Direction side : Direction.values()) {
+            long position = removal.poll();
+            int px = unpackX(position), py = unpackY(position), pz = unpackZ(position);
+            int level = (int) removal.poll();
+            for (Direction side : DIRECTIONS) {
                 int nx = px + side.xOffset, ny = py + side.yOffset, nz = pz + side.zOffset;
                 if (!isLoaded(nx, ny, nz)) continue;
                 int neighbour = get(type, nx, ny, nz);
@@ -125,7 +130,8 @@ final class LightEngine {
                     || type == Type.SKY && side == Direction.DOWN && level == 15 && neighbour == 15;
                 if (dependent) {
                     set(type, nx, ny, nz, 0);
-                    removal.add(new long[]{pack(nx, ny, nz), neighbour});
+                    removal.add(pack(nx, ny, nz));
+                    removal.add(neighbour);
                 } else {
                     sources.add(pack(nx, ny, nz));
                 }
@@ -136,7 +142,7 @@ final class LightEngine {
         int own = type == Type.BLOCK ? emission[id] : y == Chunk.HEIGHT - 1 ? Math.max(0, 15 - opacity[id]) : 0;
         if (own > get(type, x, y, z)) set(type, x, y, z, own);
         if (get(type, x, y, z) > 0) sources.add(pack(x, y, z));
-        for (Direction side : Direction.values()) {
+        for (Direction side : DIRECTIONS) {
             int nx = x + side.xOffset, ny = y + side.yOffset, nz = z + side.zOffset;
             if (isLoaded(nx, ny, nz) && get(type, nx, ny, nz) > 0) sources.add(pack(nx, ny, nz));
         }
@@ -144,13 +150,13 @@ final class LightEngine {
     }
 
     /** Breadth-first spread from the queued positions into loaded neighbours that are darker than they could be. */
-    private void spread(Type type, ArrayDeque<Long> queue) {
+    private void spread(Type type, LongQueue queue) {
         while (!queue.isEmpty()) {
             long position = queue.poll();
             int x = unpackX(position), y = unpackY(position), z = unpackZ(position);
             int level = get(type, x, y, z);
             if (level <= 1) continue;
-            for (Direction side : Direction.values()) {
+            for (Direction side : DIRECTIONS) {
                 int nx = x + side.xOffset, ny = y + side.yOffset, nz = z + side.zOffset;
                 if (!isLoaded(nx, ny, nz)) continue;
                 int neighbourOpacity = opacity[chunkAt(nx >> 4, nz >> 4).get(nx & 15, ny, nz & 15) >>> BlockState.METADATA_BITS];
@@ -208,6 +214,35 @@ final class LightEngine {
     private void flush() {
         for (long key : changedChunks) world.notifyLightChanged((int) (key >> 32), (int) key);
         changedChunks.clear();
+    }
+
+    /**
+     * A first-in, first-out queue of packed positions that grows as needed. The
+     * ArrayDeque<Long> it replaces boxed every position, which was most of the
+     * garbage made while generating terrain (docs/performance-mod-research.md).
+     */
+    static final class LongQueue {
+        private long[] items = new long[256];
+        private int head, tail;
+
+        boolean isEmpty() { return head == tail; }
+
+        void add(long value) {
+            if (tail == items.length) {
+                if (head > items.length / 2) {
+                    // Mostly drained: slide what is left to the front instead of growing.
+                    System.arraycopy(items, head, items, 0, tail - head);
+                } else {
+                    items = Arrays.copyOf(items, items.length * 2);
+                    System.arraycopy(items, head, items, 0, tail - head);
+                }
+                tail -= head;
+                head = 0;
+            }
+            items[tail++] = value;
+        }
+
+        long poll() { return items[head++]; }
     }
 
     private static long pack(int x, int y, int z) {
