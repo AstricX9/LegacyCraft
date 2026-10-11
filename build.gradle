@@ -275,6 +275,8 @@ tasks.register('generateGameData') {
 
 tasks.named('processResources') {
     dependsOn(tasks.named('generateGameData'))
+    // LegacyCraft and Minecraft versions shown on the title screen (Branding).
+    from(file('version.txt'))
 }
 
 // Tests: see docs/TESTING.md. `gradlew test` runs the fast suite; `gradlew oracleTest`

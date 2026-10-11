@@ -377,7 +377,7 @@
         }
     },
     "pack": {
-        "description": "The default look of Minecraft",
+        "description": "The default look of LegacyCraft",
         "pack_format": 1
     }
 }

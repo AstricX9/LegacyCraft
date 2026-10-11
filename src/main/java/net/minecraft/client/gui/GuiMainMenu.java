@@ -18,7 +18,8 @@ import static org.lwjgl.opengl.GL11.*;
 /**
  * The 1.8.9 title screen (master context §66): blurred rotating panorama,
  * the logo (with the rare "Minceraft" misspelling), a pulsing splash, and
- * Singleplayer / Multiplayer / Minecraft Realms / language / Options / Quit.
+ * Singleplayer / Multiplayer / Minecraft Realms / language / Options / Quit,
+ * plus LegacyCraft's Additions under Realms.
  *
  * <p>Layout, panorama pass counts and splash maths are HYPOTHESIS until
  * screenshot-compared (unknowns.yml "GUI pixel layout"). Branding text is a
@@ -28,6 +29,10 @@ import static org.lwjgl.opengl.GL11.*;
 public class GuiMainMenu extends GuiScreen {
     private static final ResourceLocation SPLASHES = new ResourceLocation("minecraft:texts/splashes.txt");
     private static final ResourceLocation LOGO = new ResourceLocation("minecraft:textures/gui/title/minecraft.png");
+    /** LegacyCraft's own full-resolution logo; drawn instead of the vanilla sheet when a pack provides it. */
+    private static final ResourceLocation LEGACYCRAFT_LOGO = new ResourceLocation("minecraft:textures/gui/title/legacycraft.png");
+    /** Vanilla's logo is 274x44 GUI units; LegacyCraft's keeps that width. */
+    private static final int LOGO_WIDTH = 274, LOGO_HEIGHT = 44;
     private static final ResourceLocation[] PANORAMA = new ResourceLocation[6];
     private static final Random RANDOM = new Random();
 
@@ -39,6 +44,9 @@ public class GuiMainMenu extends GuiScreen {
     private String splashText = "missingno";
     private int panoramaTimer;
     private int viewportTexture;
+    private java.awt.image.BufferedImage logoImage;
+    private boolean logoLoaded;
+    private int logoTexture, logoTextureWidth, logoTextureHeight;
 
     public GuiMainMenu() {}
 
@@ -54,13 +62,17 @@ public class GuiMainMenu extends GuiScreen {
     @Override
     public void initGui() {
         if (splashText.equals("missingno")) splashText = pickSplash();
-        int top = height / 4 + 48;
+        // The extra Additions row would run into the bottom-corner text on short windows, so the buttons move up there.
+        int top = Math.min(height / 4 + 48, height - 12 - (24 * 4 + 12 + 20));
         buttonList.add(new GuiButton(1, width / 2 - 100, top, I18n.format("menu.singleplayer")));
         buttonList.add(new GuiButton(2, width / 2 - 100, top + 24, I18n.format("menu.multiplayer")));
         buttonList.add(new GuiButton(14, width / 2 - 100, top + 24 * 2, I18n.format("menu.online")));
-        buttonList.add(new GuiButton(0, width / 2 - 100, top + 72 + 12, 98, 20, I18n.format("menu.options")));
-        buttonList.add(new GuiButton(4, width / 2 + 2, top + 72 + 12, 98, 20, I18n.format("menu.quit")));
-        buttonList.add(new GuiButtonLanguage(5, width / 2 - 124, top + 72 + 12));
+        // LegacyCraft's Additions (DEV-041) get their own row under Realms, pushing Options and Quit down one row.
+        buttonList.add(new GuiButton(20, width / 2 - 100, top + 72, GuiAdditions.TITLE));
+        int bottom = top + 72 + 24 + 12;
+        buttonList.add(new GuiButton(0, width / 2 - 100, bottom, 98, 20, I18n.format("menu.options")));
+        buttonList.add(new GuiButton(4, width / 2 + 2, bottom, 98, 20, I18n.format("menu.quit")));
+        buttonList.add(new GuiButtonLanguage(5, width / 2 - 124, bottom));
     }
 
     /** A random splashes.txt line, replaced by vanilla's date-specific splashes on their days. */
@@ -98,6 +110,7 @@ public class GuiMainMenu extends GuiScreen {
             case 2 -> mc.displayGuiScreen(new GuiMultiplayer(this));
             case 4 -> mc.shutdown();
             case 5 -> mc.displayGuiScreen(new GuiLanguage(this));
+            case 20 -> mc.displayGuiScreen(new GuiAdditions(this));
             case 14 -> mc.displayGuiScreen(new GuiDisconnected(this, "menu.online",
                 "Realms needs Mojang's online services, which LegacyCraft does not connect to.", "gui.back"));
             default -> {}
@@ -112,19 +125,8 @@ public class GuiMainMenu extends GuiScreen {
         drawGradientRect(0, 0, width, height, 0x80FFFFFF, 0x00FFFFFF);
         drawGradientRect(0, 0, width, height, 0x00000000, 0x80000000);
 
-        int logoLeft = width / 2 - 274 / 2, logoTop = 30;
-        mc.textures().bind(LOGO);
-        glColor4f(1, 1, 1, 1);
-        if (minceraftRoll < 1.0E-4) {
-            drawTexturedModalRect(logoLeft, logoTop, 0, 0, 99, 44);
-            drawTexturedModalRect(logoLeft + 99, logoTop, 129, 0, 27, 44);
-            drawTexturedModalRect(logoLeft + 99 + 26, logoTop, 126, 0, 3, 44);
-            drawTexturedModalRect(logoLeft + 99 + 26 + 3, logoTop, 99, 0, 26, 44);
-            drawTexturedModalRect(logoLeft + 155, logoTop, 0, 45, 155, 44);
-        } else {
-            drawTexturedModalRect(logoLeft, logoTop, 0, 0, 155, 44);
-            drawTexturedModalRect(logoLeft + 155, logoTop, 0, 45, 155, 44);
-        }
+        int logoLeft = width / 2 - LOGO_WIDTH / 2, logoTop = 30;
+        if (!drawLegacyCraftLogo(logoLeft, logoTop)) drawVanillaLogo(logoLeft, logoTop);
 
         glPushMatrix();
         glTranslatef(width / 2f + 90, 70, 0);
@@ -139,6 +141,107 @@ public class GuiMainMenu extends GuiScreen {
         drawString(fontRendererObj, Branding.TITLE_NOTICE, width - fontRendererObj.getStringWidth(Branding.TITLE_NOTICE) - 2,
             height - 10, 0xFFFFFF);
         super.drawScreen(mouseX, mouseY, partialTicks);
+        if (mouseX < 2 + fontRendererObj.getStringWidth(Branding.TITLE_VERSION) + 1 && mouseY >= height - 11)
+            drawHoveringText(Branding.versionTooltip(), mouseX, mouseY);
+    }
+
+    /** Vanilla's two-half logo from minecraft.png (with the rare "Minceraft" misspelling). */
+    private void drawVanillaLogo(int logoLeft, int logoTop) {
+        mc.textures().bind(LOGO);
+        glColor4f(1, 1, 1, 1);
+        if (minceraftRoll < 1.0E-4) {
+            drawTexturedModalRect(logoLeft, logoTop, 0, 0, 99, 44);
+            drawTexturedModalRect(logoLeft + 99, logoTop, 129, 0, 27, 44);
+            drawTexturedModalRect(logoLeft + 99 + 26, logoTop, 126, 0, 3, 44);
+            drawTexturedModalRect(logoLeft + 99 + 26 + 3, logoTop, 99, 0, 26, 44);
+            drawTexturedModalRect(logoLeft + 155, logoTop, 0, 45, 155, 44);
+        } else {
+            drawTexturedModalRect(logoLeft, logoTop, 0, 0, 155, 44);
+            drawTexturedModalRect(logoLeft + 155, logoTop, 0, 45, 155, 44);
+        }
+    }
+
+    /**
+     * Draws legacycraft.png across the logo's 274-unit width, vertically
+     * centred in vanilla's 44-unit band. The artwork is far larger than it is
+     * drawn, and letting the GPU shrink it by a non-integer factor drops and
+     * smears texels (the blurry logo). Instead it is box-filtered on the CPU to
+     * exactly the logo's size in real screen pixels, so each texel lands on one
+     * pixel; that is redone whenever the GUI scale or window size changes it.
+     */
+    private boolean drawLegacyCraftLogo(int logoLeft, int logoTop) {
+        if (!logoLoaded) {
+            logoLoaded = true;
+            if (mc.resources().exists(LEGACYCRAFT_LOGO)) {
+                try (InputStream stream = mc.resources().open(LEGACYCRAFT_LOGO)) {
+                    logoImage = javax.imageio.ImageIO.read(stream);
+                } catch (IOException ignored) {
+                    logoImage = null;
+                }
+            }
+        }
+        if (logoImage == null) return false;
+        int logoHeight = Math.min(LOGO_HEIGHT, Math.round(LOGO_WIDTH * (float) logoImage.getHeight() / logoImage.getWidth()));
+        int top = logoTop + (LOGO_HEIGHT - logoHeight) / 2;
+        float scale = width > 0 ? (float) mc.displayWidth() / width : 1;
+        int pixelWidth = Math.max(1, Math.round(LOGO_WIDTH * scale)), pixelHeight = Math.max(1, Math.round(logoHeight * scale));
+        if (logoTexture == 0 || logoTextureWidth != pixelWidth || logoTextureHeight != pixelHeight) {
+            if (logoTexture != 0) glDeleteTextures(logoTexture);
+            logoTexture = GuiTextures.upload(boxDownscale(logoImage, pixelWidth, pixelHeight), false);
+            logoTextureWidth = pixelWidth;
+            logoTextureHeight = pixelHeight;
+        }
+        glBindTexture(GL_TEXTURE_2D, logoTexture);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glColor4f(1, 1, 1, 1);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 1); glVertex2f(logoLeft, top + logoHeight);
+        glTexCoord2f(1, 1); glVertex2f(logoLeft + LOGO_WIDTH, top + logoHeight);
+        glTexCoord2f(1, 0); glVertex2f(logoLeft + LOGO_WIDTH, top);
+        glTexCoord2f(0, 0); glVertex2f(logoLeft, top);
+        glEnd();
+        return true;
+    }
+
+    /**
+     * Area-averaging resize: every target pixel is the coverage-weighted mean of
+     * the source pixels under it, with colour premultiplied by alpha so the
+     * transparent surround cannot darken the logo's edges. Enlarging picks the
+     * nearest source pixel instead, which keeps pixel art blocky.
+     */
+    static java.awt.image.BufferedImage boxDownscale(java.awt.image.BufferedImage source, int targetWidth, int targetHeight) {
+        int sourceWidth = source.getWidth(), sourceHeight = source.getHeight();
+        int[] pixels = source.getRGB(0, 0, sourceWidth, sourceHeight, null, 0, sourceWidth);
+        java.awt.image.BufferedImage result = new java.awt.image.BufferedImage(targetWidth, targetHeight,
+            java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        double stepX = (double) sourceWidth / targetWidth, stepY = (double) sourceHeight / targetHeight;
+        for (int y = 0; y < targetHeight; y++) {
+            double y0 = stepY < 1 ? Math.floor(y * stepY) : y * stepY, y1 = stepY < 1 ? y0 + 1 : y0 + stepY;
+            for (int x = 0; x < targetWidth; x++) {
+                double x0 = stepX < 1 ? Math.floor(x * stepX) : x * stepX, x1 = stepX < 1 ? x0 + 1 : x0 + stepX;
+                double alpha = 0, red = 0, green = 0, blue = 0, total = 0;
+                for (int sy = (int) y0; sy < Math.min(sourceHeight, Math.ceil(y1)); sy++) {
+                    double weightY = Math.min(y1, sy + 1) - Math.max(y0, sy);
+                    for (int sx = (int) x0; sx < Math.min(sourceWidth, Math.ceil(x1)); sx++) {
+                        double weight = weightY * (Math.min(x1, sx + 1) - Math.max(x0, sx));
+                        if (weight <= 0) continue;
+                        int argb = pixels[sy * sourceWidth + sx];
+                        double covered = (argb >>> 24) / 255.0 * weight;
+                        alpha += covered;
+                        red += ((argb >> 16) & 0xFF) * covered;
+                        green += ((argb >> 8) & 0xFF) * covered;
+                        blue += (argb & 0xFF) * covered;
+                        total += weight;
+                    }
+                }
+                if (alpha <= 0) continue;
+                int a = (int) Math.round(alpha / total * 255);
+                int r = (int) Math.round(red / alpha), g = (int) Math.round(green / alpha), b = (int) Math.round(blue / alpha);
+                result.setRGB(x, y, a << 24 | r << 16 | g << 8 | b);
+            }
+        }
+        return result;
     }
 
     /**
@@ -252,6 +355,8 @@ public class GuiMainMenu extends GuiScreen {
     public void onGuiClosed() {
         if (viewportTexture != 0) glDeleteTextures(viewportTexture);
         viewportTexture = 0;
+        if (logoTexture != 0) glDeleteTextures(logoTexture);
+        logoTexture = 0;
     }
 
     /** The 20x20 globe button drawn from widgets.png (0,106), hover row +20. */

@@ -31,6 +31,9 @@ public interface GuiContext {
     BlockRegistry blocks();
     BiomeRegistry biomes();
     Path gameDirectory();
+
+    /** This instance's Additions; a fresh all-off set (nothing saved) where there is no game. */
+    default net.minecraft.client.additions.Additions additions() { return net.minecraft.client.additions.Additions.defaults(); }
     SaveFormat saves();
 
     void displayGuiScreen(GuiScreen screen);

@@ -11,5 +11,7 @@ if errorlevel 1 (
     exit /b %errorlevel%
 )
 xcopy /e /y /q "%LAUNCHER_ROOT%src\main\resources\*" "%LAUNCHER_CLASSES%\" > nul
+rem The Additions list is the game's; a copy goes with the launcher for when it can't find the LegacyCraft folder.
+copy /y "%LAUNCHER_ROOT%..\src\main\resources\assets\legacycraft\additions.json" "%LAUNCHER_CLASSES%\net\legacycraft\launcher\additions.json" > nul
 
 start "" javaw -cp "%LAUNCHER_CLASSES%" net.legacycraft.launcher.LauncherApp
