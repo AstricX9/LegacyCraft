@@ -21,6 +21,8 @@ final class Additions {
     static final String CATALOG = "src/main/resources/assets/legacycraft/additions.json";
     static final String INSTANCE_FILE = "additions.txt";
     static final String REMEMBER_TAB = "rememberTab", WHATS_NEW = "whatsNew", INSTANCE_SUMMARY = "instanceSummary";
+    /** The additions.txt line that turns Additions on or off for an instance as a whole. */
+    static final String ENABLED = "enabled";
 
     enum Category {
         GAMEPLAY("Gameplay"), GRAPHICS("Graphics"), INTERFACE("Interface"), ACCESSIBILITY("Accessibility"), LAUNCHER("Launcher");
@@ -30,6 +32,7 @@ final class Additions {
         Category(String title) { this.title = title; }
     }
 
+    /** Presets for an instance's game switches; Custom is any other mix. */
     enum Look {
         FAITHFUL("Faithful", "Plain 1.8.9: every addition off."),
         RECOMMENDED("Recommended", "A few additions that make 1.8.9 easier to play without changing how it looks."),
@@ -42,7 +45,7 @@ final class Additions {
         @Override public String toString() { return title; }
     }
 
-    record Entry(String id, Category category, boolean launcher, boolean recommended, String name, String description) {}
+    record Entry(String id, Category category, boolean launcher, boolean defaultOn, boolean recommended, String name, String description) {}
 
     final List<Entry> entries;
 
@@ -74,7 +77,7 @@ final class Additions {
             try { category = Category.valueOf(Json.string(a.get("category"), "").toUpperCase(java.util.Locale.ROOT)); }
             catch (IllegalArgumentException e) { continue; }
             if (id == null) continue;
-            list.add(new Entry(id, category, "launcher".equals(a.get("scope")), Json.bool(a.get("recommended"), false),
+            list.add(new Entry(id, category, "launcher".equals(a.get("scope")), Json.bool(a.get("default"), false), Json.bool(a.get("recommended"), false),
                 Json.string(a.get("name"), id), Json.string(a.get("description"), "")));
         }
         return new Additions(list);
@@ -92,18 +95,32 @@ final class Additions {
         return list;
     }
 
-    /** The look a set of game switches adds up to. */
+    /** Whether an instance's switches have Additions on; files from before the switch count as on when something is on. */
+    boolean enabled(Map<String, Boolean> on) {
+        Boolean enabled = on.get(ENABLED);
+        if (enabled != null) return enabled;
+        return switchedOn(on) > 0;
+    }
+
+    /** How many game additions are switched on (whether or not Additions are). */
+    int switchedOn(Map<String, Boolean> on) {
+        int n = 0;
+        for (Entry e : game()) if (on.getOrDefault(e.id, e.defaultOn)) n++;
+        return n;
+    }
+
+    /** The preset an instance's game switches add up to. */
     Look look(Map<String, Boolean> on) {
         boolean faithful = true, recommended = true;
         for (Entry e : game()) {
-            boolean value = on.getOrDefault(e.id, false);
+            boolean value = on.getOrDefault(e.id, e.defaultOn);
             if (value) faithful = false;
             if (value != e.recommended) recommended = false;
         }
         return faithful ? Look.FAITHFUL : recommended ? Look.RECOMMENDED : Look.CUSTOM;
     }
 
-    /** Sets every game switch for a look (Custom leaves them). */
+    /** Sets every game switch for a preset (Custom leaves them). */
     void apply(Look look, Map<String, Boolean> on) {
         if (look == Look.CUSTOM) return;
         for (Entry e : game()) on.put(e.id, look == Look.RECOMMENDED && e.recommended);
@@ -111,7 +128,7 @@ final class Additions {
 
     // ---- an instance's additions.txt ----
 
-    /** The game switches saved in an instance folder (missing means all off, the Faithful look). */
+    /** The switches saved in an instance folder, the enabled line included (a missing file means Additions are off). */
     static Map<String, Boolean> readInstance(Path gameDir) {
         Map<String, Boolean> on = new LinkedHashMap<>();
         for (String line : lines(gameDir)) {
@@ -125,9 +142,11 @@ final class Additions {
     void writeInstance(Path gameDir, Map<String, Boolean> on) throws IOException {
         StringBuilder out = new StringBuilder();
         List<String> known = new ArrayList<>();
+        known.add(ENABLED);
+        out.append(ENABLED).append(':').append(enabled(on)).append('\n');
         for (Entry e : game()) {
             known.add(e.id);
-            out.append(e.id).append(':').append(on.getOrDefault(e.id, false)).append('\n');
+            out.append(e.id).append(':').append(on.getOrDefault(e.id, e.defaultOn)).append('\n');
         }
         for (String line : lines(gameDir)) {
             int colon = line.indexOf(':');

@@ -27,17 +27,16 @@ final class AdditionsTest {
     }
 
     @Test
-    void everythingStartsOffWhichIsTheFaithfulLook() {
+    void additionsStartOffAndTheMasterSwitchGatesEveryAddition() {
         Additions additions = Additions.defaults();
-        assertEquals(Additions.Look.FAITHFUL, additions.look());
+        assertFalse(additions.enabled());
         for (Addition a : additions.game()) assertFalse(additions.isOn(a.id()));
-        additions.apply(Additions.Look.RECOMMENDED);
-        assertEquals(Additions.Look.RECOMMENDED, additions.look());
-        assertTrue(additions.isOn(Additions.TOGGLE_SPRINT));
         additions.set(Additions.FULL_BRIGHT, true);
-        assertEquals(Additions.Look.CUSTOM, additions.look());
-        additions.apply(Additions.Look.FAITHFUL);
-        assertEquals(Additions.Look.FAITHFUL, additions.look());
+        additions.setEnabled(false);
+        assertTrue(additions.isSwitchedOn(Additions.FULL_BRIGHT));
+        assertFalse(additions.isOn(Additions.FULL_BRIGHT), "switched on, but Additions are off");
+        additions.setEnabled(true);
+        assertTrue(additions.isOn(Additions.FULL_BRIGHT));
     }
 
     @Test
@@ -45,14 +44,19 @@ final class AdditionsTest {
         Path file = Files.createTempDirectory("lc-additions").resolve("additions.txt");
         Files.writeString(file, "fullBright:true\nfromTheFuture:true\n");
         Additions additions = Additions.load(file);
+        assertTrue(additions.enabled(), "a file from before the master switch counts as on when something is switched on");
         assertTrue(additions.isOn(Additions.FULL_BRIGHT));
         additions.set(Additions.COORDINATES, true);
         additions.save();
         List<String> lines = Files.readAllLines(file);
+        assertEquals("enabled:true", lines.get(0));
         assertTrue(lines.contains("fullBright:true"));
         assertTrue(lines.contains("coordinates:true"));
         assertTrue(lines.contains("toggleSprint:false"));
         assertTrue(lines.contains("fromTheFuture:true"));
+        Files.writeString(file, "enabled:false\nfullBright:true\n");
+        assertFalse(Additions.load(file).isOn(Additions.FULL_BRIGHT));
+        Files.writeString(file, "enabled:true\ncoordinates:true\n");
         assertTrue(Additions.load(file).isOn(Additions.COORDINATES));
     }
 

@@ -62,7 +62,16 @@ final class ScreenFlowTest {
     }
 
     @Test
+    void titleScreenIsVanillaWhileAdditionsAreOff() {
+        mc.displayGuiScreen(new GuiMainMenu());
+        GuiButton realms = button("menu.online", false), options = button("menu.options", false);
+        assertEquals(realms.yPosition + 36, options.yPosition, "vanilla gap under Realms");
+        for (GuiButton b : mc.screen.buttonList) assertNotEquals("Additions", b.displayString);
+    }
+
+    @Test
     void additionsButtonSitsUnderRealmsAndSavesTheSwitches() throws Exception {
+        mc.additions.setEnabled(true);
         GuiMainMenu title = new GuiMainMenu();
         mc.displayGuiScreen(title);
         GuiButton realms = button("menu.online", false), additions = button("Additions", false), options = button("menu.options", false);
@@ -71,20 +80,14 @@ final class ScreenFlowTest {
         assertTrue(options.yPosition + 20 <= 240 - 12, "Options clear the bottom-corner text");
         click("Additions");
         assertInstanceOf(GuiAdditions.class, mc.screen);
-        assertFalse(button("Faithful", false).enabled, "the current look shows as picked");
-        click("Recommended");
-        assertEquals(net.minecraft.client.additions.Additions.Look.RECOMMENDED, mc.additions.look());
-        assertFalse(button("Custom", false).enabled, "Custom is a result, not a button to press");
-        click("OFF");
-        assertEquals(net.minecraft.client.additions.Additions.Look.CUSTOM, mc.additions.look());
-        click("Faithful");
-        assertEquals(net.minecraft.client.additions.Additions.Look.FAITHFUL, mc.additions.look());
         click("Interface");
         click("OFF");
         assertEquals("Interface (1)", button("Interface", true).displayString);
         click("gui.done");
         assertSame(title, mc.screen);
-        assertTrue(Files.readAllLines(mc.directory.resolve("additions.txt")).contains("coordinates:true"));
+        List<String> saved = Files.readAllLines(mc.directory.resolve("additions.txt"));
+        assertTrue(saved.contains("enabled:true"));
+        assertTrue(saved.contains("coordinates:true"));
     }
 
     @Test

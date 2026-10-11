@@ -39,7 +39,7 @@ final class LauncherData {
     String clientToken = UUID.randomUUID().toString();
     String selectedSkin = STEVE;
     Path installDir;
-    /** Launcher additions switched by hand; one that isn't here follows its Recommended setting. */
+    /** Launcher additions switched by hand; one that isn't here follows its default. */
     final Map<String, Boolean> launcherAdditions = new LinkedHashMap<>();
     /** Additions the What's New addition has already announced. */
     final java.util.Set<String> seenAdditions = new java.util.LinkedHashSet<>();
@@ -243,7 +243,7 @@ final class LauncherData {
     boolean launcherAddition(String id) {
         Boolean on = launcherAdditions.get(id);
         if (on != null) return on;
-        for (Additions.Entry e : additions().entries) if (e.id().equals(id)) return e.recommended();
+        for (Additions.Entry e : additions().entries) if (e.id().equals(id)) return e.defaultOn();
         return false;
     }
 

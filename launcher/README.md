@@ -45,16 +45,22 @@ mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
     `additions.txt`.
   - **Delete** removes the instance; for folders under `instances\` it offers
     to delete the folder too (off by default).
-  - **Additions** picks the instance's look (Faithful, Recommended or
-    Custom) and switches each addition on or off, by category. They're saved
-    in `additions.txt` in the instance folder, the same file the game's
-    Additions screen edits. The Launcher section at the bottom applies to
-    every instance: **Remember Tab** (open on the tab you used last),
-    **What's New** (list new Additions after an update) and **Look on
-    Instances** (show each instance's look in this list).
+  - **Additions** opens the Additions tab on that instance.
   - **Edit** sets the name, folder, window size, what the launcher does while
     the game runs, memory (1-8 GB, or the game's default), the Java used to
     run Gradle, and extra JVM arguments.
+- **Additions**: LegacyCraft's own mod system, for the instance picked in
+  the bottom bar. The switch at the top turns Additions on or off for the
+  instance; off plays as plain 1.8.9 and the title screen has no Additions
+  button. Under it, the **Faithful** (every addition off) and **Recommended**
+  presets set all the switches at once; any other mix shows as **Custom**.
+  Below that, each addition has its own On/Off switch, by category.
+  Changes are saved straight away to `additions.txt` in the instance folder,
+  the same file the game's Additions screen edits. The Launcher section at
+  the bottom applies to every instance: **Remember Tab** (open on the tab you
+  used last), **What's New** (list new Additions after an update) and
+  **Additions on Instances** (show in the Instances list whether each
+  instance has Additions on, and its preset).
 - **Skins & Capes**: a skin list and a cape list next to a 3D preview.
   Whatever is selected in each list is what you wear.
   - Add 64x64 skins, or old 64x32 skins (converted the way 1.8 does it).

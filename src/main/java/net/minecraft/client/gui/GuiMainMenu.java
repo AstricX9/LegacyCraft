@@ -19,7 +19,7 @@ import static org.lwjgl.opengl.GL11.*;
  * The 1.8.9 title screen (master context §66): blurred rotating panorama,
  * the logo (with the rare "Minceraft" misspelling), a pulsing splash, and
  * Singleplayer / Multiplayer / Minecraft Realms / language / Options / Quit,
- * plus LegacyCraft's Additions under Realms.
+ * plus LegacyCraft's Additions under Realms when they are on for the instance.
  *
  * <p>Layout, panorama pass counts and splash maths are HYPOTHESIS until
  * screenshot-compared (unknowns.yml "GUI pixel layout"). Branding text is a
@@ -62,14 +62,17 @@ public class GuiMainMenu extends GuiScreen {
     @Override
     public void initGui() {
         if (splashText.equals("missingno")) splashText = pickSplash();
-        // The extra Additions row would run into the bottom-corner text on short windows, so the buttons move up there.
-        int top = Math.min(height / 4 + 48, height - 12 - (24 * 4 + 12 + 20));
+        // With Additions on (DEV-041) they get their own row under Realms, pushing Options and Quit down one row;
+        // with them off the menu is vanilla's. The extra row would run into the bottom-corner text on short
+        // windows, so the buttons move up there.
+        boolean additions = mc.additions().enabled();
+        int rows = additions ? 4 : 3;
+        int top = additions ? Math.min(height / 4 + 48, height - 12 - (24 * rows + 12 + 20)) : height / 4 + 48;
         buttonList.add(new GuiButton(1, width / 2 - 100, top, I18n.format("menu.singleplayer")));
         buttonList.add(new GuiButton(2, width / 2 - 100, top + 24, I18n.format("menu.multiplayer")));
         buttonList.add(new GuiButton(14, width / 2 - 100, top + 24 * 2, I18n.format("menu.online")));
-        // LegacyCraft's Additions (DEV-041) get their own row under Realms, pushing Options and Quit down one row.
-        buttonList.add(new GuiButton(20, width / 2 - 100, top + 72, GuiAdditions.TITLE));
-        int bottom = top + 72 + 24 + 12;
+        if (additions) buttonList.add(new GuiButton(20, width / 2 - 100, top + 72, GuiAdditions.TITLE));
+        int bottom = top + 24 * rows + 12;
         buttonList.add(new GuiButton(0, width / 2 - 100, bottom, 98, 20, I18n.format("menu.options")));
         buttonList.add(new GuiButton(4, width / 2 + 2, bottom, 98, 20, I18n.format("menu.quit")));
         buttonList.add(new GuiButtonLanguage(5, width / 2 - 124, bottom));

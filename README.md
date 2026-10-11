@@ -58,25 +58,29 @@ DEV-003), `options.txt` (vanilla option names and key codes), `additions.txt`
 
 ## Additions
 
-Additions are optional changes to 1.8.9, so each player chooses how faithful
-the game looks. They are grouped as Gameplay, Graphics, Interface,
-Accessibility and Launcher, and listed in
-`src/main/resources/assets/legacycraft/additions.json`. Everything is off by
-default (the **Faithful** look, plain 1.8.9); **Recommended** turns on a few
-that don't change how the game looks; any other mix is **Custom**.
+Additions are LegacyCraft's own mod system: optional changes to 1.8.9, so
+each player chooses how faithful the game looks. They are grouped as
+Gameplay, Graphics, Interface, Accessibility and Launcher, and listed in
+`src/main/resources/assets/legacycraft/additions.json`.
 
-Open them from the **Additions** button under Minecraft Realms on the title
-screen, or from **Additions** next to an instance in the launcher. Both edit
-`additions.txt` in the game folder, so each instance has its own. The current
-additions are Toggle Sprint, Toggle Sneak, Full Bright, Coordinates, FPS
-Counter, No Damage Tilt, Steady Field of View and Solid Crosshair in the game,
-and Remember Tab, What's New and Look on Instances in the launcher (DEV-041).
+Each instance turns Additions on or off as a whole in the launcher's
+**Additions** tab. Off (the default) is plain 1.8.9: no addition is active
+and the title screen has no Additions button. On, each addition is switched
+on or off in that tab, or in game from the **Additions** button under
+Minecraft Realms. Both edit `additions.txt` in the game folder, so each
+instance has its own. The current additions are Toggle Sprint, Toggle Sneak,
+Full Bright, Coordinates, FPS Counter, No Damage Tilt, Steady Field of View
+and Solid Crosshair in the game, and Remember Tab, What's New and Additions on
+Instances in the launcher (DEV-041).
+
+The launcher's tab also has the **Faithful** (all off) and **Recommended**
+presets; the in-game screen just has the switches.
 
 To add one: put an entry in `additions.json` (`id`, `category`, `scope` of
-`game` or `launcher`, `recommended`, `name`, `description`), add its id to
+`game` or `launcher`, `default`, `recommended`, `name`, `description`), add its id to
 `net.minecraft.client.additions.Additions` (or the launcher's `Additions`), and
-check `additions.isOn(id)` where it changes the game. The screens pick it up
-from the list.
+check `additions.isOn(id)` where it changes the game (it is false while
+Additions are off). The screens pick it up from the list.
 
 ## World generation
 

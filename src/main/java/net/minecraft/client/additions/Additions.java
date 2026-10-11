@@ -18,11 +18,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Which Additions are on for this instance (DEV-041). The catalog comes from
+ * Which Additions are on for this instance (DEV-041), LegacyCraft's own
+ * take on a mod loader. The catalog comes from
  * {@code assets/legacycraft/additions.json}; the switches are saved to
  * {@code additions.txt} in the game folder as {@code id:true|false} lines,
  * like options.txt, so the launcher can set them before the game starts.
- * Everything is off unless switched on, which is the Faithful look: plain 1.8.9.
+ * The {@code enabled} line turns Additions on or off as a whole: off (the
+ * default) plays as plain 1.8.9, with every addition inactive and no
+ * Additions button on the title screen.
  */
 public final class Additions {
     public static final String TOGGLE_SPRINT = "toggleSprint", TOGGLE_SNEAK = "toggleSneak", FULL_BRIGHT = "fullBright",
@@ -30,21 +33,16 @@ public final class Additions {
         SOLID_CROSSHAIR = "solidCrosshair";
 
     static final String CATALOG = "/assets/legacycraft/additions.json";
-
-    /** How close to vanilla the game looks: a summary of the switches, and a way to set them all at once. */
-    public enum Look {
-        FAITHFUL("Faithful"), RECOMMENDED("Recommended"), CUSTOM("Custom");
-
-        public final String title;
-
-        Look(String title) { this.title = title; }
-    }
+    /** The additions.txt line that turns Additions on or off for the instance. */
+    static final String ENABLED = "enabled";
 
     private final List<Addition> catalog;
     private final Map<String, Boolean> on = new LinkedHashMap<>();
     /** Lines of additions.txt for additions this build doesn't know, written back unchanged. */
     private final List<String> unknown = new ArrayList<>();
     private Path file;
+    /** Null until set or read: then Additions count as on if any addition is switched on (files from before the switch). */
+    private Boolean enabled;
 
     Additions(List<Addition> catalog) { this.catalog = List.copyOf(catalog); }
 
@@ -81,7 +79,7 @@ public final class Additions {
             JsonObject o = element.getAsJsonObject();
             list.add(new Addition(o.get("id").getAsString(), Addition.Category.byId(o.get("category").getAsString()),
                 "launcher".equals(o.get("scope").getAsString()) ? Addition.Scope.LAUNCHER : Addition.Scope.GAME,
-                o.has("recommended") && o.get("recommended").getAsBoolean(), o.get("name").getAsString(), o.get("description").getAsString()));
+                o.has("default") && o.get("default").getAsBoolean(), o.get("name").getAsString(), o.get("description").getAsString()));
         }
         return list;
     }
@@ -92,6 +90,7 @@ public final class Additions {
             int colon = line.indexOf(':');
             if (colon < 0) continue;
             String id = line.substring(0, colon).trim();
+            if (id.equals(ENABLED)) { enabled = Boolean.parseBoolean(line.substring(colon + 1).trim()); continue; }
             Addition a = find(id);
             if (a == null || a.scope() != Addition.Scope.GAME) unknown.add(line);
             else on.put(id, Boolean.parseBoolean(line.substring(colon + 1).trim()));
@@ -101,7 +100,8 @@ public final class Additions {
     public void save() {
         if (file == null) return;
         StringBuilder out = new StringBuilder();
-        for (Addition a : game()) out.append(a.id()).append(':').append(isOn(a.id())).append('\n');
+        out.append(ENABLED).append(':').append(enabled()).append('\n');
+        for (Addition a : game()) out.append(a.id()).append(':').append(isSwitchedOn(a.id())).append('\n');
         for (String line : unknown) out.append(line).append('\n');
         try {
             if (file.getParent() != null) Files.createDirectories(file.getParent());
@@ -111,7 +111,25 @@ public final class Additions {
         }
     }
 
-    public boolean isOn(String id) { return on.getOrDefault(id, false); }
+    /** Whether Additions are on for this instance at all. */
+    public boolean enabled() {
+        if (enabled != null) return enabled;
+        for (Addition a : game()) if (isSwitchedOn(a.id())) return true;
+        return false;
+    }
+
+    public void setEnabled(boolean value) { enabled = value; }
+
+    /** Whether an addition is active: Additions are on and so is its own switch. */
+    public boolean isOn(String id) { return enabled() && isSwitchedOn(id); }
+
+    /** An addition's own switch, whether or not Additions are on. */
+    public boolean isSwitchedOn(String id) {
+        Boolean value = on.get(id);
+        if (value != null) return value;
+        Addition a = find(id);
+        return a != null && a.defaultOn();
+    }
 
     public void set(String id, boolean value) { on.put(id, value); }
 
@@ -131,20 +149,5 @@ public final class Additions {
         List<Addition> list = new ArrayList<>();
         for (Addition a : game()) if (a.category() == category) list.add(a);
         return list;
-    }
-
-    public Look look() {
-        boolean faithful = true, recommended = true;
-        for (Addition a : game()) {
-            if (isOn(a.id())) faithful = false;
-            if (isOn(a.id()) != a.recommended()) recommended = false;
-        }
-        return faithful ? Look.FAITHFUL : recommended ? Look.RECOMMENDED : Look.CUSTOM;
-    }
-
-    /** Sets every game addition for a look; Custom leaves the switches as they are. */
-    public void apply(Look look) {
-        if (look == Look.CUSTOM) return;
-        for (Addition a : game()) set(a.id(), look == Look.RECOMMENDED && a.recommended());
     }
 }

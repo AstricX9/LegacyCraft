@@ -22,6 +22,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -37,14 +38,16 @@ final class InstancesTab extends JPanel {
     private final ConsoleTab console;
     private final Runnable onChange;
     private final Runnable play;
+    private final Runnable showAdditions;
     private final JPanel rows = new JPanel();
 
-    InstancesTab(LauncherData data, ConsoleTab console, Runnable onChange, Runnable play) {
+    InstancesTab(LauncherData data, ConsoleTab console, Runnable onChange, Runnable play, Runnable showAdditions) {
         super(new BorderLayout());
         this.data = data;
         this.console = console;
         this.onChange = onChange;
         this.play = play;
+        this.showAdditions = showAdditions;
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 16, 0));
         actions.add(Theme.link("New instance", () -> create(null)));
         actions.add(Theme.link("Open instances folder", () -> open(data.instancesDir)));
@@ -134,8 +137,10 @@ final class InstancesTab extends JPanel {
         StringBuilder s = new StringBuilder("Minecraft ").append(LauncherData.GAME_VERSION);
         s.append("   ·   Memory ").append(p.memoryMb == null ? "default" : p.memoryMb % 1024 == 0 ? p.memoryMb / 1024 + " GB" : p.memoryMb + " MB");
         if (p.resolutionWidth != null && p.resolutionHeight != null) s.append("   ·   ").append(p.resolutionWidth).append('x').append(p.resolutionHeight);
-        if (data.launcherAddition(Additions.INSTANCE_SUMMARY) && !data.additions().entries.isEmpty())
-            s.append("   ·   ").append(data.additions().look(Additions.readInstance(data.gameDirFor(p))).title).append(" look");
+        if (data.launcherAddition(Additions.INSTANCE_SUMMARY) && !data.additions().entries.isEmpty()) {
+            Map<String, Boolean> on = Additions.readInstance(data.gameDirFor(p));
+            s.append("   ·   ").append(data.additions().enabled(on) ? "Additions on (" + data.additions().look(on).title + ")" : "Additions off");
+        }
         s.append("   ·   ").append(p.lastPlayed == null ? "Never played" : "Played " + ago(p.lastPlayed));
         return s.toString();
     }
@@ -205,11 +210,12 @@ final class InstancesTab extends JPanel {
         if (InstanceDialog.edit(this, data, p, false)) onChange.run();
     }
 
+    /** Picks the instance and opens the Additions tab on it. */
     void additions(Profile p) {
-        if (AdditionsDialog.edit(this, data, p)) {
-            console.log("Saved the Additions of " + p.name + " (" + data.additions().look(Additions.readInstance(data.gameDirFor(p))).title + " look)");
-            onChange.run();
-        }
+        data.selectedProfile = p.name;
+        data.save();
+        onChange.run();
+        showAdditions.run();
     }
 
     void delete(Profile p) {
