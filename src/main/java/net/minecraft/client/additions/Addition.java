@@ -5,8 +5,9 @@ package net.minecraft.client.additions;
  * {@code assets/legacycraft/additions.json}. Game additions are switched per
  * instance (in the game and in the launcher); launcher additions only change
  * the launcher and are listed here so the catalog stays in one place.
+ * {@code defaultOn} is whether it starts switched on.
  */
-public record Addition(String id, Category category, Scope scope, boolean recommended, String name, String description) {
+public record Addition(String id, Category category, Scope scope, boolean defaultOn, String name, String description) {
     /** The groups the Additions screens show, in order. */
     public enum Category {
         GAMEPLAY("Gameplay"), GRAPHICS("Graphics"), INTERFACE("Interface"), ACCESSIBILITY("Accessibility"), LAUNCHER("Launcher");

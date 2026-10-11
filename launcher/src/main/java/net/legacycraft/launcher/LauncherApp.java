@@ -54,6 +54,7 @@ public final class LauncherApp {
     private JTabbedPane tabs;
     private ConsoleTab console;
     private InstancesTab instances;
+    private AdditionsTab additions;
     private SkinTab skins;
     private WorldsTab worlds;
     private final JComboBox<Profile> profileCombo = new JComboBox<>();
@@ -159,13 +160,13 @@ public final class LauncherApp {
         if (!data.launcherAddition(Additions.WHATS_NEW)) return;
         StringBuilder text = new StringBuilder("<html><body style='width:380px'>");
         text.append(firstTime
-            ? "<p>LegacyCraft now has <b>Additions</b>: optional changes you can switch on for each instance. "
-                + "Everything is off in the <b>Faithful</b> look, so the game stays plain 1.8.9 until you choose otherwise.</p>"
+            ? "<p>LegacyCraft now has <b>Additions</b>, its own mod system: optional changes you can turn on for each instance. "
+                + "They're off until you turn them on, so the game stays plain 1.8.9 until you choose otherwise.</p>"
             : "<p>This update brings new Additions:</p>");
         text.append("<ul>");
         for (Additions.Entry e : fresh)
             text.append("<li><b>").append(e.name()).append("</b> (").append(e.category().title).append("): ").append(e.description()).append("</li>");
-        text.append("</ul><p>Open them from <b>Additions</b> under the instance, or from the Additions button on the title screen.</p></body></html>");
+        text.append("</ul><p>Turn them on in the <b>Additions</b> tab.</p></body></html>");
         Windows.message(frame, firstTime ? "Additions" : "What's new", text.toString());
     }
 
@@ -173,10 +174,12 @@ public final class LauncherApp {
 
     private JTabbedPane createTabs() {
         tabs = new JTabbedPane();
-        instances = new InstancesTab(data, console, this::refreshProfiles, this::play);
+        instances = new InstancesTab(data, console, this::refreshProfiles, this::play, () -> tabs.setSelectedComponent(additions));
+        additions = new AdditionsTab(data, console, this::refreshProfiles);
         skins = new SkinTab(data, this::refreshPlayer);
         tabs.addTab("News", createNews());
         tabs.addTab("Instances", instances);
+        tabs.addTab("Additions", additions);
         worlds = new WorldsTab(() -> data.gameDirFor(data.selected()), console);
         tabs.addTab("Worlds", worlds);
         tabs.addTab("Skins & Capes", skins);
@@ -222,6 +225,7 @@ public final class LauncherApp {
             switch (link) {
                 case "launcher:skins" -> tabs.setSelectedComponent(skins);
                 case "launcher:worlds" -> tabs.setSelectedComponent(worlds);
+                case "launcher:additions" -> tabs.setSelectedComponent(additions);
                 case "launcher:instances", "launcher:profiles" -> tabs.setSelectedComponent(instances);
                 case "launcher:console" -> tabs.setSelectedComponent(console);
                 case "launcher:newinstance" -> instances.create(null);
@@ -290,7 +294,7 @@ public final class LauncherApp {
         links.setAlignmentX(0);
         links.add(Theme.link("Edit", () -> { if (data.selected() != null) instances.edit(data.selected()); }));
         links.add(Box.createHorizontalStrut(12));
-        links.add(Theme.link("Additions", () -> { if (data.selected() != null) instances.additions(data.selected()); }));
+        links.add(Theme.link("Additions", () -> tabs.setSelectedComponent(additions)));
         links.add(Box.createHorizontalStrut(12));
         links.add(Theme.link("New", () -> instances.create(null)));
         links.add(Box.createHorizontalStrut(12));
@@ -331,6 +335,7 @@ public final class LauncherApp {
         updatingCombo = false;
         if (instances != null) instances.refresh();
         if (worlds != null) worlds.refresh();
+        if (additions != null) additions.refresh();
         refreshPlayer();
     }
 
