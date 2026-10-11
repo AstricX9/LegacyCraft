@@ -33,6 +33,13 @@ public class Block {
                              List<AxisAlignedBB> collision, boolean targetable) {}
 
     private final Properties properties;
+    /**
+     * The block's sixteen metadata states, made on first use and then shared, so
+     * reading the world doesn't allocate a new state per block (FerriteCore and
+     * FoamFix deduplicate states the same way). A race can make two equal copies,
+     * which is harmless: states compare by value and their fields are final.
+     */
+    final BlockState[] states = new BlockState[BlockState.MAX_METADATA + 1];
 
     protected Block(Properties properties) {
         this.properties = properties;

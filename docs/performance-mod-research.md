@@ -247,4 +247,5 @@ Addition), Nvidium (vendor-specific), LazyDFU (no DFU in 1.8.9).
 |---|---|---|---|
 | 1 | Primitive chunk map (`util/LongHashMap`) | Done | worldgen −26%, block access −34%, mob ticks −44%; worldgen garbage −59%; identical world |
 | 2 | Primitive light queues (`LightEngine.LongQueue`) | Done | worldgen garbage a further −61% (−84% overall), worldgen CPU −8%; identical light |
-| 3 | Canonical `BlockState` objects | Next | |
+| 3 | Canonical `BlockState` objects | Done | block-access garbage −63%, mob-tick garbage −9%; CPU within noise to about −10%; identical results |
+| 4 | Section occlusion graph (VisGraph) | Next | |
