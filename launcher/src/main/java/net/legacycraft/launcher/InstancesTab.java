@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  */
 final class InstancesTab extends JPanel {
     /** What a copied instance takes from the original's folder. */
-    private static final String[] COPIED = {"saves", "resourcepacks", "options.txt", "servers.dat"};
+    private static final String[] COPIED = {"saves", "resourcepacks", "options.txt", "servers.dat", Additions.INSTANCE_FILE};
 
     private final LauncherData data;
     private final ConsoleTab console;
@@ -92,6 +92,7 @@ final class InstancesTab extends JPanel {
             links.setOpaque(false);
             links.add(Theme.link("Play", () -> { select(); play.run(); }));
             links.add(Theme.link("Edit", () -> edit(p)));
+            links.add(Theme.link("Additions", () -> additions(p)));
             links.add(Theme.link("Copy", () -> create(p)));
             links.add(Theme.link("Folder", () -> open(data.gameDirFor(p))));
             JLabel delete = Theme.link("Delete", () -> delete(p));
@@ -130,10 +131,12 @@ final class InstancesTab extends JPanel {
         }
     }
 
-    private static String details(Profile p) {
+    private String details(Profile p) {
         StringBuilder s = new StringBuilder("Minecraft ").append(LauncherData.GAME_VERSION);
         s.append("   ·   Memory ").append(p.memoryMb == null ? "default" : p.memoryMb % 1024 == 0 ? p.memoryMb / 1024 + " GB" : p.memoryMb + " MB");
         if (p.resolutionWidth != null && p.resolutionHeight != null) s.append("   ·   ").append(p.resolutionWidth).append('x').append(p.resolutionHeight);
+        if (data.launcherAddition(Additions.INSTANCE_SUMMARY) && !data.additions().entries.isEmpty())
+            s.append("   ·   ").append(data.additions().look(Additions.readInstance(data.gameDirFor(p))).title).append(" look");
         s.append("   ·   ").append(p.lastPlayed == null ? "Never played" : "Played " + ago(p.lastPlayed));
         return s.toString();
     }
@@ -201,6 +204,13 @@ final class InstancesTab extends JPanel {
 
     void edit(Profile p) {
         if (InstanceDialog.edit(this, data, p, false)) onChange.run();
+    }
+
+    void additions(Profile p) {
+        if (AdditionsDialog.edit(this, data, p)) {
+            console.log("Saved the Additions of " + p.name + " (" + data.additions().look(Additions.readInstance(data.gameDirFor(p))).title + " look)");
+            onChange.run();
+        }
     }
 
     void delete(Profile p) {

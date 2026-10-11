@@ -11,6 +11,7 @@ are not copied wholesale.
 | Package | Responsibility | Current milestone |
 |---|---|---|
 | `net.minecraft.client` | main loop, timing, input orchestration, integrated-server session | playable, menus + saves |
+| `net.minecraft.client.additions` | optional, per-instance Additions (off = plain 1.8.9) | catalog + additions.txt + first examples per category (DEV-041) |
 | `net.minecraft.client.gui` | scaled GUI, bitmap text, screens, HUD | full 1.8.9 menu graph + F3 (layout HYPOTHESIS) |
 | `net.minecraft.client.renderer` | camera, world, entities, particles, weather | 16x16x16 section VBOs built on worker threads, frustum culling, opaque then sorted translucent pass, time-of-day lightmap, sky/fog/clouds (SkyRenderer) + typed entity dispatch |
 | `net.minecraft.client.renderer.block.model` | blockstate/model inheritance and baked quads | state-mapped + weighted variants, element/variant rotation, uvlock |

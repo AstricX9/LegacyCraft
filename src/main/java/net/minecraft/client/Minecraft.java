@@ -89,6 +89,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.TreeMap;
 
@@ -131,6 +132,9 @@ public final class Minecraft implements GuiContext {
     private Path gameDirectory = Path.of(".");
     private SaveFormat saveFormat;
     private final GameSettings gameSettings = new GameSettings();
+    /** This instance's Additions (additions.txt in the game folder); all off is plain 1.8.9. */
+    private net.minecraft.client.additions.Additions additions = net.minecraft.client.additions.Additions.defaults();
+    private final net.minecraft.client.additions.ToggleKeys toggleKeys = new net.minecraft.client.additions.ToggleKeys();
     /** The built-in 1.8.9 pack with the selected resource packs layered over it. */
     private final net.minecraft.client.resources.ResourcePackRepository resourceManager =
         new net.minecraft.client.resources.ResourcePackRepository(new ClasspathResourceManager());
@@ -365,6 +369,7 @@ public final class Minecraft implements GuiContext {
         } catch (IOException error) {
             System.err.println("Couldn't load options: " + error.getMessage());
         }
+        additions = net.minecraft.client.additions.Additions.load(gameDirectory.resolve("additions.txt"));
         GLFWErrorCallback.createPrint(System.err).set();
         if (!glfwInit()) throw new IllegalStateException("Unable to initialize GLFW");
         glfwDefaultWindowHints();
@@ -2239,7 +2244,8 @@ public final class Minecraft implements GuiContext {
         float[] fog = sky.prepare(levelInfo.worldTime, partialTicks, temperature, player.dirX(), player.dirY(), player.dirZ(),
             gameSettings.renderDistanceChunks, player.y, world.isFlat(), cameraLiquid());
         LightMap.update(SkyRenderer.sunBrightness(sky.angle()), gameSettings.gammaSetting,
-            player == null ? 0f : player.nightVisionBrightness(partialTicks), world.isNether());
+            additions.isOn(net.minecraft.client.additions.Additions.FULL_BRIGHT) ? 1f
+                : player == null ? 0f : player.nightVisionBrightness(partialTicks), world.isNether());
         return fog;
     }
 
@@ -2328,7 +2334,8 @@ public final class Minecraft implements GuiContext {
 
     /** The field of view for the world: the setting times the sprint/flight modifier, narrower with the camera in water. */
     private float worldFov() {
-        float fov = gameSettings.getFov() * playerAnimation.fov(partialTicks);
+        float fov = gameSettings.getFov();
+        if (!additions.isOn(net.minecraft.client.additions.Additions.STEADY_FOV)) fov *= playerAnimation.fov(partialTicks);
         if ("water".equals(cameraLiquid())) fov = fov * 60f / 70f;
         return fov;
     }
@@ -2341,6 +2348,7 @@ public final class Minecraft implements GuiContext {
     private void applyHurtEffect() {
         if (player == null) return;
         if (player.health <= 0) glRotatef(40f - 8000f / (player.deathTime + partialTicks + 200f), 0f, 0f, 1f);
+        if (additions.isOn(net.minecraft.client.additions.Additions.NO_HURT_TILT)) return;
         float time = player.hurtTime - partialTicks;
         if (time < 0f) return;
         time /= player.maxHurtTime;
@@ -2912,8 +2920,25 @@ public final class Minecraft implements GuiContext {
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
+        else drawAdditionsHud(guiWidth);
         ingameGui.renderChat(guiHeight, currentScreen instanceof GuiChat);
         glEnable(GL_DEPTH_TEST);
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /** The Coordinates and FPS Counter additions, in the corners F3 uses (so they hide while it is open). */
+    private void drawAdditionsHud(int guiWidth) {
+        if (additions.isOn(net.minecraft.client.additions.Additions.COORDINATES)) {
+            String[] facings = {"south", "west", "north", "east"};
+            // The player's yaw is LegacyCraft's; vanilla's (what F3 shows) is half a turn round from it.
+            String facing = facings[Math.floorMod((int) Math.floor((player.yaw + 180f) * 4f / 360f + 0.5f), 4)];
+            fontRenderer.drawStringWithShadow(String.format(Locale.ROOT, "XYZ: %.1f / %.1f / %.1f", player.x, player.y, player.z), 2, 2, 0xFFFFFF);
+            fontRenderer.drawStringWithShadow("Facing: " + facing, 2, 12, 0xFFFFFF);
+        }
+        if (additions.isOn(net.minecraft.client.additions.Additions.FPS_COUNTER)) {
+            String text = fps + " fps";
+            fontRenderer.drawStringWithShadow(text, guiWidth - 2 - fontRenderer.getStringWidth(text), 2, 0xFFFFFF);
+        }
         glColor4f(1, 1, 1, 1);
     }
 
@@ -3794,13 +3819,16 @@ public final class Minecraft implements GuiContext {
      */
     private void tickPlayer() {
         Player.Input input = Player.Input.of(gameSettings);
+        Player.Input toggled = toggleKeys.apply(input, gameSettings.keyBindSprint, gameSettings.keyBindSneak,
+            additions.isOn(net.minecraft.client.additions.Additions.TOGGLE_SPRINT), additions.isOn(net.minecraft.client.additions.Additions.TOGGLE_SNEAK));
         net.minecraft.entity.EntityBoat boat = ridingBoat;
+        // Only a real press of Sneak climbs out of a boat, not a latched Toggle Sneak.
         if (boat != null && (boat.isRemoved() || player.dead || input.sneak())) {
             dismountBoat();
             boat = null;
         }
         if (boat == null) {
-            player.tick(input);
+            player.tick(toggled);
             return;
         }
         float forward = (input.forward() ? 1f : 0f) - (input.back() ? 1f : 0f);
@@ -4220,6 +4248,7 @@ public final class Minecraft implements GuiContext {
     @Override public BlockRegistry blocks() { return blockRegistry; }
     @Override public BiomeRegistry biomes() { return biomeRegistry; }
     @Override public Path gameDirectory() { return gameDirectory; }
+    @Override public net.minecraft.client.additions.Additions additions() { return additions; }
     @Override public SaveFormat saves() { return saveFormat; }
     @Override public boolean isInGame() { return world != null && preparing == null; }
     @Override public LevelInfo currentLevel() { return world != null ? levelInfo : null; }

@@ -28,14 +28,22 @@ launcher's corners stay square there too. Drag any edge to resize.
 - **Instances**: the instance manager. Each instance is its own copy of the
   game with its own folder (worlds in `saves`, `resourcepacks`, `options.txt`,
   `servers.dat`) and its own settings. Click an instance to select it,
-  double-click to play it. Each row has **Play**, **Edit**, **Copy**,
-  **Folder** and **Delete**:
+  double-click to play it. Each row has **Play**, **Edit**, **Additions**,
+  **Copy**, **Folder** and **Delete**:
   - **New instance** makes an empty instance in
     `%USERPROFILE%\.legacycraft-launcher\instances\<name>`.
   - **Copy** makes a new instance with the same settings and copies the
-    original's `saves`, `resourcepacks`, `options.txt` and `servers.dat`.
+    original's `saves`, `resourcepacks`, `options.txt`, `servers.dat` and
+    `additions.txt`.
   - **Delete** removes the instance; for folders under `instances\` it offers
     to delete the folder too (off by default).
+  - **Additions** picks the instance's look (Faithful, Recommended or
+    Custom) and switches each addition on or off, by category. They're saved
+    in `additions.txt` in the instance folder, the same file the game's
+    Additions screen edits. The Launcher section at the bottom applies to
+    every instance: **Remember Tab** (open on the tab you used last),
+    **What's New** (list new Additions after an update) and **Look on
+    Instances** (show each instance's look in this list).
   - **Edit** sets the name, folder, window size, what the launcher does while
     the game runs, memory (1-8 GB, or the game's default), the Java used to
     run Gradle, and extra JVM arguments.
@@ -65,7 +73,7 @@ launcher's corners stay square there too. Drag any edge to resize.
 
 ## Bottom bar
 
-- **Instance**: picks the instance Play starts, with **Edit**, **New**,
+- **Instance**: picks the instance Play starts, with **Edit**, **Additions**, **New**,
   **Folder** and **All instances** links under it.
 - **Play** runs `gradlew run` in the LegacyCraft folder. It passes
   `--gamedir` (the instance's folder), `--username`, `--skin` (the chosen
@@ -82,7 +90,8 @@ launcher's corners stay square there too. Drag any edge to resize.
 
 - `launcher_profiles.json`: the instances, stored as profiles in the 1.6
   launcher's format (plus `memoryMb` and `lastPlayed`), and a `legacycraft`
-  section with the player name, the install folder and the skin library.
+  section with the player name, the install folder, the skin library and
+  the launcher's own Additions.
 - `instances\`: the folders of instances made by the launcher.
 - `skins\` and `capes\`: the imported skins and capes.
 

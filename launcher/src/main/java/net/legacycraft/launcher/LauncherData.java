@@ -39,6 +39,13 @@ final class LauncherData {
     String clientToken = UUID.randomUUID().toString();
     String selectedSkin = STEVE;
     Path installDir;
+    /** Launcher additions switched by hand; one that isn't here follows its Recommended setting. */
+    final Map<String, Boolean> launcherAdditions = new LinkedHashMap<>();
+    /** Additions the What's New addition has already announced. */
+    final java.util.Set<String> seenAdditions = new java.util.LinkedHashSet<>();
+    String lastTab;
+    private Additions additions;
+    private Path additionsFrom;
 
     static final class SkinEntry {
         final String id;
@@ -101,6 +108,12 @@ final class LauncherData {
         }
         if (cape(selectedCape) == null) selectedCape = null;
 
+        Map<String, Object> adds = Json.object(ours.get("additions"));
+        for (Map.Entry<String, Object> e : Json.object(adds.get("launcher")).entrySet())
+            if (e.getValue() instanceof Boolean b) launcherAdditions.put(e.getKey(), b);
+        for (Object o : Json.array(adds.get("seen"))) if (o instanceof String id) seenAdditions.add(id);
+        lastTab = Json.string(adds.get("lastTab"), null);
+
         migrateOldSettings();
         if (installDir == null || !isInstall(installDir)) installDir = findInstall();
         if (profiles.isEmpty()) {
@@ -156,6 +169,11 @@ final class LauncherData {
             capeJson.add(m);
         }
         ours.put("capes", capeJson);
+        Map<String, Object> adds = new LinkedHashMap<>();
+        adds.put("launcher", new LinkedHashMap<String, Object>(launcherAdditions));
+        adds.put("seen", new ArrayList<Object>(seenAdditions));
+        if (lastTab != null) adds.put("lastTab", lastTab);
+        ours.put("additions", adds);
         root.put("legacycraft", ours);
         try {
             Files.createDirectories(dataDir);
@@ -206,6 +224,24 @@ final class LauncherData {
     Path gameDirFor(Profile p) {
         if (p.gameDir != null && !p.gameDir.isBlank()) return Path.of(p.gameDir).toAbsolutePath().normalize();
         return installDir == null ? Path.of("").toAbsolutePath() : installDir;
+    }
+
+    // ---- additions ----
+
+    /** The Additions catalog, re-read when the LegacyCraft folder changes. */
+    Additions additions() {
+        if (additions == null || !java.util.Objects.equals(additionsFrom, installDir)) {
+            additions = Additions.load(installDir);
+            additionsFrom = installDir;
+        }
+        return additions;
+    }
+
+    boolean launcherAddition(String id) {
+        Boolean on = launcherAdditions.get(id);
+        if (on != null) return on;
+        for (Additions.Entry e : additions().entries) if (e.id().equals(id)) return e.recommended();
+        return false;
     }
 
     // ---- skins ----

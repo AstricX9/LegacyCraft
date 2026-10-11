@@ -62,6 +62,28 @@ final class ScreenFlowTest {
     }
 
     @Test
+    void additionsButtonSitsUnderRealmsAndSavesTheSwitches() throws Exception {
+        GuiMainMenu title = new GuiMainMenu();
+        mc.displayGuiScreen(title);
+        GuiButton realms = button("menu.online", false), additions = button("Additions", false), options = button("menu.options", false);
+        assertEquals(realms.yPosition + 24, additions.yPosition);
+        assertTrue(options.yPosition >= additions.yPosition + 24, "Options moved below Additions");
+        assertTrue(options.yPosition + 20 <= 240 - 12, "Options clear the bottom-corner text");
+        click("Additions");
+        assertInstanceOf(GuiAdditions.class, mc.screen);
+        click("Look: Faithful");
+        assertEquals(net.minecraft.client.additions.Additions.Look.RECOMMENDED, mc.additions.look());
+        click("Toggle Sneak: options.off");
+        click("Look: Custom");
+        assertEquals(net.minecraft.client.additions.Additions.Look.FAITHFUL, mc.additions.look());
+        click("Interface");
+        click("FPS Counter: options.off");
+        click("gui.done");
+        assertSame(title, mc.screen);
+        assertTrue(Files.readAllLines(mc.directory.resolve("additions.txt")).contains("fpsCounter:true"));
+    }
+
+    @Test
     void createWorldFlowPassesVanillaSettingsToTheServer() {
         GuiSelectWorld select = new GuiSelectWorld(new GuiMainMenu());
         mc.displayGuiScreen(select);
@@ -262,10 +284,15 @@ final class ScreenFlowTest {
         boolean creative = true, shiftDown;
         final List<ItemStack> dropped = new ArrayList<>();
 
+        final net.minecraft.client.additions.Additions additions;
+
         Fake(Path directory) {
             this.directory = directory;
             this.saves = new SaveFormat(directory.resolve("saves"));
+            this.additions = net.minecraft.client.additions.Additions.load(directory.resolve("additions.txt"));
         }
+
+        @Override public net.minecraft.client.additions.Additions additions() { return additions; }
 
         @Override public FontRenderer font() { return font; }
         @Override public GuiTextures textures() { return null; }

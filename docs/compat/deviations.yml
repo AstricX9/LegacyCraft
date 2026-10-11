@@ -1325,3 +1325,37 @@
     P1: friends can play basic Survival together (mine, craft, build, eat,
     fight mobs, die) on a LegacyCraft server; mobs vanish when it restarts.
   user_visible: true
+
+- id: DEV-041
+  subsystem: additions (optional features)
+  vanilla_behavior: >
+    1.8.9 has no optional gameplay, graphics or interface changes beyond its
+    own Options screens, and its title screen has no button between
+    Minecraft Realms and Options.
+  replica_behavior: >
+    LegacyCraft has Additions: optional changes listed in
+    assets/legacycraft/additions.json, grouped as Gameplay, Graphics,
+    Interface, Accessibility and Launcher. Game additions are switched per
+    instance and saved to additions.txt in the game folder (id:true|false
+    lines, unknown lines kept); every one is off unless switched on, which is
+    the "Faithful" look and plays as plain 1.8.9. "Recommended" turns on
+    Toggle Sprint and Coordinates; anything else is "Custom". So far: Toggle
+    Sprint, Toggle Sneak, Full Bright (the lightmap as under Night Vision),
+    Coordinates and FPS Counter (top corners, hidden while F3 is open), No
+    Damage Tilt (the hurt roll; the death tilt stays), Steady Field of View
+    (no sprint/flight/potion FOV change; water still narrows it) and Solid
+    Crosshair (white with a dark outline instead of the inverting blend).
+    The title screen has an Additions button under Minecraft Realms, which
+    moves Options, Quit and the language button down one row (and the whole
+    column up on windows too short for it); it opens a screen with the look,
+    a tab per category and a switch per addition. The launcher edits the
+    same file per instance, and has its own additions (Remember Tab, What's
+    New, Look on Instances) that apply to every instance.
+  reason: >
+    Requested: players choose how faithful the game looks, from plain 1.8.9
+    up, without a separate modded build.
+  compatibility_effect: >
+    None while every addition is off, apart from the extra title-screen
+    button. Additions only change the local client; servers and saves are
+    unaffected.
+  user_visible: true
