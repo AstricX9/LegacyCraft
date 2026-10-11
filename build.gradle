@@ -42,6 +42,11 @@ application {
     applicationDefaultJvmArgs = launcherJvmArgs?.trim() ? launcherJvmArgs.trim().split(/\s+/).toList() : ['-Xms512m', '-Xmx2g']
 }
 
+// Read the built-in default pack straight from src/main/resources so F3+T picks up edits without a rebuild.
+tasks.named('run', JavaExec) {
+    systemProperty 'legacycraft.resourceDir', file('src/main/resources').absolutePath
+}
+
 // Dedicated server for 1.8.9 clients (offline mode). Its server.properties and world live in run-server/.
 tasks.register('runServer', JavaExec) {
     group = 'application'
