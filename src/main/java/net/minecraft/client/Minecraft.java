@@ -137,7 +137,7 @@ public final class Minecraft implements GuiContext {
     private final net.minecraft.client.additions.ToggleKeys toggleKeys = new net.minecraft.client.additions.ToggleKeys();
     /** The built-in 1.8.9 pack with the selected resource packs layered over it. */
     private final net.minecraft.client.resources.ResourcePackRepository resourceManager =
-        new net.minecraft.client.resources.ResourcePackRepository(new ClasspathResourceManager());
+        new net.minecraft.client.resources.ResourcePackRepository(ClasspathResourceManager.fromSystemProperty());
     private BlockRegistry blockRegistry;
     private BiomeRegistry biomeRegistry;
     private BiomeColors biomeColors;
