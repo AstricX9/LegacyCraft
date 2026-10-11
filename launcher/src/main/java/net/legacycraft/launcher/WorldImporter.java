@@ -62,7 +62,7 @@ final class WorldImporter {
             if (dataVersion >= AFTER_1_8)
                 list.add("It was saved by a version newer than 1.8.9: blocks added after 1.8.9 become air.");
             if (anvilRegions)
-                list.add("Chest and furnace contents, sign text, mobs and dropped items are not carried over yet.");
+                list.add("Chest contents, sign text and dropped items are not carried over yet (mobs, spawners, mob heads and furnaces are).");
             else
                 list.add("It has no region files, so the game will generate its terrain from the seed.");
             return list;
