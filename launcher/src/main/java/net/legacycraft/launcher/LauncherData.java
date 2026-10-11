@@ -117,7 +117,10 @@ final class LauncherData {
         lastTab = Json.string(adds.get("lastTab"), null);
 
         migrateOldSettings();
-        if (installDir == null || !isInstall(installDir)) installDir = findInstall();
+        // A launcher that came in a package plays the game it came with, not one remembered from another copy.
+        Path bundled = packagedInstallAroundLauncher();
+        if (bundled != null) installDir = bundled;
+        else if (installDir == null || !isInstall(installDir)) installDir = findInstall();
         if (profiles.isEmpty()) {
             Profile p = new Profile("LegacyCraft");
             p.gameDir = newInstanceDir(p.name).toString();
@@ -348,6 +351,17 @@ final class LauncherData {
     static boolean isPackaged(Path dir) { return dir != null && Files.isRegularFile(dir.resolve(PACKAGED_JAR)); }
 
     static boolean isWindows() { return System.getProperty("os.name", "").toLowerCase().contains("win"); }
+
+    /** The package folder this launcher's jar sits in (its launcher/ folder), or null when it runs from source. */
+    private static Path packagedInstallAroundLauncher() {
+        try {
+            Path jar = Path.of(LauncherData.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath();
+            Path root = jar.getParent() == null ? null : jar.getParent().getParent();
+            return Files.isRegularFile(jar) && isPackaged(root) ? root.normalize() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     private static Path findInstall() {
         List<Path> starts = new ArrayList<>();

@@ -504,14 +504,16 @@ public final class LauncherApp {
     private ProcessBuilder packagedCommand(Profile profile, List<String> args) {
         Path home = profile.javaDir != null ? javaHome(Path.of(profile.javaDir)) : Path.of(System.getProperty("java.home"));
         if (home == null) home = Path.of(System.getProperty("java.home"));
-        Path java = home.resolve("bin").resolve(LauncherData.isWindows() ? "java.exe" : "java");
+        Path javaExe = home.resolve("bin").resolve(LauncherData.isWindows() ? "java.exe" : "java");
         List<String> command = new ArrayList<>();
-        command.add(java.toString());
+        command.add(javaExe.toString());
         String jvmArgs = profile.jvmArgs();
         List<String> jvm = new ArrayList<>(jvmArgs.isBlank() ? List.of("-Xms512m", "-Xmx2g") : List.of(jvmArgs.split("\\s+")));
         // A 32-bit Java (common on Windows 7) can't reserve 2 GB and won't start; with the launcher's own Java we know which it is.
         if (profile.javaDir == null && "32".equals(System.getProperty("sun.arch.data.model"))) jvm = capMemoryFor32Bit(jvm);
         command.addAll(jvm);
+        // GLFW on macOS has to run on the first thread.
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")) command.add("-XstartOnFirstThread");
         command.add("-cp");
         command.add(data.installDir.resolve("lib").resolve("*").toString());
         command.add("net.minecraft.client.main.Main");
