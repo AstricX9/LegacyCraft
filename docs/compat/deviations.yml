@@ -1361,7 +1361,9 @@
     With Additions on, the title screen has an Additions button under
     Minecraft Realms, which moves Options, Quit and the language button down
     one row (and the whole column up on windows too short for it); it opens
-    a screen with a tab per category and a switch per addition. The
+    a screen with a tab per category and a switch per addition. The pause
+    menu gets the same button in the row 1.8.9 leaves empty between
+    Achievements and Options. The
     launcher's Additions tab edits the same file per instance, and has its
     own additions (Remember Tab, What's New, Additions on Instances) that
     apply to every instance.

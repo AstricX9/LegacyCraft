@@ -4,7 +4,8 @@ package net.minecraft.client.gui;
  * The Escape menu ("Game menu"). In singleplayer it pauses the integrated
  * server (master context §69). Achievements opens the achievement map;
  * Statistics and Open to LAN are shown but disabled until those systems
- * exist (DEV-010, DEV-013).
+ * exist (DEV-010, DEV-013). While Additions are on for the instance, an
+ * Additions button fills the row 1.8.9 leaves empty above Options (DEV-041).
  */
 public class GuiIngameMenu extends GuiScreen {
     @Override
@@ -21,7 +22,11 @@ public class GuiIngameMenu extends GuiScreen {
         stats.enabled = false;
         buttonList.add(achievements);
         buttonList.add(stats);
+        if (mc.additions().enabled())
+            buttonList.add(new GuiButton(ADDITIONS, width / 2 - 100, height / 4 + 72 + offset, GuiAdditions.TITLE));
     }
+
+    static final int ADDITIONS = 20;
 
     @Override
     protected void actionPerformed(GuiButton button) {
@@ -33,6 +38,7 @@ public class GuiIngameMenu extends GuiScreen {
             }
             case 4 -> mc.displayGuiScreen(null);
             case 5 -> mc.displayGuiScreen(new GuiAchievements(this));
+            case ADDITIONS -> mc.displayGuiScreen(new GuiAdditions(this));
             default -> {}
         }
     }

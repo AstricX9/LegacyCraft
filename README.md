@@ -67,7 +67,8 @@ Each instance turns Additions on or off as a whole in the launcher's
 **Additions** tab. Off (the default) is plain 1.8.9: no addition is active
 and the title screen has no Additions button. On, each addition is switched
 on or off in that tab, or in game from the **Additions** button under
-Minecraft Realms. Both edit `additions.txt` in the game folder, so each
+Minecraft Realms on the title screen or under Achievements in the pause
+menu. Both edit `additions.txt` in the game folder, so each
 instance has its own. The current additions are Toggle Sprint, Toggle Sneak,
 Full Bright, Shaders, Coordinates, FPS Counter, No Damage Tilt, Steady Field
 of View and Solid Crosshair in the game, and Remember Tab, What's New and

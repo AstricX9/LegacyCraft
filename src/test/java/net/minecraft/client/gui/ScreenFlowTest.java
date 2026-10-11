@@ -240,6 +240,23 @@ final class ScreenFlowTest {
     }
 
     @Test
+    void pauseMenuHasAdditionsInItsEmptyRowOnlyWhileTheyAreOn() {
+        mc.inGame = true;
+        mc.displayGuiScreen(new GuiIngameMenu());
+        for (GuiButton b : mc.screen.buttonList) assertNotEquals("Additions", b.displayString);
+        mc.additions.setEnabled(true);
+        GuiIngameMenu pause = new GuiIngameMenu();
+        mc.displayGuiScreen(pause);
+        GuiButton achievements = button("gui.achievements", false), additions = button("Additions", false), options = button("menu.options", false);
+        assertEquals(achievements.yPosition + 24, additions.yPosition);
+        assertEquals(additions.yPosition + 24, options.yPosition, "fills the empty row; nothing moves");
+        click("Additions");
+        assertInstanceOf(GuiAdditions.class, mc.screen);
+        click("gui.done");
+        assertSame(pause, mc.screen);
+    }
+
+    @Test
     void deathScreenWaitsTwentyTicksAndConfirmsQuitting() {
         mc.inGame = true;
         GuiGameOver death = new GuiGameOver(false, 0);
