@@ -41,6 +41,14 @@ Or run from a terminal:
 .\gradlew.bat run
 ```
 
+### A build for another PC (Windows 7 or later)
+
+`.\gradlew.bat packageWindows` makes `build/distributions/LegacyCraft-windows.zip`:
+the game already built (`lib/`), the launcher as a jar, and `LegacyCraft Launcher.bat`
+and `Play LegacyCraft.bat`. It needs no Gradle or source on the other PC, only Java 17,
+which can go in a `runtime/` folder inside it; see `packaging/windows/README.txt`.
+The launcher runs a packaged game with plain Java instead of `gradlew run`.
+
 ## Menus and saves
 
 The client starts on the 1.8.9 title screen. Singleplayer, Create New World

@@ -30,6 +30,12 @@ dependencies {
     runtimeOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}:natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-openal:${lwjglVersion}:natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-stb:${lwjglVersion}:natives-windows"
+    // 32-bit Windows (still common on Windows 7). LWJGL picks whichever matches the running Java.
+    runtimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-glfw:${lwjglVersion}:natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}:natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-openal:${lwjglVersion}:natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-stb:${lwjglVersion}:natives-windows-x86"
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
@@ -309,4 +315,62 @@ tasks.register('oracleTest', Test) {
         includeTags 'oracle'
     }
     shouldRunAfter test
+}
+
+// ------------------------------------------------------------ Windows package
+// `gradlew packageWindows` builds a ready-to-copy folder and zip (build/distributions/LegacyCraft-windows.zip)
+// for machines without Gradle or the source, including Windows 7: the game jar and its libraries in lib/,
+// the launcher as a jar, and .bat files that use a Java 17 in runtime/ when there is one. See packaging/windows.
+
+def launcherClasses = layout.buildDirectory.dir('launcher/classes')
+
+tasks.register('compileLauncher', JavaCompile) {
+    description = 'Compiles the launcher (launcher/) for the Windows package.'
+    source = fileTree('launcher/src/main/java')
+    classpath = files()
+    destinationDirectory = launcherClasses
+    options.encoding = 'UTF-8'
+    javaCompiler = javaToolchains.compilerFor(java.toolchain)
+}
+
+tasks.register('launcherJar', Jar) {
+    description = 'The launcher as a runnable jar.'
+    archiveFileName = 'LegacyCraftLauncher.jar'
+    destinationDirectory = layout.buildDirectory.dir('launcher/libs')
+    from(tasks.named('compileLauncher'))
+    from('launcher/src/main/resources')
+    // The Additions are the game's; a copy goes with the launcher (a packaged game has no source folder to read them from).
+    from('src/main/resources/assets/legacycraft/additions') {
+        include '*.json'
+        into 'net/legacycraft/launcher/additions'
+    }
+    manifest { attributes('Main-Class': 'net.legacycraft.launcher.LauncherApp') }
+}
+
+def windowsPackage = layout.buildDirectory.dir('windows/LegacyCraft')
+
+tasks.register('windowsPackageFolder', Sync) {
+    description = 'Lays out the Windows package in build/windows/LegacyCraft.'
+    into(windowsPackage)
+    from('packaging/windows') {
+        filter(org.apache.tools.ant.filters.FixCrLfFilter, eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('crlf'))
+    }
+    into('lib') {
+        from(tasks.named('jar')) { rename { 'legacycraft.jar' } }
+        from(configurations.runtimeClasspath)
+    }
+    into('launcher') { from(tasks.named('launcherJar')) }
+    // runtime/ is where a Java 17 goes; Sync would otherwise delete one copied in by hand.
+    preserve { include 'runtime/**' }
+}
+
+tasks.register('packageWindows', Zip) {
+    group = 'distribution'
+    description = 'Builds build/distributions/LegacyCraft-windows.zip, the game and launcher ready to copy to a Windows PC (Windows 7 or later).'
+    archiveFileName = 'LegacyCraft-windows.zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(tasks.named('windowsPackageFolder')) {
+        exclude 'runtime/**'
+        into 'LegacyCraft'
+    }
 }

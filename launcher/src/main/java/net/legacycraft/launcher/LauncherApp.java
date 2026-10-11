@@ -408,7 +408,7 @@ public final class LauncherApp {
 
     private boolean chooseInstall() {
         JFileChooser chooser = new Windows.FileChooser(data.installDir == null ? null : data.installDir.toFile());
-        chooser.setDialogTitle("Where is LegacyCraft? (the folder with " + LauncherData.wrapperName() + ")");
+        chooser.setDialogTitle("Where is LegacyCraft? (the folder with " + LauncherData.wrapperName() + " or lib)");
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         while (chooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
             Path dir = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
@@ -419,7 +419,7 @@ public final class LauncherApp {
                 console.log("LegacyCraft found at " + dir);
                 return true;
             }
-            Windows.error(frame, "Not a LegacyCraft folder", dir + " doesn't contain " + LauncherData.wrapperName() + ".");
+            Windows.error(frame, "Not a LegacyCraft folder", dir + " doesn't contain " + LauncherData.wrapperName() + " or " + LauncherData.PACKAGED_JAR + ".");
         }
         return false;
     }
@@ -437,22 +437,8 @@ public final class LauncherApp {
     }
 
     private void launch(Profile profile, List<String> args) throws IOException {
-        Path wrapper = data.installDir.resolve(LauncherData.wrapperName());
-        String argString = gradleArgs(args);
-        ProcessBuilder pb = LauncherData.isWindows()
-            ? new ProcessBuilder("cmd.exe", "/d", "/s", "/c", "\"\"" + wrapper + "\" run \"--args=" + argString + "\"\"")
-            : new ProcessBuilder(wrapper.toString(), "run", "--args=" + argString);
+        ProcessBuilder pb = LauncherData.isPackaged(data.installDir) ? packagedCommand(profile, args) : gradleCommand(profile, args);
         pb.directory(data.installDir.toFile());
-        Map<String, String> env = pb.environment();
-        if (profile.javaDir != null) {
-            Path exe = Path.of(profile.javaDir);
-            Path home = exe.getParent() != null && exe.getParent().getFileName() != null
-                && exe.getParent().getFileName().toString().equalsIgnoreCase("bin") ? exe.getParent().getParent() : exe;
-            if (home != null) env.put("JAVA_HOME", home.toString());
-        }
-        String jvmArgs = profile.jvmArgs();
-        if (!jvmArgs.isBlank()) env.put("LEGACYCRAFT_JVM_ARGS", jvmArgs);
-        else env.remove("LEGACYCRAFT_JVM_ARGS");
 
         Profile.Visibility visibility = profile.effectiveVisibility();
         Path outputLog = data.gameDirFor(profile).resolve("logs").resolve("launcher-game-output.log");
@@ -494,6 +480,71 @@ public final class LauncherApp {
         }, "Game output");
         reader.setDaemon(true);
         reader.start();
+    }
+
+    /** A source checkout: `gradlew run`, which builds the game first. */
+    private ProcessBuilder gradleCommand(Profile profile, List<String> args) {
+        Path wrapper = data.installDir.resolve(LauncherData.wrapperName());
+        String argString = gradleArgs(args);
+        ProcessBuilder pb = LauncherData.isWindows()
+            ? new ProcessBuilder("cmd.exe", "/d", "/s", "/c", "\"\"" + wrapper + "\" run \"--args=" + argString + "\"\"")
+            : new ProcessBuilder(wrapper.toString(), "run", "--args=" + argString);
+        Map<String, String> env = pb.environment();
+        if (profile.javaDir != null) {
+            Path home = javaHome(Path.of(profile.javaDir));
+            if (home != null) env.put("JAVA_HOME", home.toString());
+        }
+        String jvmArgs = profile.jvmArgs();
+        if (!jvmArgs.isBlank()) env.put("LEGACYCRAFT_JVM_ARGS", jvmArgs);
+        else env.remove("LEGACYCRAFT_JVM_ARGS");
+        return pb;
+    }
+
+    /** A packaged build (the Windows zip): plain Java on lib/, with no Gradle and nothing to compile. */
+    private ProcessBuilder packagedCommand(Profile profile, List<String> args) {
+        Path home = profile.javaDir != null ? javaHome(Path.of(profile.javaDir)) : Path.of(System.getProperty("java.home"));
+        if (home == null) home = Path.of(System.getProperty("java.home"));
+        Path java = home.resolve("bin").resolve(LauncherData.isWindows() ? "java.exe" : "java");
+        List<String> command = new ArrayList<>();
+        command.add(java.toString());
+        String jvmArgs = profile.jvmArgs();
+        List<String> jvm = new ArrayList<>(jvmArgs.isBlank() ? List.of("-Xms512m", "-Xmx2g") : List.of(jvmArgs.split("\\s+")));
+        // A 32-bit Java (common on Windows 7) can't reserve 2 GB and won't start; with the launcher's own Java we know which it is.
+        if (profile.javaDir == null && "32".equals(System.getProperty("sun.arch.data.model"))) jvm = capMemoryFor32Bit(jvm);
+        command.addAll(jvm);
+        command.add("-cp");
+        command.add(data.installDir.resolve("lib").resolve("*").toString());
+        command.add("net.minecraft.client.main.Main");
+        command.addAll(args);
+        return new ProcessBuilder(command);
+    }
+
+    private static List<String> capMemoryFor32Bit(List<String> jvm) {
+        List<String> out = new ArrayList<>();
+        for (String a : jvm) {
+            String lower = a.toLowerCase(java.util.Locale.ROOT);
+            boolean heap = lower.startsWith("-xmx") || lower.startsWith("-xms");
+            out.add(heap && megabytes(lower.substring(4)) > 1024 ? a.substring(0, 4) + "1024m" : a);
+        }
+        return out;
+    }
+
+    private static long megabytes(String size) {
+        try {
+            char unit = size.charAt(size.length() - 1);
+            long n = Character.isDigit(unit) ? Long.parseLong(size) / (1024 * 1024) : Long.parseLong(size.substring(0, size.length() - 1));
+            return switch (unit) { case 'g' -> n * 1024; case 'k' -> n / 1024; default -> n; };
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    /** The Java home for an instance's Java setting, which may be the javaw.exe, its bin folder or the home itself. */
+    private static Path javaHome(Path exe) {
+        if (exe.getParent() != null && exe.getParent().getFileName() != null
+            && exe.getParent().getFileName().toString().equalsIgnoreCase("bin")) return exe.getParent().getParent();
+        if (exe.getFileName() != null && exe.getFileName().toString().equalsIgnoreCase("bin")) return exe.getParent();
+        return exe;
     }
 
     private void gameEnded(int exitCode) {
