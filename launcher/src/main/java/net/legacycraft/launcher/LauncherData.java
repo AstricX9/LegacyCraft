@@ -117,7 +117,10 @@ final class LauncherData {
         lastTab = Json.string(adds.get("lastTab"), null);
 
         migrateOldSettings();
-        if (installDir == null || !isInstall(installDir)) installDir = findInstall();
+        // A launcher that came in a package plays the game it came with, not one remembered from another copy.
+        Path bundled = packagedInstallAroundLauncher();
+        if (bundled != null) installDir = bundled;
+        else if (installDir == null || !isInstall(installDir)) installDir = findInstall();
         if (profiles.isEmpty()) {
             Profile p = new Profile("LegacyCraft");
             p.gameDir = newInstanceDir(p.name).toString();
@@ -314,17 +317,51 @@ final class LauncherData {
     Path skinFile(SkinEntry entry) {
         if (!entry.builtIn()) return skinsDir.resolve(entry.file);
         if (installDir == null) return null;
+        if (isPackaged(installDir)) return builtInSkinFromJar(entry.id);
         Path p = installDir.resolve("src/main/resources/assets/minecraft/textures/entity").resolve(entry.id + ".png");
         return Files.isRegularFile(p) ? p : null;
     }
 
+    /** A packaged game keeps Steve and Alex inside its jar; a copy is taken out for the launcher to read. */
+    private Path builtInSkinFromJar(String id) {
+        Path target = dataDir.resolve("builtin-skins").resolve(id + ".png");
+        try (java.util.zip.ZipFile jar = new java.util.zip.ZipFile(installDir.resolve(PACKAGED_JAR).toFile())) {
+            java.util.zip.ZipEntry entry = jar.getEntry("assets/minecraft/textures/entity/" + id + ".png");
+            if (entry == null) return null;
+            Files.createDirectories(target.getParent());
+            try (InputStream in = jar.getInputStream(entry)) { Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING); }
+            return target;
+        } catch (IOException e) {
+            return Files.isRegularFile(target) ? target : null;
+        }
+    }
+
     // ---- install folder ----
+
+    /** The game jar of a packaged build (the Windows zip), which runs with plain Java instead of Gradle. */
+    static final String PACKAGED_JAR = "lib/legacycraft.jar";
 
     static String wrapperName() { return isWindows() ? "gradlew.bat" : "gradlew"; }
 
-    static boolean isInstall(Path dir) { return dir != null && Files.isRegularFile(dir.resolve(wrapperName())) && Files.isDirectory(dir.resolve("src")); }
+    /** A source checkout (run with Gradle) or a packaged build (run from lib/). */
+    static boolean isInstall(Path dir) {
+        return dir != null && (Files.isRegularFile(dir.resolve(wrapperName())) && Files.isDirectory(dir.resolve("src")) || isPackaged(dir));
+    }
+
+    static boolean isPackaged(Path dir) { return dir != null && Files.isRegularFile(dir.resolve(PACKAGED_JAR)); }
 
     static boolean isWindows() { return System.getProperty("os.name", "").toLowerCase().contains("win"); }
+
+    /** The package folder this launcher's jar sits in (its launcher/ folder), or null when it runs from source. */
+    private static Path packagedInstallAroundLauncher() {
+        try {
+            Path jar = Path.of(LauncherData.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toAbsolutePath();
+            Path root = jar.getParent() == null ? null : jar.getParent().getParent();
+            return Files.isRegularFile(jar) && isPackaged(root) ? root.normalize() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     private static Path findInstall() {
         List<Path> starts = new ArrayList<>();

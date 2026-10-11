@@ -310,3 +310,129 @@ tasks.register('oracleTest', Test) {
     }
     shouldRunAfter test
 }
+
+// ------------------------------------------------------------ packages
+// Ready-to-copy builds for PCs without Gradle or the source: the game jar and its libraries in lib/,
+// the launcher as a jar, and scripts that use a Java 17 in runtime/ when there is one. `build.bat` /
+// `build.sh` is a menu over these tasks. Each target gets build/distributions/LegacyCraft-<lc version>-<target>.zip:
+//   gradlew packageWindows      Windows 64- and 32-bit together (Windows 7 or later)
+//   gradlew packageWindowsX64 / packageWindowsX86 / packageWindowsArm64
+//   gradlew packageLinuxX64 / packageLinuxArm64
+//   gradlew packageMacosX64 / packageMacosArm64   (Intel / Apple silicon)
+//   gradlew packageAll
+// Add -PlcVersion=<version> to change the "lc:" line of version.txt first (the version the game shows).
+
+def lwjglModules = ['lwjgl', 'lwjgl-glfw', 'lwjgl-opengl', 'lwjgl-openal', 'lwjgl-stb']
+def packageTargets = [
+    windows       : [natives: ['natives-windows', 'natives-windows-x86'], scripts: 'windows'],
+    windowsX64    : [natives: ['natives-windows'], scripts: 'windows'],
+    windowsX86    : [natives: ['natives-windows-x86'], scripts: 'windows'],
+    windowsArm64  : [natives: ['natives-windows-arm64'], scripts: 'windows'],
+    linuxX64      : [natives: ['natives-linux'], scripts: 'unix'],
+    linuxArm64    : [natives: ['natives-linux-arm64'], scripts: 'unix'],
+    macosX64      : [natives: ['natives-macos'], scripts: 'unix'],
+    macosArm64    : [natives: ['natives-macos-arm64'], scripts: 'unix'],
+]
+
+def lcVersion = providers.provider {
+    def line = file('version.txt').readLines('UTF-8').find { it.trim().toLowerCase().startsWith('lc:') }
+    line == null ? 'dev' : line.substring(line.indexOf(':') + 1).trim()
+}
+
+tasks.register('setLcVersion') {
+    description = 'Writes -PlcVersion=<version> into version.txt (the LegacyCraft version the game shows).'
+    def requested = providers.gradleProperty('lcVersion')
+    onlyIf { requested.isPresent() }
+    doLast {
+        def version = requested.get().trim()
+        if (!(version ==~ /[A-Za-z0-9._+-]+/)) throw new GradleException("Not a usable version: '${version}'")
+        def text = file('version.txt')
+        def lines = text.readLines('UTF-8')
+        int index = lines.findIndexOf { it.trim().toLowerCase().startsWith('lc:') }
+        if (index < 0) lines << "lc: ${version}" else lines[index] = "lc: ${version}"
+        text.setText(lines.join(System.lineSeparator()) + System.lineSeparator(), 'UTF-8')
+        logger.lifecycle("version.txt now says lc: ${version}")
+    }
+}
+tasks.named('processResources') { mustRunAfter('setLcVersion') }
+
+def launcherClasses = layout.buildDirectory.dir('launcher/classes')
+
+tasks.register('compileLauncher', JavaCompile) {
+    description = 'Compiles the launcher (launcher/) for the packages.'
+    source = fileTree('launcher/src/main/java')
+    classpath = files()
+    destinationDirectory = launcherClasses
+    options.encoding = 'UTF-8'
+    javaCompiler = javaToolchains.compilerFor(java.toolchain)
+}
+
+tasks.register('launcherJar', Jar) {
+    description = 'The launcher as a runnable jar.'
+    archiveFileName = 'LegacyCraftLauncher.jar'
+    destinationDirectory = layout.buildDirectory.dir('launcher/libs')
+    from(tasks.named('compileLauncher'))
+    from('launcher/src/main/resources')
+    // The Additions are the game's; a copy goes with the launcher (a packaged game has no source folder to read them from).
+    from('src/main/resources/assets/legacycraft/additions') {
+        include '*.json'
+        into 'net/legacycraft/launcher/additions'
+    }
+    manifest { attributes('Main-Class': 'net.legacycraft.launcher.LauncherApp') }
+}
+
+def packageAll = tasks.register('packageAll') {
+    group = 'distribution'
+    description = 'Builds every package (Windows, Linux and macOS).'
+}
+
+packageTargets.each { String target, Map spec ->
+    String suffix = target.capitalize()
+    def natives = configurations.create("natives${suffix}") {
+        canBeConsumed = false
+        transitive = false
+    }
+    lwjglModules.each { module ->
+        spec.natives.each { classifier -> dependencies.add(natives.name, "org.lwjgl:${module}:${lwjglVersion}:${classifier}") }
+    }
+    def folder = layout.buildDirectory.dir("packages/${target}/LegacyCraft")
+
+    def layoutTask = tasks.register("package${suffix}Folder", Sync) {
+        description = "Lays out the ${target} package in build/packages/${target}/LegacyCraft."
+        mustRunAfter('setLcVersion')
+        into(folder)
+        if (spec.scripts == 'windows') {
+            from('packaging/windows') {
+                filter(org.apache.tools.ant.filters.FixCrLfFilter, eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('crlf'))
+            }
+        } else {
+            from('packaging/unix') {
+                filter(org.apache.tools.ant.filters.FixCrLfFilter, eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('lf'))
+                filesMatching('**/*.sh') { fileMode = 0755 }
+            }
+        }
+        into('lib') {
+            from(tasks.named('jar')) { rename { 'legacycraft.jar' } }
+            // Every host's natives are left out; only this target's go in.
+            from(configurations.runtimeClasspath) { exclude '*-natives-*.jar' }
+            from(natives)
+        }
+        into('launcher') { from(tasks.named('launcherJar')) }
+        // runtime/ is where a Java 17 goes; Sync would otherwise delete one copied in by hand.
+        preserve { include 'runtime/**' }
+    }
+
+    def zip = tasks.register("package${suffix}", Zip) {
+        group = 'distribution'
+        description = "Builds build/distributions/LegacyCraft-<lc version>-${target}.zip."
+        dependsOn('setLcVersion')
+        archiveFileName = lcVersion.map { "LegacyCraft-${it}-${target}.zip" }
+        destinationDirectory = layout.buildDirectory.dir('distributions')
+        from(layoutTask) {
+            exclude 'runtime/**'
+            into 'LegacyCraft'
+        }
+        doLast { logger.lifecycle("Package: ${archiveFile.get().asFile}") }
+    }
+    if (target != 'windows') packageAll.configure { dependsOn(zip) }
+}

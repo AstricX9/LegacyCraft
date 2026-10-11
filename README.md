@@ -41,6 +41,20 @@ Or run from a terminal:
 .\gradlew.bat run
 ```
 
+### Builds for other PCs (Windows 7 or later, Linux, macOS)
+
+Double-click `build.bat` (or run `./build.sh` on Linux/macOS) for the build console: pick
+Windows (64- and 32-bit together, or one of x64, x86, ARM64), Linux (x64, ARM64) or
+macOS (Intel, Apple silicon), or all of them, and change the LegacyCraft version first if
+you like (`V`, which edits the `lc:` line of `version.txt`). Each package lands in
+`build/distributions/LegacyCraft-<version>-<target>.zip`: the game already built (`lib/`),
+the launcher as a jar, and scripts to start them. The other PC needs no Gradle or source,
+only Java 17, which can go in a `runtime/` folder inside it (see `packaging/windows/README.txt`
+and `packaging/unix/README.txt`). The same packages build without the menu with
+`gradlew packageWindows`, `packageLinuxX64`, `packageAll` and so on (listed in `build.gradle`),
+or `build.bat linuxX64 a1.0.2`. The launcher runs a packaged game with plain Java instead of
+`gradlew run`.
+
 ## Menus and saves
 
 The client starts on the 1.8.9 title screen. Singleplayer, Create New World
