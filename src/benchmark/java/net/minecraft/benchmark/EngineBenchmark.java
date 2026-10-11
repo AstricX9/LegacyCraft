@@ -26,7 +26,8 @@ import java.util.Random;
 /**
  * Headless, repeatable engine benchmarks (docs/performance-benchmarks.md).
  * Each scenario runs warm-up rounds, then measured rounds, and prints the
- * median, best and 90th-percentile round time, the bytes the thread
+ * median, best and 90th-percentile round time, the median CPU time of the
+ * benchmark thread (steadier than wall time on a shared machine), the bytes the thread
  * allocated per round, the collector activity during the measured rounds,
  * and a checksum of the result so a change that alters world data shows up.
  * Run one scenario per JVM: {@code gradlew benchmark -Pbench=worldgen}.
@@ -47,8 +48,8 @@ public final class EngineBenchmark {
                 case "worldgen" -> measure(name, 2, 6, EngineBenchmark::worldgen);
                 case "snapshot" -> { World world = generated(9); measure(name, 5, 15, round -> snapshots(world, 8)); }
                 case "blockaccess" -> { World world = generated(8); measure(name, 5, 15, round -> blockAccess(world, round)); }
-                case "relight" -> { World world = generated(6); measure(name, 3, 10, round -> relight(world, round)); }
-                case "mobs" -> { World world = generated(6); measure(name, 2, 8, round -> mobs(world, round)); }
+                case "relight" -> { World world = generated(6); measure(name, 6, 20, round -> relight(world, round)); }
+                case "mobs" -> { World world = generated(12); measure(name, 6, 16, round -> mobs(world, round)); }
                 default -> throw new IllegalArgumentException("Unknown benchmark " + name);
             }
         }
@@ -108,7 +109,11 @@ public final class EngineBenchmark {
         return hash;
     }
 
-    /** Spawns a night's worth of mobs around a player, then ticks every entity 100 times. */
+    /**
+     * Spawns a night's worth of mobs around a player, then ticks every entity 100 times.
+     * Mobs use unseeded randomness, so the count varies; the world is generated well past
+     * the spawning range so a mob walking off the edge doesn't generate terrain mid-round.
+     */
     private static long mobs(World world, int round) {
         Host host = new Host();
         host.player = new Player(world, 8.5, 8.5);
@@ -149,13 +154,14 @@ public final class EngineBenchmark {
         com.sun.management.ThreadMXBean threads = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
         long checksum = 0;
         for (int i = 0; i < warmup; i++) checksum = body.run(-1 - i);
-        long[] times = new long[rounds], allocated = new long[rounds], mobTicks = new long[rounds];
+        long[] times = new long[rounds], cpu = new long[rounds], allocated = new long[rounds], mobTicks = new long[rounds];
         long gcCount = gcCount(), gcTime = gcTime();
         long thread = Thread.currentThread().getId();
         for (int i = 0; i < rounds; i++) {
-            long bytes = threads.getThreadAllocatedBytes(thread), start = System.nanoTime();
+            long bytes = threads.getThreadAllocatedBytes(thread), cpuStart = threads.getCurrentThreadCpuTime(), start = System.nanoTime();
             checksum = body.run(i);
             times[i] = System.nanoTime() - start;
+            cpu[i] = threads.getCurrentThreadCpuTime() - cpuStart;
             allocated[i] = threads.getThreadAllocatedBytes(thread) - bytes;
             mobTicks[i] = lastMobTicks;
         }
@@ -163,8 +169,8 @@ public final class EngineBenchmark {
         gcTime = gcTime() - gcTime;
         Arrays.sort(times);
         Arrays.sort(mobTicks);
-        System.out.printf(Locale.ROOT, "%-12s median %9.2f ms  best %9.2f ms  p90 %9.2f ms  alloc %9.1f MB/round  gc %d (%d ms)  checksum %x%s%n",
-            name, times[rounds / 2] / 1e6, times[0] / 1e6, times[(int) Math.ceil(rounds * .9) - 1] / 1e6,
+        System.out.printf(Locale.ROOT, "%-12s median %9.2f ms  best %9.2f ms  p90 %9.2f ms  cpu %9.2f ms  alloc %9.1f MB/round  gc %d (%d ms)  checksum %x%s%n",
+            name, times[rounds / 2] / 1e6, times[0] / 1e6, times[(int) Math.ceil(rounds * .9) - 1] / 1e6, median(cpu) / 1e6,
             median(allocated) / 1048576.0, gcCount, gcTime, checksum,
             name.equals("mobs") ? String.format(Locale.ROOT, "  ticks %.3f ms/tick", mobTicks[rounds / 2] / 1e6 / 100) : "");
     }
