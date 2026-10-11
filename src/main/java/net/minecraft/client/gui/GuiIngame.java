@@ -123,12 +123,14 @@ public class GuiIngame extends Gui {
         mc.textures().bind(GuiTextures.ICONS);
         glColor4f(1, 1, 1, 1);
         if (crosshair && mc.additions().isOn(net.minecraft.client.additions.Additions.SOLID_CROSSHAIR)) {
-            // Solid Crosshair: a dark outline (the cross shifted a pixel each way), then the cross in white.
+            // Solid Crosshair: a dark outline (the cross shifted a pixel each way), then the cross in its colour.
             glColor4f(0.1f, 0.1f, 0.1f, 1);
             for (int[] d : new int[][] {{-1, 0}, {1, 0}, {0, -1}, {0, 1}})
                 drawTexturedModalRect(width / 2 - 7 + d[0], height / 2 - 7 + d[1], 0, 0, 16, 16);
-            glColor4f(1, 1, 1, 1);
+            int rgb = crosshairColour(mc.additions().setting(net.minecraft.client.additions.Additions.SOLID_CROSSHAIR, "color"));
+            glColor4f((rgb >> 16 & 255) / 255f, (rgb >> 8 & 255) / 255f, (rgb & 255) / 255f, 1);
             drawTexturedModalRect(width / 2 - 7, height / 2 - 7, 0, 0, 16, 16);
+            glColor4f(1, 1, 1, 1);
         } else if (crosshair) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
             drawTexturedModalRect(width / 2 - 7, height / 2 - 7, 0, 0, 16, 16);
@@ -293,5 +295,17 @@ public class GuiIngame extends Gui {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         mc.font().drawStringWithShadow(name, x, highlightY(height, survivalHud), 0xFFFFFF | alpha << 24);
+    }
+
+    /** The Solid Crosshair addition's Color setting. */
+    static int crosshairColour(String name) {
+        if (name == null) return 0xFFFFFF;
+        switch (name) {
+            case "Green": return 0x55FF55;
+            case "Yellow": return 0xFFFF55;
+            case "Cyan": return 0x55FFFF;
+            case "Red": return 0xFF5555;
+            default: return 0xFFFFFF;
+        }
     }
 }

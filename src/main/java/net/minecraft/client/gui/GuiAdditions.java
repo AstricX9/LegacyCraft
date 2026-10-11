@@ -12,7 +12,8 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
  * LegacyCraft's Additions screen (DEV-041), opened from the title screen
  * when Additions are on for the instance. In one 308-wide column: a tab per
  * category, then a panel listing that category's additions, each with its
- * name, its description and an ON/OFF switch on the right. Saved to the
+ * name, its description and an ON/OFF switch on the right, and a settings
+ * button (settings.png) beside the switch when it has settings. Saved to the
  * instance's additions.txt on Done, the same file the launcher edits;
  * Additions as a whole are turned on and off in the launcher.
  */
@@ -20,7 +21,7 @@ public class GuiAdditions extends GuiScreen {
     public static final String TITLE = "Additions";
     private static final Addition.Category[] TABS = {
         Addition.Category.GAMEPLAY, Addition.Category.GRAPHICS, Addition.Category.INTERFACE, Addition.Category.ACCESSIBILITY};
-    private static final int DONE = 200, TAB = 300, SWITCH = 400;
+    private static final int DONE = 200, TAB = 300, SWITCH = 400, SETTINGS = 500;
     private static final int COLUMN = 308, SWITCH_WIDTH = 44, PAD = 6;
     private static final int ON_COLOUR = 0x80FF80, NAME_COLOUR = 0xFFFFFF, TEXT_COLOUR = 0xB0B0B0;
 
@@ -28,6 +29,8 @@ public class GuiAdditions extends GuiScreen {
     private Addition.Category tab = Addition.Category.GAMEPLAY;
     private Additions additions;
     private final List<GuiButton> tabs = new ArrayList<>(), switches = new ArrayList<>();
+    /** Each shown addition's settings button, or null when it has no settings. */
+    private final List<GuiButton> gears = new ArrayList<>();
     private List<Addition> shown = List.of();
     /** Each shown addition's description, wrapped to the space beside its switch. */
     private final List<List<String>> descriptions = new ArrayList<>();
@@ -49,12 +52,19 @@ public class GuiAdditions extends GuiScreen {
         panelTop = 48;
         panelBottom = height - 32;
         switches.clear();
+        gears.clear();
         descriptions.clear();
         shown = additions.game(tab);
         for (int i = 0; i < shown.size(); i++) {
             GuiButton b = new GuiButton(SWITCH + i, left + COLUMN - SWITCH_WIDTH - PAD, 0, SWITCH_WIDTH, 20, "");
             switches.add(b);
             buttonList.add(b);
+            GuiButton gear = null;
+            if (!shown.get(i).settings().isEmpty()) {
+                gear = new GuiSettingsButton(SETTINGS + i, left + COLUMN - SWITCH_WIDTH - PAD - 24, 0);
+                buttonList.add(gear);
+            }
+            gears.add(gear);
             descriptions.add(fontRendererObj.listFormattedStringToWidth(shown.get(i).description(), textWidth()));
         }
         firstRow = Math.min(firstRow, Math.max(0, shown.size() - 1));
@@ -62,7 +72,7 @@ public class GuiAdditions extends GuiScreen {
         refresh();
     }
 
-    private int textWidth() { return COLUMN - SWITCH_WIDTH - 3 * PAD; }
+    private int textWidth() { return COLUMN - SWITCH_WIDTH - 24 - 3 * PAD; }
 
     /** Where rows must end: the panel's bottom, less a line for "Scroll for more" when they don't all fit. */
     private int listBottom() {
@@ -90,6 +100,11 @@ public class GuiAdditions extends GuiScreen {
             int h = i < firstRow ? 0 : rowHeight(i);
             b.visible = i >= firstRow && y + h <= bottom;
             b.yPosition = y + (h - 20) / 2;
+            GuiButton gear = gears.get(i);
+            if (gear != null) {
+                gear.visible = b.visible;
+                gear.yPosition = b.yPosition;
+            }
             y += h;
         }
     }
@@ -99,6 +114,8 @@ public class GuiAdditions extends GuiScreen {
         if (button.id == DONE) {
             additions.save();
             mc.displayGuiScreen(parent);
+        } else if (button.id >= SETTINGS) {
+            mc.displayGuiScreen(new GuiAdditionSettings(this, shown.get(button.id - SETTINGS)));
         } else if (button.id >= SWITCH) {
             Addition a = shown.get(button.id - SWITCH);
             additions.set(a.id(), !additions.isSwitchedOn(a.id()));

@@ -1,0 +1,22 @@
+{
+  "id": "fullBright",
+  "category": "graphics",
+  "scope": "game",
+  "default": false,
+  "recommended": false,
+  "name": "Full Bright",
+  "description": "Caves and nights are lit as if you had Night Vision.",
+  "settings": [
+    {
+      "id": "brightness",
+      "type": "slider",
+      "name": "Brightness",
+      "description": "How bright dark places get: 100% is full Night Vision.",
+      "min": 10,
+      "max": 100,
+      "step": 10,
+      "unit": "%",
+      "default": 100
+    }
+  ]
+}

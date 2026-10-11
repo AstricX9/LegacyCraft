@@ -1335,8 +1335,9 @@
     own Options screens, and its title screen has no button between
     Minecraft Realms and Options.
   replica_behavior: >
-    LegacyCraft has Additions, its own mod system: optional changes listed
-    in assets/legacycraft/additions.json, grouped as Gameplay, Graphics,
+    LegacyCraft has Additions, its own mod system: optional changes, each
+    defined by its own file in assets/legacycraft/additions/ (_template.json
+    there is skipped and shows every field), grouped as Gameplay, Graphics,
     Interface, Accessibility and Launcher. Each instance turns Additions on
     or off as a whole (the "enabled" line of additions.txt in the game
     folder; off by default, and then the game is plain 1.8.9 with no
@@ -1349,7 +1350,14 @@
     Coordinates and FPS Counter (top corners, hidden while F3 is open), No
     Damage Tilt (the hurt roll; the death tilt stays), Steady Field of View
     (no sprint/flight/potion FOV change; water still narrows it) and Solid
-    Crosshair (white with a dark outline instead of the inverting blend).
+    Crosshair (a colour with a dark outline instead of the inverting blend),
+    and Shaders (the world picture, before the HUD, copied to a texture and
+    drawn back through a GLSL 1.20 fragment shader: built-in looks or the
+    instance's shaders/ folder; vanilla's own post-processing shaders are
+    still DEV-010). An addition can have settings (toggle, slider, choice,
+    file), saved as addition.setting:value lines and opened from a settings
+    button (textures/gui/settings.png, or a drawn gear without it) in game
+    and in the launcher.
     With Additions on, the title screen has an Additions button under
     Minecraft Realms, which moves Options, Quit and the language button down
     one row (and the whole column up on windows too short for it); it opens

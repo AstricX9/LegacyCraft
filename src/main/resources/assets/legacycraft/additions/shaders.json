@@ -1,0 +1,50 @@
+{
+  "id": "shaders",
+  "category": "graphics",
+  "scope": "game",
+  "default": false,
+  "recommended": false,
+  "name": "Shaders",
+  "description": "Runs a shader over the picture: one of the built-in looks, or your own GLSL file from the shaders folder.",
+  "settings": [
+    {
+      "id": "shader",
+      "type": "choice",
+      "name": "Shader",
+      "description": "The look to use. Custom File uses your own shader, picked with the Custom File button.",
+      "options": [
+        "Vibrant",
+        "Warm",
+        "Cool",
+        "Sepia",
+        "Grayscale",
+        "Custom File"
+      ],
+      "default": "Vibrant"
+    },
+    {
+      "id": "strength",
+      "type": "slider",
+      "name": "Strength",
+      "description": "How much of the shader to mix in.",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 100
+    },
+    {
+      "id": "file",
+      "type": "file",
+      "name": "Custom File",
+      "description": "A fragment shader in the instance's shaders folder (see the README for what it gets).",
+      "folder": "shaders",
+      "extensions": [
+        ".fsh",
+        ".frag",
+        ".glsl"
+      ],
+      "default": ""
+    }
+  ]
+}

@@ -135,6 +135,7 @@ public final class Minecraft implements GuiContext {
     /** This instance's Additions (additions.txt in the game folder); all off is plain 1.8.9. */
     private net.minecraft.client.additions.Additions additions = net.minecraft.client.additions.Additions.defaults();
     private final net.minecraft.client.additions.ToggleKeys toggleKeys = new net.minecraft.client.additions.ToggleKeys();
+    private final net.minecraft.client.additions.ShaderPass shaderPass = new net.minecraft.client.additions.ShaderPass();
     /** The built-in 1.8.9 pack with the selected resource packs layered over it. */
     private final net.minecraft.client.resources.ResourcePackRepository resourceManager =
         new net.minecraft.client.resources.ResourcePackRepository(new ClasspathResourceManager());
@@ -2076,7 +2077,10 @@ public final class Minecraft implements GuiContext {
             if (fog != null) glClearColor(fog[0], fog[1], fog[2], 0.0f);
             else glClearColor(0.50f, 0.69f, 1.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            if (inWorld) renderWorld(fog);
+            if (inWorld) {
+                renderWorld(fog);
+                shaderPass.apply(additions, width, height, message -> printChatLine(message, 0));
+            }
         } finally {
             if (inWorld) {
                 player.x = tickX;
@@ -2257,8 +2261,10 @@ public final class Minecraft implements GuiContext {
         float[] fog = sky.prepare(levelInfo.worldTime, partialTicks, temperature, player.dirX(), player.dirY(), player.dirZ(),
             gameSettings.renderDistanceChunks, player.y, world.isFlat(), cameraLiquid());
         LightMap.update(SkyRenderer.sunBrightness(sky.angle()), gameSettings.gammaSetting,
-            additions.isOn(net.minecraft.client.additions.Additions.FULL_BRIGHT) ? 1f
-                : player == null ? 0f : player.nightVisionBrightness(partialTicks), world.isNether());
+            Math.max(player == null ? 0f : player.nightVisionBrightness(partialTicks),
+                additions.isOn(net.minecraft.client.additions.Additions.FULL_BRIGHT)
+                    ? (float) additions.number(net.minecraft.client.additions.Additions.FULL_BRIGHT, "brightness") / 100f : 0f),
+            world.isNether());
         return fog;
     }
 
@@ -2946,7 +2952,8 @@ public final class Minecraft implements GuiContext {
             // The player's yaw is LegacyCraft's; vanilla's (what F3 shows) is half a turn round from it.
             String facing = facings[Math.floorMod((int) Math.floor((player.yaw + 180f) * 4f / 360f + 0.5f), 4)];
             fontRenderer.drawStringWithShadow(String.format(Locale.ROOT, "XYZ: %.1f / %.1f / %.1f", player.x, player.y, player.z), 2, 2, 0xFFFFFF);
-            fontRenderer.drawStringWithShadow("Facing: " + facing, 2, 12, 0xFFFFFF);
+            if (additions.settingOn(net.minecraft.client.additions.Additions.COORDINATES, "showFacing"))
+                fontRenderer.drawStringWithShadow("Facing: " + facing, 2, 12, 0xFFFFFF);
         }
         if (additions.isOn(net.minecraft.client.additions.Additions.FPS_COUNTER)) {
             String text = fps + " fps";

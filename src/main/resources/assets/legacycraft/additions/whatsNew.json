@@ -1,0 +1,8 @@
+{
+  "id": "whatsNew",
+  "category": "launcher",
+  "scope": "launcher",
+  "default": true,
+  "name": "What's New",
+  "description": "When an update brings new Additions, the launcher lists them when it starts."
+}

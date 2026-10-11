@@ -1,0 +1,9 @@
+{
+  "id": "steadyFov",
+  "category": "accessibility",
+  "scope": "game",
+  "default": false,
+  "recommended": false,
+  "name": "Steady Field of View",
+  "description": "Sprinting, flying and potions no longer widen or narrow the view."
+}
