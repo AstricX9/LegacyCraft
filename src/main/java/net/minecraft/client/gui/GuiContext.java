@@ -57,6 +57,8 @@ public interface GuiContext {
 
     /** Starts the integrated server on a save folder; {@code settings} is null when loading an existing world. */
     void launchIntegratedServer(String folderName, String worldName, WorldSettings settings);
+    /** Converts a vanilla Anvil world to LegacyCraft chunks, then opens it (vanilla's "Converting world" step). */
+    default void convertAndLaunch(String folderName, String worldName) {}
     boolean isInGame();
     /** The loaded world's level data, or null on the title screen. */
     LevelInfo currentLevel();

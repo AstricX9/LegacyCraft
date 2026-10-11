@@ -89,9 +89,8 @@ public class GuiSelectWorld extends GuiScreen {
         if (launching || index < 0 || index >= saves.size()) return;
         SaveFormat.SaveSummary summary = saves.get(index);
         if (summary.requiresConversion()) {
-            mc.displayGuiScreen(new GuiDisconnected(this, "selectWorld.conversion",
-                "'" + summary.displayName() + "' has a level.dat but no LegacyCraft chunk data. Importing vanilla 1.8.9 "
-                    + "Anvil worlds is not supported yet (docs/compat/deviations.yml DEV-003).", "gui.back"));
+            launching = true;
+            mc.convertAndLaunch(summary.fileName(), summary.displayName());
             return;
         }
         launching = true;

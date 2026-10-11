@@ -125,15 +125,19 @@
     net.minecraft.nbt (NbtIo/NbtTag) and net.minecraft.world.storage.anvil
     (RegionFile/AnvilChunkReader) load 1.8.9 region files, including block
     IDs and metadata, vanilla's stored sky/block light, biomes and the
-    populated flags. Writing Anvil, tile entities and entities are still
-    missing, so this is not yet import-only mode for actual play.
+    populated flags. Opening a vanilla world from Singleplayer converts it
+    in place (WorldStorage.convertAnvil, overworld and DIM-1): blocks,
+    metadata, light and population carry over; unknown block IDs become air;
+    tile entities (chest/furnace contents, signs) and entities are dropped.
+    The launcher's Worlds tab imports world folders and .zip files into
+    saves/. Writing Anvil is still missing.
   reason: >
     Fastest path to working save/load for local testing before NBT support
     exists.
   compatibility_effect: >
-    This is currently "Behavioral-only mode" per master context §102, not
-    Import-only or Exact-interchange — LegacyCraft cannot open a real vanilla
-    1.8.9 world, and vanilla cannot open a LegacyCraft world. Should be
+    Close to "Import-only mode" per master context §102: LegacyCraft opens a
+    vanilla 1.8.9 world by converting its terrain (without tile entities or
+    entities), and vanilla cannot open a LegacyCraft world. Should be
     stated explicitly in the README once NBT/Anvil work begins, per §102's
     "the project must state which mode it supports."
   user_visible: true

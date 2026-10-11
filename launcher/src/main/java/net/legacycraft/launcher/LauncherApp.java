@@ -61,6 +61,7 @@ public final class LauncherApp {
     private JFrame frame;
     private JTabbedPane tabs;
     private ConsoleTab console;
+    private WorldsTab worlds;
     private ProfileTableModel profileTable;
     private final JComboBox<Profile> profileCombo = new JComboBox<>();
     private final JButton playButton = new JButton("Play");
@@ -113,6 +114,8 @@ public final class LauncherApp {
         tabs.addTab("Launcher Log", console);
         tabs.addTab("Profile Editor", createProfileList());
         tabs.addTab("Skins & Capes", new SkinTab(data, this::refreshPlayer));
+        worlds = new WorldsTab(() -> data.gameDirFor(data.selected()), console);
+        tabs.addTab("Worlds", worlds);
         return tabs;
     }
 
@@ -144,12 +147,14 @@ public final class LauncherApp {
         try {
             switch (link) {
                 case "launcher:skins" -> tabs.setSelectedIndex(3);
+                case "launcher:worlds" -> tabs.setSelectedIndex(4);
                 case "launcher:profiles" -> tabs.setSelectedIndex(2);
                 case "launcher:console" -> tabs.setSelectedIndex(1);
                 case "launcher:gamedir" -> openFolder(data.gameDirFor(data.selected()));
                 case "launcher:skinsdir" -> openFolder(data.skinsDir);
                 case "launcher:capesdir" -> openFolder(data.capesDir);
                 case "launcher:datadir" -> openFolder(data.dataDir);
+                case "launcher:savesdir" -> openFolder(WorldImporter.savesDir(data.gameDirFor(data.selected())));
                 default -> {
                     URI uri = e.getURL() != null ? e.getURL().toURI() : URI.create(link);
                     Desktop.getDesktop().browse(uri);
@@ -251,6 +256,7 @@ public final class LauncherApp {
             data.selectedProfile = p2.name;
             data.save();
             refreshPlayer();
+            worlds.refresh();
         });
         JPanel buttons = new JPanel(new GridLayout(1, 2, 2, 0));
         buttons.setOpaque(false);
@@ -298,6 +304,7 @@ public final class LauncherApp {
         profileCombo.setSelectedItem(data.selected());
         updatingCombo = false;
         if (profileTable != null) profileTable.refresh();
+        if (worlds != null) worlds.refresh();
         refreshPlayer();
     }
 
@@ -397,6 +404,7 @@ public final class LauncherApp {
             if (LauncherData.isInstall(dir)) {
                 data.installDir = dir;
                 data.save();
+                worlds.refresh();
                 Textures.init(data.dirtTexture());
                 frame.repaint();
                 console.log("LegacyCraft found at " + dir);
@@ -484,6 +492,7 @@ public final class LauncherApp {
         else console.warn("Game ended with bad state (exit code " + exitCode + ")");
         playButton.setText("Play");
         playButton.setEnabled(true);
+        worlds.refresh();
         if (!frame.isVisible()) frame.setVisible(true);
         if (exitCode != 0) {
             tabs.setSelectedIndex(1);
