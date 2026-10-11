@@ -74,8 +74,9 @@ mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
     read: 1.13+ worlds (block palette) and Beta (McRegion) worlds.
   - Vanilla 1.8.9 worlds are converted by the game the first time you open
     them in Singleplayer ("Converting world"): blocks, metadata, light and the
-    Nether come along; chest/furnace contents, sign text, mobs and dropped
-    items don't yet, and blocks added after 1.8.9 become air.
+    Nether come along, and so do mobs, spawners, mob heads and furnaces with
+    their items; chest contents, sign text and dropped items don't yet, and
+    blocks added after 1.8.9 become air.
 - **Launcher Log**: the launcher log, plus the game's output prefixed
   with `Client>`.
 

@@ -925,7 +925,12 @@ public final class Minecraft implements GuiContext {
         int registrySize = blockRegistry.size();
         Thread worker = new Thread(() -> {
             try {
-                conversion.result = WorldStorage.convertAnvil(directory, info.randomSeed, registrySize, p -> conversion.progress = p);
+                WorldStorage.ItemNames items = (id, data) -> {
+                    Item item = itemRegistry.resolve(id, data);
+                    return item == null ? null : item.name().toString();
+                };
+                conversion.result = WorldStorage.convertAnvil(directory, info.randomSeed, registrySize, items,
+                    p -> conversion.progress = p);
             } catch (IOException | RuntimeException error) {
                 conversion.error = error;
             }
@@ -951,8 +956,9 @@ public final class Minecraft implements GuiContext {
         System.out.println("Converted " + conversion.folder + ": " + result.chunks() + " chunks"
             + (result.damagedChunks() > 0 ? ", " + result.damagedChunks() + " damaged chunks skipped" : "")
             + (result.unknownBlocks() > 0 ? ", " + result.unknownBlocks() + " unknown blocks became air" : "")
-            + (result.tileEntities() > 0 ? ", " + result.tileEntities() + " block entities (chest contents, signs...) not carried over" : "")
-            + (result.entities() > 0 ? ", " + result.entities() + " entities not carried over" : ""));
+            + ", " + result.blockEntities() + " spawners/heads/furnaces and " + result.entities() + " entities carried over"
+            + (result.droppedBlockEntities() > 0 ? ", " + result.droppedBlockEntities()
+                + " other block entities (chest contents, signs...) not carried over" : ""));
         launchIntegratedServer(conversion.folder, conversion.name, null);
     }
 
@@ -1291,7 +1297,14 @@ public final class Minecraft implements GuiContext {
             net.minecraft.nbt.NbtTag.Compound root = net.minecraft.nbt.NbtIo.readCompressed(file);
             for (net.minecraft.nbt.NbtTag element : root.getList("Entities").values()) {
                 if (!(element instanceof net.minecraft.nbt.NbtTag.Compound tag)) continue;
-                MovingEntity entity = net.minecraft.entity.EntityList.fromNbt(tag, world);
+                // One entity the game can't read (say, from a converted vanilla world) must not lose the rest.
+                MovingEntity entity;
+                try {
+                    entity = net.minecraft.entity.EntityList.fromNbt(tag, world);
+                } catch (RuntimeException unreadable) {
+                    System.err.println("Skipping unreadable entity " + tag.get("id") + ": " + unreadable.getMessage());
+                    continue;
+                }
                 if (entity != null) spawnEntity(entity);
             }
         } catch (IOException | RuntimeException error) {

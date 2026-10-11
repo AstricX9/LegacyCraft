@@ -127,7 +127,21 @@ public final class WorldStorage {
     }
 
     /** What {@link #convertAnvil} carried over and what it had to leave behind. */
-    public record Conversion(int chunks, int damagedChunks, int unknownBlocks, int tileEntities, int entities) {}
+    public record Conversion(int chunks, int damagedChunks, int unknownBlocks, int blockEntities, int droppedBlockEntities,
+                             int entities) {}
+
+    /** Resolves a vanilla item ("minecraft:dye", data 1) to a LegacyCraft item name ("minecraft:dye_red"), or null. */
+    public interface ItemNames { String resolve(String vanillaId, int data); }
+
+    /** A dimension's block entities and entities, gathered while its chunks convert. */
+    private static final class Extras {
+        final Map<World.BlockPos, String> spawners = new java.util.LinkedHashMap<>();
+        final Map<World.BlockPos, World.Skull> skulls = new java.util.LinkedHashMap<>();
+        final java.io.ByteArrayOutputStream furnaceBytes = new java.io.ByteArrayOutputStream();
+        final DataOutputStream furnaces = new DataOutputStream(furnaceBytes);
+        int furnaceCount;
+        final List<net.minecraft.nbt.NbtTag> entities = new ArrayList<>();
+    }
 
     /**
      * Converts a vanilla 1.8.9 Anvil world in place: every chunk in
@@ -136,26 +150,30 @@ public final class WorldStorage {
      * flag, then the index is written last so a failed conversion leaves the
      * world unconverted. The region files are left as they are. Damaged
      * chunks are skipped (the game generates them again); block IDs this game
-     * doesn't know become air; tile-entity data (chest contents,
-     * sign text...) and entities are not carried over and are only counted.
+     * doesn't know become air. Mob spawners, mob heads and furnaces (with
+     * their items, resolved through {@code items}) carry over, and so do
+     * entities, in their vanilla NBT form (entities.dat, read when the world
+     * opens; kinds the game doesn't have are skipped there). Other block
+     * entities (chest contents, sign text...) are only counted.
      * {@code progress} gets 0-100.
      */
-    public static Conversion convertAnvil(Path directory, long seed, int registrySize,
+    public static Conversion convertAnvil(Path directory, long seed, int registrySize, ItemNames items,
                                           java.util.function.IntConsumer progress) throws IOException {
         List<Path> overworld = net.minecraft.world.storage.anvil.RegionFile.list(directory.resolve("region"));
         Path netherDirectory = directory.resolve(net.minecraft.world.Dimension.NETHER.folder());
         List<Path> nether = net.minecraft.world.storage.anvil.RegionFile.list(netherDirectory.resolve("region"));
         int total = Math.max(1, overworld.size() + nether.size());
         int[] done = {0};
-        int[] counts = new int[5];
+        int[] counts = new int[6];
         Runnable step = () -> progress.accept(++done[0] * 100 / total);
-        convertDimension(directory, overworld, seed, registrySize, counts, step);
-        if (!nether.isEmpty()) convertDimension(netherDirectory, nether, seed, registrySize, counts, step);
-        return new Conversion(counts[0], counts[1], counts[2], counts[3], counts[4]);
+        convertDimension(directory, overworld, seed, registrySize, items, counts, step);
+        if (!nether.isEmpty()) convertDimension(netherDirectory, nether, seed, registrySize, items, counts, step);
+        return new Conversion(counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]);
     }
 
-    private static void convertDimension(Path directory, List<Path> regions, long seed, int registrySize,
+    private static void convertDimension(Path directory, List<Path> regions, long seed, int registrySize, ItemNames items,
                                          int[] counts, Runnable step) throws IOException {
+        Extras extras = new Extras();
         Path chunksDirectory = directory.resolve("chunks");
         Files.createDirectories(chunksDirectory);
         List<long[]> entries = new ArrayList<>();
@@ -178,7 +196,7 @@ public final class WorldStorage {
                         continue;
                     }
                     if (root == null) continue;
-                    Chunk chunk = convertChunk(root, next, registrySize, counts, file, chunkX, chunkZ);
+                    Chunk chunk = convertChunk(root, next, registrySize, items, extras, counts, file, chunkX, chunkZ);
                     if (chunk == null) continue;
                     writeChunk(chunksDirectory, chunk);
                     entries.add(new long[]{chunk.chunkX(), chunk.chunkZ(), next++});
@@ -187,12 +205,37 @@ public final class WorldStorage {
             }
             step.run();
         }
+        writeSpawners(directory, extras.spawners);
+        writeSkulls(directory, extras.skulls);
+        writeConvertedFurnaces(directory, extras);
+        writeConvertedEntities(directory, extras.entities);
+        // Last: until the index exists the world still counts as unconverted.
         writeIndex(directory, seed, entries);
+    }
+
+    private static void writeConvertedFurnaces(Path directory, Extras extras) throws IOException {
+        Path target = directory.resolve(FURNACES_FILE);
+        Path temporary = directory.resolve(FURNACES_FILE + ".tmp");
+        extras.furnaces.flush();
+        try (var output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary))))) {
+            output.writeInt(FURNACES_MAGIC);
+            output.writeInt(extras.furnaceCount);
+            extras.furnaceBytes.writeTo(output);
+        }
+        moveAtomically(temporary, target);
+    }
+
+    /** The same entities.dat the game saves: {Entities: [vanilla entity compounds]}. */
+    private static void writeConvertedEntities(Path directory, List<net.minecraft.nbt.NbtTag> entities) throws IOException {
+        if (entities.isEmpty()) return;
+        var root = new net.minecraft.nbt.NbtTag.Compound();
+        root.put("Entities", new net.minecraft.nbt.NbtTag.NbtList(net.minecraft.nbt.NbtTag.COMPOUND, entities));
+        net.minecraft.nbt.NbtIo.writeCompressed(root, directory.resolve("entities.dat"));
     }
 
     /** The converted chunk, or null when it is damaged. */
     private static Chunk convertChunk(net.minecraft.nbt.NbtTag.Compound root, long generationIndex, int registrySize,
-                                      int[] counts, Path file, int chunkX, int chunkZ) throws IOException {
+                                      ItemNames items, Extras extras, int[] counts, Path file, int chunkX, int chunkZ) throws IOException {
         var level = root.has("Level") ? root.getCompound("Level") : null;
         require(level != null && level.has("Sections"), "Chunk " + chunkX + "," + chunkZ + " in " + file.getFileName()
             + " has no block sections; is this a 1.8.9 world?");
@@ -228,9 +271,75 @@ public final class WorldStorage {
                 for (int x = 0; x < Chunk.SIZE; x++)
                     light[(y << 8) | (z << 4) | x] = (byte) (imported.vanillaSkyLight(x, y, z) << 4 | imported.vanillaBlockLight(x, y, z));
         if (imported.populated()) chunk.markPopulated();
-        counts[3] += level.getList("TileEntities").size();
-        counts[4] += level.getList("Entities").size();
+        for (net.minecraft.nbt.NbtTag tag : level.getList("TileEntities").values()) {
+            if (tag instanceof net.minecraft.nbt.NbtTag.Compound blockEntity && convertBlockEntity(blockEntity, items, extras)) counts[3]++;
+            else counts[4]++;
+        }
+        for (net.minecraft.nbt.NbtTag tag : level.getList("Entities").values()) {
+            if (!(tag instanceof net.minecraft.nbt.NbtTag.Compound)) continue;
+            extras.entities.add(tag);
+            counts[5]++;
+        }
         return chunk;
+    }
+
+    /** Keeps the block entities the game stores; returns false for the ones it drops. */
+    private static boolean convertBlockEntity(net.minecraft.nbt.NbtTag.Compound tag, ItemNames items, Extras extras) {
+        try {
+            String id = tag.getString("id");
+            int x = tag.getInt("x"), y = tag.getInt("y"), z = tag.getInt("z");
+            switch (id) {
+                case "MobSpawner" -> {
+                    if (!tag.has("EntityId")) return false;
+                    extras.spawners.put(new World.BlockPos(x, y, z), tag.getString("EntityId"));
+                    return true;
+                }
+                case "Skull" -> {
+                    extras.skulls.put(new World.BlockPos(x, y, z),
+                        new World.Skull(tag.getByte("SkullType"), tag.has("Rot") ? tag.getByte("Rot") : 0));
+                    return true;
+                }
+                case "Furnace" -> {
+                    if (items == null) return false;
+                    String[] names = new String[3];
+                    int[] itemCounts = new int[3], damages = new int[3];
+                    for (net.minecraft.nbt.NbtTag element : tag.getList("Items").values()) {
+                        if (!(element instanceof net.minecraft.nbt.NbtTag.Compound item)
+                            || !(item.get("id") instanceof net.minecraft.nbt.NbtTag.Str itemId)) continue;
+                        int slot = item.getByte("Slot");
+                        if (slot < 0 || slot > 2) continue;
+                        int damage = item.has("Damage") ? item.getShort("Damage") : 0;
+                        names[slot] = items.resolve(itemId.value(), damage);
+                        itemCounts[slot] = item.getByte("Count");
+                        damages[slot] = damage;
+                    }
+                    int burn = tag.has("BurnTime") ? tag.getShort("BurnTime") : 0;
+                    int cook = tag.has("CookTime") ? tag.getShort("CookTime") : 0;
+                    int total = tag.has("CookTimeTotal") ? tag.getShort("CookTimeTotal") : net.minecraft.item.crafting.FurnaceRecipes.COOK_TIME;
+                    // Everything is read; nothing below can fail halfway through a record. Furnace.write's layout.
+                    DataOutputStream out = extras.furnaces;
+                    out.writeInt(x);
+                    out.writeInt(y);
+                    out.writeInt(z);
+                    out.writeShort(burn);
+                    out.writeShort(cook);
+                    out.writeShort(total);
+                    for (int slot = 0; slot < 3; slot++) {
+                        boolean present = names[slot] != null && itemCounts[slot] > 0;
+                        out.writeBoolean(present);
+                        if (!present) continue;
+                        out.writeUTF(names[slot]);
+                        out.writeByte(itemCounts[slot]);
+                        out.writeShort(damages[slot]);
+                    }
+                    extras.furnaceCount++;
+                    return true;
+                }
+                default -> { return false; }
+            }
+        } catch (IOException | RuntimeException malformed) {
+            return false;
+        }
     }
 
     private static final int SPAWNERS_MAGIC = 0x4c435350; // LCSP
@@ -238,9 +347,12 @@ public final class WorldStorage {
     private static final String SPAWNERS_FILE = "spawners.lcs";
 
     private static void writeSpawners(Path directory, World world) throws IOException {
+        writeSpawners(directory, world.spawners());
+    }
+
+    private static void writeSpawners(Path directory, Map<World.BlockPos, String> spawners) throws IOException {
         Path target = directory.resolve(SPAWNERS_FILE);
         Path temporary = directory.resolve(SPAWNERS_FILE + ".tmp");
-        var spawners = world.spawners();
         try (var output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary))))) {
             output.writeInt(SPAWNERS_MAGIC);
             output.writeInt(spawners.size());
@@ -273,10 +385,13 @@ public final class WorldStorage {
     private static final String SKULLS_FILE = "skulls.lcs";
 
     private static void writeSkulls(Path directory, World world) throws IOException {
+        writeSkulls(directory, world.skulls());
+    }
+
+    private static void writeSkulls(Path directory, Map<World.BlockPos, World.Skull> skulls) throws IOException {
         Path target = directory.resolve(SKULLS_FILE);
-        if (world.skulls().isEmpty() && !Files.exists(target)) return;
+        if (skulls.isEmpty() && !Files.exists(target)) return;
         Path temporary = directory.resolve(SKULLS_FILE + ".tmp");
-        var skulls = world.skulls();
         try (var output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(temporary))))) {
             output.writeInt(SKULLS_MAGIC);
             output.writeInt(skulls.size());

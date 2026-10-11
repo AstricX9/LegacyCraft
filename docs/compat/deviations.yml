@@ -127,8 +127,10 @@
     IDs and metadata, vanilla's stored sky/block light, biomes and the
     populated flags. Opening a vanilla world from Singleplayer converts it
     in place (WorldStorage.convertAnvil, overworld and DIM-1): blocks,
-    metadata, light and population carry over; unknown block IDs become air;
-    tile entities (chest/furnace contents, signs) and entities are dropped.
+    metadata, light, population, mob spawners, mob heads, furnaces (with
+    their items) and entities (written to entities.dat in vanilla NBT form)
+    carry over; unknown block IDs become air; block entities the game has no
+    storage for yet (chest contents, sign text, ...) are dropped.
     The launcher's Worlds tab imports world folders and .zip files into
     saves/. Writing Anvil is still missing.
   reason: >
@@ -136,8 +138,8 @@
     exists.
   compatibility_effect: >
     Close to "Import-only mode" per master context §102: LegacyCraft opens a
-    vanilla 1.8.9 world by converting its terrain (without tile entities or
-    entities), and vanilla cannot open a LegacyCraft world. Should be
+    vanilla 1.8.9 world by converting it (terrain, entities and the block
+    entities the game stores; not chest contents or sign text), and vanilla cannot open a LegacyCraft world. Should be
     stated explicitly in the README once NBT/Anvil work begins, per §102's
     "the project must state which mode it supports."
   user_visible: true
