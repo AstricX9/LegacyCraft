@@ -3,7 +3,6 @@
   "category": "accessibility",
   "scope": "game",
   "default": false,
-  "recommended": false,
   "name": "No Damage Tilt",
   "description": "The view no longer rolls when you get hurt."
 }

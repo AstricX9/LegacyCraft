@@ -36,20 +36,7 @@ final class Additions {
         Category(String title) { this.title = title; }
     }
 
-    /** Presets for an instance's game switches; Custom is any other mix. */
-    enum Look {
-        FAITHFUL("Faithful", "Plain 1.8.9: every addition off."),
-        RECOMMENDED("Recommended", "A few additions that make 1.8.9 easier to play without changing how it looks."),
-        CUSTOM("Custom", "Your own choice of additions.");
-
-        final String title, description;
-
-        Look(String title, String description) { this.title = title; this.description = description; }
-
-        @Override public String toString() { return title; }
-    }
-
-    record Entry(String id, Category category, boolean launcher, boolean defaultOn, boolean recommended, String name, String description,
+    record Entry(String id, Category category, boolean launcher, boolean defaultOn, String name, String description,
                  List<Setting> settings) {}
 
     /** One of an addition's settings; see the game's Addition.Setting, which this mirrors. */
@@ -177,7 +164,7 @@ final class Additions {
             Setting s = parseSetting(Json.object(o));
             if (s != null) settings.add(s);
         }
-        return new Entry(id, category, "launcher".equals(a.get("scope")), Json.bool(a.get("default"), false), Json.bool(a.get("recommended"), false),
+        return new Entry(id, category, "launcher".equals(a.get("scope")), Json.bool(a.get("default"), false),
             Json.string(a.get("name"), id), Json.string(a.get("description"), ""), List.copyOf(settings));
     }
 
@@ -232,23 +219,6 @@ final class Additions {
         int n = 0;
         for (Entry e : game()) if (on.getOrDefault(e.id, e.defaultOn)) n++;
         return n;
-    }
-
-    /** The preset an instance's game switches add up to. */
-    Look look(Map<String, Boolean> on) {
-        boolean faithful = true, recommended = true;
-        for (Entry e : game()) {
-            boolean value = on.getOrDefault(e.id, e.defaultOn);
-            if (value) faithful = false;
-            if (value != e.recommended) recommended = false;
-        }
-        return faithful ? Look.FAITHFUL : recommended ? Look.RECOMMENDED : Look.CUSTOM;
-    }
-
-    /** Sets every game switch for a preset (Custom leaves them). */
-    void apply(Look look, Map<String, Boolean> on) {
-        if (look == Look.CUSTOM) return;
-        for (Entry e : game()) on.put(e.id, look == Look.RECOMMENDED && e.recommended);
     }
 
     // ---- an instance's additions.txt ----

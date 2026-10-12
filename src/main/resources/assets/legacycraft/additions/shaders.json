@@ -3,7 +3,6 @@
   "category": "graphics",
   "scope": "game",
   "default": false,
-  "recommended": false,
   "name": "Shaders",
   "description": "Runs a shader over the picture: one of the built-in looks, or your own GLSL file from the shaders folder.",
   "settings": [

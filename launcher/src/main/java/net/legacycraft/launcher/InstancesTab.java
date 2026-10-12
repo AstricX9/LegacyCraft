@@ -139,7 +139,7 @@ final class InstancesTab extends JPanel {
         if (p.resolutionWidth != null && p.resolutionHeight != null) s.append("   ·   ").append(p.resolutionWidth).append('x').append(p.resolutionHeight);
         if (data.launcherAddition(Additions.INSTANCE_SUMMARY) && !data.additions().entries.isEmpty()) {
             Map<String, Boolean> on = Additions.readInstance(data.gameDirFor(p));
-            s.append("   ·   ").append(data.additions().enabled(on) ? "Additions on (" + data.additions().look(on).title + ")" : "Additions off");
+            s.append("   ·   ").append(data.additions().enabled(on) ? "Additions on" : "Additions off");
         }
         s.append("   ·   ").append(p.lastPlayed == null ? "Never played" : "Played " + ago(p.lastPlayed));
         return s.toString();

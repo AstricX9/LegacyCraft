@@ -1,10 +1,9 @@
 {
-  "comment": "A template for a new addition. Copy this file into this folder under a new name (files starting with _ are skipped), change the id to match, and fill in the rest. Then check additions.isOn(\"<id>\") in the game code where it changes something, and read each setting with additions.setting(\"<id>\", \"<setting id>\") (or settingOn / number). The game and the launcher list it on their own. Fields: id (letters, no '.' or ':'), category (gameplay, graphics, interface, accessibility or launcher), scope (game, or launcher for launcher-only additions), default (switched on to begin with), recommended (turned on by the launcher's Recommended preset), name, description, and settings (optional). Setting types: toggle (default true/false), slider (min, max, step, unit), choice (options, default one of them), file (folder under the instance folder, extensions; the value is a file name, empty for none). Settings are saved per instance in additions.txt as <id>.<setting id>:<value>.",
+  "comment": "A template for a new addition. Copy this file into this folder under a new name (files starting with _ are skipped), change the id to match, and fill in the rest. Then check additions.isOn(\"<id>\") in the game code where it changes something, and read each setting with additions.setting(\"<id>\", \"<setting id>\") (or settingOn / number). The game and the launcher list it on their own. Fields: id (letters, no '.' or ':'), category (gameplay, graphics, interface, accessibility or launcher), scope (game, or launcher for launcher-only additions), default (switched on to begin with), name, description, and settings (optional). Setting types: toggle (default true/false), slider (min, max, step, unit), choice (options, default one of them), file (folder under the instance folder, extensions; the value is a file name, empty for none). Settings are saved per instance in additions.txt as <id>.<setting id>:<value>.",
   "id": "myAddition",
   "category": "gameplay",
   "scope": "game",
   "default": false,
-  "recommended": false,
   "name": "My Addition",
   "description": "One sentence saying what changes when this is on.",
   "settings": [

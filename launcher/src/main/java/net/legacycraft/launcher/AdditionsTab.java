@@ -90,8 +90,6 @@ final class AdditionsTab extends JPanel {
         } else {
             boolean enabled = catalog.enabled(game);
             body.add(masterRow(catalog, enabled), c);
-            body.add(Theme.header("Preset", Theme.muted(enabled ? "" : "Off while Additions are off")), c);
-            body.add(presets(catalog, enabled), c);
             for (Additions.Category category : Additions.Category.values()) {
                 List<Additions.Entry> entries = catalog.in(category);
                 if (entries.isEmpty()) continue;
@@ -140,31 +138,6 @@ final class AdditionsTab extends JPanel {
         c.gridx = 1; c.gridy = 0; c.gridheight = 2; c.weightx = 0; c.insets = new Insets(0, 16, 0, 0); c.anchor = GridBagConstraints.CENTER;
         row.add(toggle, c);
         return row;
-    }
-
-    /** Faithful / Recommended / Custom: set every game switch at once (Custom is what your own switches make). */
-    private JComponent presets(Additions catalog, boolean enabled) {
-        JPanel p = rowPanel(12);
-        p.setLayout(new BorderLayout(0, 8));
-        JPanel buttons = new JPanel(new java.awt.GridLayout(1, 0, 8, 0));
-        buttons.setOpaque(false);
-        Additions.Look current = catalog.look(game);
-        for (Additions.Look look : Additions.Look.values()) {
-            boolean picked = look == current;
-            JToggleButton b = new JToggleButton(look.title, picked);
-            b.setFont(Theme.BOLD);
-            b.setPreferredSize(new Dimension(10, 32));
-            b.putClientProperty(Theme.FlatButtonUI.PRIMARY, picked && enabled);
-            b.setEnabled(enabled && (look != Additions.Look.CUSTOM || picked));
-            b.addActionListener(ev -> {
-                catalog.apply(look, game);
-                saveGame(catalog, look.title + " preset for " + profile.name);
-            });
-            buttons.add(b);
-        }
-        p.add(buttons, BorderLayout.NORTH);
-        p.add(Theme.muted(current.description), BorderLayout.CENTER);
-        return p;
     }
 
     /** One addition: name over description on the left, its switch on the right. */

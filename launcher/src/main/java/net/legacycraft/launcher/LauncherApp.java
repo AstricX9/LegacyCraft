@@ -515,7 +515,9 @@ public final class LauncherApp {
         // GLFW on macOS has to run on the first thread.
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")) command.add("-XstartOnFirstThread");
         command.add("-cp");
-        command.add(data.installDir.resolve("lib").resolve("*").toString());
+        // Keep the wildcard in the classpath string. Path.resolve rejects "*" on Windows,
+        // while the JVM expands this classpath wildcard when it starts.
+        command.add(data.installDir.resolve("lib").toString() + java.io.File.separator + "*");
         command.add("net.minecraft.client.main.Main");
         command.addAll(args);
         return new ProcessBuilder(command);

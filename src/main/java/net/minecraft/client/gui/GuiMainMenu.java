@@ -47,6 +47,7 @@ public class GuiMainMenu extends GuiScreen {
     private java.awt.image.BufferedImage logoImage;
     private boolean logoLoaded;
     private int logoTexture, logoTextureWidth, logoTextureHeight;
+    private boolean checkedWhatsNew;
 
     public GuiMainMenu() {}
 
@@ -57,7 +58,14 @@ public class GuiMainMenu extends GuiScreen {
     public void keyPressed(int key, int modifiers) {}
 
     @Override
-    public void updateScreen() { panoramaTimer++; }
+    public void updateScreen() {
+        panoramaTimer++;
+        if (!checkedWhatsNew) {
+            checkedWhatsNew = true;
+            GuiScreen whatsNew = GuiWhatsNew.forNewAdditions(this, mc);
+            if (whatsNew != null) mc.displayGuiScreen(whatsNew);
+        }
+    }
 
     @Override
     public void initGui() {

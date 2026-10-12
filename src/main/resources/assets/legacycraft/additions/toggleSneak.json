@@ -3,7 +3,6 @@
   "category": "gameplay",
   "scope": "game",
   "default": false,
-  "recommended": false,
   "name": "Toggle Sneak",
   "description": "Press Sneak once to keep sneaking, press it again to stand up."
 }

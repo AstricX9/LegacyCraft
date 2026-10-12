@@ -3,7 +3,6 @@
   "category": "graphics",
   "scope": "game",
   "default": false,
-  "recommended": false,
   "name": "Full Bright",
   "description": "Caves and nights are lit as if you had Night Vision.",
   "settings": [

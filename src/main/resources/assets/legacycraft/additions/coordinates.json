@@ -3,7 +3,6 @@
   "category": "interface",
   "scope": "game",
   "default": false,
-  "recommended": true,
   "name": "Coordinates",
   "description": "Shows your position and the way you face in the top-left corner, without F3.",
   "settings": [

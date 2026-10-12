@@ -3,7 +3,6 @@
   "category": "accessibility",
   "scope": "game",
   "default": false,
-  "recommended": false,
   "name": "Solid Crosshair",
   "description": "Draws the crosshair white with a dark outline, so it shows up on any background.",
   "settings": [

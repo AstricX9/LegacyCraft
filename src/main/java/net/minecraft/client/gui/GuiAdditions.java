@@ -56,12 +56,12 @@ public class GuiAdditions extends GuiScreen {
         descriptions.clear();
         shown = additions.game(tab);
         for (int i = 0; i < shown.size(); i++) {
-            GuiButton b = new GuiButton(SWITCH + i, left + COLUMN - SWITCH_WIDTH - PAD, 0, SWITCH_WIDTH, 20, "");
+            GuiButton b = new GuiButton(SWITCH + i, left + COLUMN - SWITCH_WIDTH - 20 - 2 * PAD, 0, SWITCH_WIDTH, 20, "");
             switches.add(b);
             buttonList.add(b);
             GuiButton gear = null;
             if (!shown.get(i).settings().isEmpty()) {
-                gear = new GuiSettingsButton(SETTINGS + i, left + COLUMN - SWITCH_WIDTH - PAD - 24, 0);
+                gear = new GuiSettingsButton(SETTINGS + i, left + COLUMN - 20 - PAD, 0);
                 buttonList.add(gear);
             }
             gears.add(gear);
