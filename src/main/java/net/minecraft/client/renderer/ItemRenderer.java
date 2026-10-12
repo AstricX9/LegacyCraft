@@ -33,20 +33,20 @@ import static org.lwjgl.opengl.GL11.*;
  *   <li>items whose model is {@code builtin/generated} are their layer
  *       textures drawn flat at 16x16 (layer 0 tinted for leather armour,
  *       potions, grass-coloured plants);</li>
- *   <li>block items are their block model, turned 210° about X and -135°
- *       about Y (plus the item model's own "gui" rotation, e.g. stairs and
- *       fences), 10 GUI pixels per block and shaded per face;</li>
+ *   <li>block items are the block model their item model inherits from
+ *       (the piston's inventory model, the fence's two posts), turned 210°
+ *       about X and -135° about Y (plus the item model's own "gui" rotation,
+ *       e.g. stairs and fences), 10 GUI pixels per block and shaded per face;</li>
  *   <li>the overlay is the stack count bottom-right and the durability bar.</li>
  * </ul>
  * Chests, banners and mob heads use {@code builtin/entity} models that need
- * tile-entity renderers (TileEntityItemStackRenderer): mob heads are drawn
- * by {@link #builtin}; chests and banners show their block model when there
- * is one and nothing otherwise (DEV-015). HYPOTHESIS until screenshot-compared.
+ * tile-entity renderers (TileEntityItemStackRenderer), drawn by
+ * {@link #builtin}. HYPOTHESIS until screenshot-compared.
  */
 public final class ItemRenderer {
     /** Resolved item model: flat layers, or a block rendered in 3D with an extra GUI rotation. */
     private record ItemModel(List<ResourceLocation> layers, boolean block, boolean builtinEntity, float[] guiRotation,
-                             float[] firstPerson, float[] thirdPerson) {}
+                             float[] firstPerson, float[] thirdPerson, ResourceLocation blockModel) {}
 
     /** Where a held item is drawn, picking the item model's "display" transform. */
     public enum Held { FIRST_PERSON, THIRD_PERSON }
@@ -158,7 +158,7 @@ public final class ItemRenderer {
             renderBuiltinGui(item, x, y);
             return;
         }
-        if ((model.block() || model.builtinEntity()) && state != null && renderBlock(state, model.guiRotation(), x, y)) return;
+        if (renderBlock(blockShape(model, state), state, model.guiRotation(), x, y)) return;
         if (model.layers().isEmpty()) return;
         if (!glint) {
             renderFlat(item, model.layers(), x, y);
@@ -189,7 +189,7 @@ public final class ItemRenderer {
             renderBuiltinGui(item, x, y);
             return;
         }
-        if ((model.block() || model.builtinEntity()) && state != null && renderBlock(state, model.guiRotation(), x, y)) return;
+        if (renderBlock(blockShape(model, state), state, model.guiRotation(), x, y)) return;
         if (!model.layers().isEmpty()) renderFlat(item, model.layers(), x, y);
     }
 
@@ -268,6 +268,7 @@ public final class ItemRenderer {
 
     /** Block tint for a quad with a tint index (grass/leaves in their default inventory colours). */
     private int blockTint(BlockState state) {
+        if (state == null) return 0xFFFFFF;
         String block = state.block().name().path();
         return switch (block) {
             case "grass", "tallgrass" -> grassColor;
@@ -278,9 +279,22 @@ public final class ItemRenderer {
         };
     }
 
-    private boolean renderBlock(BlockState state, float[] guiRotation, int x, int y) {
-        BakedModel model = blockModels.getModel(state);
-        if (model == null || model.quads().isEmpty()) return false;
+    /**
+     * The block model an item is drawn as: the block model its item model
+     * inherits from (ModelBakery bakes item models from their own parents, so
+     * a piston shows piston_inventory_normal and a fence fence_inventory, not
+     * the placed block's state), else the placed block's model; null for
+     * flat items.
+     */
+    private BakedModel blockShape(ItemModel model, BlockState state) {
+        if (!model.block() && !model.builtinEntity()) return null;
+        BakedModel shape = model.blockModel() != null ? blockModels.itemModel(model.blockModel()) : null;
+        if (shape == null && state != null) shape = blockModels.getModel(state);
+        return shape == null || shape.quads().isEmpty() ? null : shape;
+    }
+
+    private boolean renderBlock(BakedModel model, BlockState state, float[] guiRotation, int x, int y) {
+        if (model == null) return false;
         glPushMatrix();
         glTranslatef(x, y, 100);
         glTranslatef(8, 8, 0);
@@ -360,7 +374,7 @@ public final class ItemRenderer {
             glPopMatrix();
             return;
         }
-        if ((model.block() || model.builtinEntity()) && state != null && renderBlockInWorld(state, red, green, blue)) return;
+        if (renderBlockInWorld(blockShape(model, state), state, red, green, blue)) return;
         if (model.layers().isEmpty()) return;
         glDisable(GL_CULL_FACE);
         glEnable(GL_TEXTURE_2D);
@@ -442,12 +456,11 @@ public final class ItemRenderer {
         glPushMatrix();
         glScalef(4f, 4f, 4f);
         glTranslatef(0.125f, 0.125f, 0.125f);
-        renderBlockInWorld(state, red, green, blue);
+        renderBlockInWorld(blockModels.getModel(state), state, red, green, blue);
         glPopMatrix();
     }
 
-    private boolean renderBlockInWorld(BlockState state, float red, float green, float blue) {
-        BakedModel model = blockModels.getModel(state);
+    private boolean renderBlockInWorld(BakedModel model, BlockState state, float red, float green, float blue) {
         if (model == null || model.quads().isEmpty()) return false;
         glPushMatrix();
         glScalef(0.25f, 0.25f, 0.25f);
@@ -492,7 +505,7 @@ public final class ItemRenderer {
     /** Whether the item shows as a small block (true) or a flat sprite when dropped. */
     public boolean isBlockModel(Item item) {
         ItemModel model = models.computeIfAbsent(item, this::resolve);
-        return (model.block() || model.builtinEntity()) && item.placedState() != null || drawsBuiltin(item, model);
+        return blockShape(model, item.placedState()) != null || drawsBuiltin(item, model);
     }
 
     /** Follows the item model's parent chain to builtin/generated (layers), a block model, or builtin/entity. */
@@ -511,9 +524,9 @@ public final class ItemRenderer {
         String location = model.toString();
         for (int depth = 0; depth < 8 && location != null; depth++) {
             ResourceLocation id = new ResourceLocation(location);
-            if (id.path().startsWith("builtin/generated")) return new ItemModel(layers, false, false, orDefault(rotation), display[0], display[1]);
-            if (id.path().startsWith("builtin/entity")) return new ItemModel(layers, false, true, orDefault(rotation), display[0], display[1]);
-            if (id.path().startsWith("block/")) return new ItemModel(layers, true, false, orDefault(rotation), display[0], display[1]);
+            if (id.path().startsWith("builtin/generated")) return new ItemModel(layers, false, false, orDefault(rotation), display[0], display[1], null);
+            if (id.path().startsWith("builtin/entity")) return new ItemModel(layers, false, true, orDefault(rotation), display[0], display[1], null);
+            if (id.path().startsWith("block/")) return new ItemModel(layers, true, false, orDefault(rotation), display[0], display[1], id);
             JsonObject json = read(new ResourceLocation(id.namespace(), "models/" + id.path() + ".json"));
             if (json == null) break;
             if (layers.isEmpty() && json.has("textures")) {
@@ -536,7 +549,7 @@ public final class ItemRenderer {
             JsonElement parent = json.get("parent");
             location = parent == null ? null : parent.getAsString().contains(":") ? parent.getAsString() : "minecraft:" + parent.getAsString();
         }
-        return new ItemModel(layers, item.placedState() != null && layers.isEmpty(), false, orDefault(rotation), display[0], display[1]);
+        return new ItemModel(layers, item.placedState() != null && layers.isEmpty(), false, orDefault(rotation), display[0], display[1], null);
     }
 
     /**
@@ -582,8 +595,8 @@ public final class ItemRenderer {
         if (item == null) return;
         ItemModel model = heldModel(item);
         BlockState state = item.placedState();
-        BakedModel blockModel = (model.block() || model.builtinEntity()) && state != null ? blockModels.getModel(state) : null;
-        boolean block = blockModel != null && !blockModel.quads().isEmpty();
+        BakedModel blockModel = blockShape(model, state);
+        boolean block = blockModel != null;
         boolean builtinModel = drawsBuiltin(item, model);
         if (!block && !builtinModel && model.layers().isEmpty()) return;
         float[] transform = view == Held.FIRST_PERSON ? model.firstPerson() : model.thirdPerson();

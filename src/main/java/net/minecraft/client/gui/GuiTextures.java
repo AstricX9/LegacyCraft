@@ -47,6 +47,39 @@ public final class GuiTextures {
         glBindTexture(GL_TEXTURE_2D, id);
     }
 
+    /**
+     * Binds a texture drawn in code (a banner's coloured cloth), made the
+     * first time it is asked for and kept under {@code key} until the next
+     * reload.
+     */
+    public void bindGenerated(ResourceLocation key, java.util.function.Supplier<BufferedImage> maker) {
+        Integer id = textures.get(key);
+        if (id == null) {
+            BufferedImage image = maker.get();
+            if (image == null) {
+                id = missingTexture();
+            } else {
+                id = upload(image, true);
+                sizes.put(key, new int[]{image.getWidth(), image.getHeight()});
+            }
+            textures.put(key, id);
+        }
+        glBindTexture(GL_TEXTURE_2D, id);
+    }
+
+    /** A resource image as ARGB, or null when it is missing or unreadable. */
+    public BufferedImage read(ResourceLocation location) {
+        try (InputStream stream = resources.open(location)) {
+            BufferedImage image = ImageIO.read(stream);
+            if (image == null) return null;
+            BufferedImage argb = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            argb.getGraphics().drawImage(image, 0, 0, null);
+            return argb;
+        } catch (IOException error) {
+            return null;
+        }
+    }
+
     /** {width, height} of a loaded texture, or 256x256 before it has been bound. */
     public int[] size(ResourceLocation location) { return sizes.getOrDefault(location, new int[]{256, 256}); }
 

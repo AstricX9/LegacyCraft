@@ -7,6 +7,7 @@ import net.minecraft.block.state.ActualState;
 import net.minecraft.client.renderer.block.model.BakedModel;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.block.model.BlockModelManager;
+import net.minecraft.client.renderer.entity.BlockEntityRenderer;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.util.Direction;
 
@@ -61,10 +62,22 @@ final class SectionMesher {
         int quads() { return size / INTS_PER_QUAD; }
     }
 
-    /** A finished section mesh: both layers, ready to upload. */
+    /** A finished section mesh: the three layers, ready to upload, and where its tile-entity-drawn blocks are. */
     static final class Mesh {
         final Buffer opaque = new Buffer(), cutout = new Buffer(), translucent = new Buffer();
-        boolean isEmpty() { return opaque.size == 0 && cutout.size == 0 && translucent.size == 0; }
+        /** x, y, z of each chest, sign, banner and end portal ({@link BlockEntityRenderer#draws}). */
+        int[] blockEntities = new int[0];
+        int blockEntityCount;
+        boolean isEmpty() { return opaque.size == 0 && cutout.size == 0 && translucent.size == 0 && blockEntityCount == 0; }
+
+        void addBlockEntity(int x, int y, int z) {
+            if (blockEntityCount * 3 + 3 > blockEntities.length)
+                blockEntities = Arrays.copyOf(blockEntities, Math.max(12, blockEntities.length * 2));
+            blockEntities[blockEntityCount * 3] = x;
+            blockEntities[blockEntityCount * 3 + 1] = y;
+            blockEntities[blockEntityCount * 3 + 2] = z;
+            blockEntityCount++;
+        }
     }
 
     private final TextureAtlas atlas;
@@ -92,8 +105,12 @@ final class SectionMesher {
                     BlockState state = view.getState(x, y, z);
                     Block block = state.block();
                     if (block.renderType() == Block.RenderType.INVISIBLE) continue;
-                    // Mob heads are drawn by their tile-entity renderer (SkullRenderer), not baked.
-                    if (block.renderType() == Block.RenderType.ENTITY && block.name().path().equals("skull")) continue;
+                    // Tile-entity blocks are drawn each frame by their own renderers, not baked; mob heads
+                    // (SkullRenderer) are tracked by the world, the rest by where the mesher found them.
+                    if (block.renderType() == Block.RenderType.ENTITY) {
+                        if (BlockEntityRenderer.draws(block.name().path())) mesh.addBlockEntity(x, y, z);
+                        continue;
+                    }
                     if (block.renderType() == Block.RenderType.FLUID && Liquids.isLiquid(block)) {
                         fluids.build(TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque,
                             view, state, x, y, z, startX, startY, startZ);
