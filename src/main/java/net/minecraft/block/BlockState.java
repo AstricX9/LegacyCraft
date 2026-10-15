@@ -40,7 +40,9 @@ public final class BlockState {
             throw new IllegalArgumentException("Metadata " + metadata + " is out of range for "
                 + block.name() + " (must be 0-" + MAX_METADATA + ")");
         }
-        return new BlockState(block, metadata);
+        BlockState state = block.states[metadata];
+        if (state == null) block.states[metadata] = state = new BlockState(block, metadata);
+        return state;
     }
 
     /** The raw metadata-0 state, which is what legacy storage holds for a bare block ID. See {@link Block#defaultState()}. */

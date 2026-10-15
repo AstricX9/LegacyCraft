@@ -95,13 +95,34 @@ GCs during worldgen: 21 → 9. Tests: same results as main (see below).
 GCs during worldgen: 9 → 5. Overall, main → #1+#2: worldgen **−31% CPU and
 −84% garbage**, with the same world and the same light.
 
+### #3: canonical BlockState objects (on top of #1+#2)
+
+`BlockState.of` now hands out one shared object per (block, metadata)
+instead of a new one on every `getState`. Measured against `origin/main`
+at 1b43173 (which has #1+#2), 4 alternating JVMs each:
+
+| Scenario | CPU main → #3 | Allocated main → #3 | Checksum |
+|---|---|---|---|
+| worldgen | 5,287 → 4,919 ms (−7%, near noise) | 654 → 654 MB | identical |
+| snapshot | 222 → 212 ms (noise) | 163 → 163 MB | identical |
+| blockaccess | 1,188 → 435 ms (see note) | 81 → 30 MB (**−63%**) | identical |
+| relight | 83 → 86 ms (noise) | 14 → 14 MB | identical |
+| mobs | 93 → 87 ms; ticks 0.54 → 0.56 ms | 82 → 75 MB (−9%) | n/a |
+
+Note: main's `blockaccess` CPU in this run (1,136–1,204 ms in all four JVMs)
+is far above the 410 ms measured for the same code earlier, so the CPU gain
+is overstated here; against the earlier figure it is roughly 5–10%. The
+allocation drop is the reliable result: entity physics and block ticking
+no longer make a `BlockState` per block they look at.
+
 ### Correctness
 
-- Result checksums identical across main, #1 and #1+#2 for worldgen
+- Result checksums identical across main, #1, #1+#2 and #3 for worldgen
   (`a962aa59c14e62a7`), snapshot, blockaccess and relight.
 - `gradlew test`: main 543 tests, 20 failures; with both changes 548 tests
   (5 new), the same 20 failures. `IronGolemTest.huntsAndHitsTheNearestHostileMob`
-  is flaky on main as well (passed 2 of 3 reruns on both).
+  is flaky on main as well (passed 2 of 3 reruns on both). With #3: 550
+  tests (2 more, `BlockStateTest`), the same 20 failures.
 - New tests: `LongHashMapTest` (agrees with `HashMap` through growth,
   insertion order, spread of packed chunk keys) and
   `LightEngineTest.theLightQueueIsFirstInFirstOutThroughGrowthAndReuse`.
