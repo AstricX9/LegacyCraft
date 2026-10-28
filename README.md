@@ -19,13 +19,23 @@ The [Gradle Wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.ht
 
 ### Minecraft resource files
 
-The repository intentionally does not redistribute Mojang's copyrighted textures, sounds, models, fonts, language files, or other vanilla assets. For local development, place resource files that you are legally entitled to use under:
+The repository intentionally does not redistribute Mojang's copyrighted textures, sounds, models, fonts, language files, or other vanilla assets. For local development, download resource files that you are legally entitled to use from the [Minecraft 1.8.9 asset browser](https://mcasset.cloud/1.8.9/):
+
+1. Open the [`assets/`](https://mcasset.cloud/1.8.9/assets) folder.
+2. Select **Download Folder** and extract the downloaded folder.
+3. Copy its `minecraft` folder into the repository's `src/main/resources/assets/` folder.
+
+The final layout should contain files such as:
 
 ```
 src/main/resources/assets/minecraft/
+├── blockstates/
+├── models/
+├── sounds/
+└── textures/
 ```
 
-That directory is ignored by Git. Do not commit it or include it in a pull request.
+The downloaded directory is ignored by Git. Do not commit it or include it in a pull request. Keep the existing `src/main/resources/assets/legacycraft/` directory; it contains LegacyCraft's own resources.
 
 ## Run from source
 
@@ -65,6 +75,10 @@ For example:
 
 The dedicated server uses offline mode and listens on port `25565` by default. Its settings and world are stored in `run-server/`.
 
+## Website and launcher status
+
+The website in [`legacycraft-site/`](legacycraft-site/) and the launcher in [`launcher/`](launcher/) are embarrassing early WIP/concept prototypes. They are rough, incomplete, and not ready to be used as a public download or gameplay path. Do not rely on them; use the Gradle commands above when working with LegacyCraft.
+
 ## Build distributable packages
 
 The build scripts create ready-to-copy packages containing the game, launcher, libraries, and platform start scripts:
@@ -86,7 +100,8 @@ Packaged builds need Java 17 on the target computer. A Java runtime can be place
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — subsystem boundaries and implementation principles
 - [`docs/compat/`](docs/compat/) — compatibility notes, deviations, verified facts, and source policy
 - [`data/mc189/README.md`](data/mc189/README.md) — game-data authoring and generation
-- [`launcher/`](launcher/) — the offline launcher
+- [`launcher/`](launcher/) — the unfinished offline launcher prototype
+- [`legacycraft-site/`](legacycraft-site/) — the unfinished website prototype
 - [`packaging/`](packaging/) — platform packaging scripts and launch instructions
 
 ## License
