@@ -37,6 +37,10 @@ src/main/resources/assets/minecraft/
 
 The downloaded directory is ignored by Git. Do not commit it or include it in a pull request. Keep the existing `src/main/resources/assets/legacycraft/` directory; it contains LegacyCraft's own resources.
 
+### Windows 10+ automatic setup
+
+From the repository root, double-click [`fetch-mc-assets.bat`](fetch-mc-assets.bat). It downloads the 1.8.9 asset archive, extracts only `assets/minecraft`, and installs it in the correct ignored directory. The helper uses Windows PowerShell and will stop rather than overwrite an existing asset folder.
+
 ## Run from source
 
 Clone the repository, add the local resource files described above, and run the client with the Gradle Wrapper.
