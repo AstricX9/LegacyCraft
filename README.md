@@ -8,6 +8,25 @@ It is a work in progress. The current build includes a playable client, menus, s
 
 LegacyCraft is not affiliated with or endorsed by Mojang or Microsoft.
 
+## Showcase
+
+Current development captures from the client:
+
+<table>
+  <tr>
+    <td><img src="docs/showcase/01-world-overview.png" alt="LegacyCraft world overview" width="420"><br><sub>World overview</sub></td>
+    <td><img src="docs/showcase/02-world-overview-clean.png" alt="LegacyCraft world overview without the HUD" width="420"><br><sub>World overview — clean view</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/showcase/03-achievement-overlay.png" alt="LegacyCraft achievement overlay" width="420"><br><sub>Achievement overlay</sub></td>
+    <td><img src="docs/showcase/04-title-screen.png" alt="LegacyCraft title screen" width="420"><br><sub>Title screen</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/showcase/05-options-screen.png" alt="LegacyCraft options screen" width="420"><br><sub>Options</sub></td>
+    <td><img src="docs/showcase/06-resource-packs.png" alt="LegacyCraft resource packs screen" width="420"><br><sub>Resource packs</sub></td>
+  </tr>
+</table>
+
 ## Prerequisites
 
 - [JDK 17](https://adoptium.net/temurin/releases/?version=17) or newer
