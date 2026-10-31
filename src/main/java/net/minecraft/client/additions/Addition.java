@@ -41,7 +41,7 @@ public record Addition(String id, Category category, Scope scope, boolean defaul
      * {@code <addition>.<setting>:<value>}. A toggle is true/false; a slider a
      * number from min to max in steps; a choice one of its options; a file
      * the name of a file in {@code folder} under the game folder (empty for
-     * none) with one of the extensions.
+     * none) with one of the extensions; an extension of "/" also allows folders.
      */
     public record Setting(String id, Type type, String name, String description, String defaultValue, List<String> options,
                           double min, double max, double step, String unit, String folder, List<String> extensions) {

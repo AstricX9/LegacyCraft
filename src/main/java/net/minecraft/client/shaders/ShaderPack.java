@@ -49,6 +49,8 @@ public final class ShaderPack {
 
     record CustomUniform(String type, String name, Expression.Node expression, boolean uniform) {}
     private record BlockRule(int id, String[][] conditions) {}
+    /** Entity and item names (see {@link #key}) to their IDs, from entity.properties and item.properties. */
+    private final Map<String, Integer> entities = new HashMap<>(), items = new HashMap<>();
 
     private ShaderPack(Path path, String name, Map<String, byte[]> files, Map<String, String> options, Map<String, String> standardMacros) {
         this.path = path;
@@ -203,6 +205,8 @@ public final class ShaderPack {
                 }
             }
         }
+        readIds(files.get("entity.properties"), "entity.", entities, macros);
+        readIds(files.get("item.properties"), "item.", items, macros);
         data = files.get("block.properties");
         if (data != null) {
             List<String> lines = new Preprocessor(macros).process(new String(data, StandardCharsets.UTF_8), false);
@@ -225,6 +229,46 @@ public final class ShaderPack {
             }
         }
     }
+
+    /** {@code <prefix>N=name name...} lines into name to N (the first ID listing a name wins). */
+    private static void readIds(byte[] data, String prefix, Map<String, Integer> out, Map<String, String> macros) {
+        if (data == null) return;
+        List<String> lines = new Preprocessor(macros).process(new String(data, StandardCharsets.UTF_8), false);
+        for (Map.Entry<String, String> e : parse(lines).entrySet()) {
+            if (!e.getKey().startsWith(prefix)) continue;
+            int id;
+            try { id = Integer.parseInt(e.getKey().substring(prefix.length())); } catch (NumberFormatException ex) { continue; }
+            for (String name : e.getValue().split("\\s+")) if (!name.isEmpty()) out.putIfAbsent(key(name), id);
+        }
+    }
+
+    /**
+     * Names compared the way 1.8.9's and newer spellings meet: VillagerGolem, villager_golem and
+     * minecraft:villager_golem are the same entity.
+     */
+    private static String key(String name) {
+        int colon = name.indexOf(':');
+        if (colon >= 0 && name.substring(0, colon).equals("minecraft")) name = name.substring(colon + 1);
+        return name.replace("_", "").toLowerCase(Locale.ROOT);
+    }
+
+    /** The entity's ID from entity.properties (by its 1.8.9 save name, like Creeper), -1 if the pack names none. */
+    public int entityId(String entity) {
+        Integer id = entities.get(key(entity));
+        if (id == null) id = entities.get(key(RENAMED_ENTITIES.getOrDefault(entity, entity)));
+        return id == null ? -1 : id;
+    }
+
+    /** 1.8.9 save names that later versions spell differently, for packs that only list the new names. */
+    private static final Map<String, String> RENAMED_ENTITIES = Map.ofEntries(
+        Map.entry("LavaSlime", "magma_cube"), Map.entry("PigZombie", "zombie_pigman"), Map.entry("SnowMan", "snowman"),
+        Map.entry("EntityHorse", "horse"), Map.entry("Ozelot", "ocelot"), Map.entry("MushroomCow", "mooshroom"),
+        Map.entry("WitherBoss", "wither"), Map.entry("PrimedTnt", "tnt"), Map.entry("FallingSand", "falling_block"),
+        Map.entry("ThrownPotion", "potion"), Map.entry("ThrownEnderpearl", "ender_pearl"), Map.entry("MinecartRideable", "minecart"),
+        Map.entry("EnderCrystal", "end_crystal"), Map.entry("SmallFireball", "small_fireball"));
+
+    /** The item's ID from item.properties, -1 if the pack names none. */
+    public int itemId(String item) { return items.getOrDefault(key(item), -1); }
 
     /** key=value lines (later keys win), with Java .properties line continuations. */
     private static Map<String, String> parse(List<String> lines) {

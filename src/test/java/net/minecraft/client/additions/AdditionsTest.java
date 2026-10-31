@@ -105,7 +105,8 @@ final class AdditionsTest {
         Files.writeString(dir.resolve("shaderpacks/b.zip"), "");
         Files.writeString(dir.resolve("shaderpacks/A.zip"), "");
         Files.writeString(dir.resolve("shaderpacks/notes.txt"), "");
-        assertEquals(List.of("A.zip", "b.zip"), again.files(pack));
+        Files.createDirectories(dir.resolve("shaderpacks/Unzipped"));
+        assertEquals(List.of("A.zip", "b.zip", "Unzipped"), again.files(pack));
     }
 
     @Test

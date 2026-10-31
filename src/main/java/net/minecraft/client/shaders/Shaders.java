@@ -57,6 +57,9 @@ public final class Shaders {
         public double cameraX, cameraY, cameraZ;
         public String dimension = "world0";
         public boolean hideGui;
+        /** The item in the player's hand (null for none) and the light its block gives. */
+        public String heldItem;
+        public int heldItemLight;
         public float[] look = new float[3];
     }
 
@@ -206,6 +209,24 @@ public final class Shaders {
         "HAND_TRANSLUCENT"};
     public static final int STAGE_NONE = 0, STAGE_SKY = 1, STAGE_SUNSET = 2, STAGE_SUN = 4, STAGE_MOON = 5, STAGE_STARS = 6, STAGE_VOID = 7;
     private static int renderStage;
+    private static int entityId = -1, blockEntityId = -1;
+
+    /** The entity about to be drawn (entityId, from entity.properties), by its 1.8.9 save name; null when done. */
+    public static void entity(String name) {
+        int id = name == null || pack == null ? -1 : pack.entityId(name);
+        if (id == entityId) return;
+        entityId = id;
+        if (rendering && current != null) uniforms(current);
+    }
+
+    /** The block entity about to be drawn (blockEntityId, its block's ID from block.properties); null when done. */
+    public static void blockEntity(String block, java.util.function.Function<String, String> property) {
+        int id = block == null || pack == null ? -1 : pack.blockId(block, property);
+        if (id == 0 && block != null) id = -1;
+        if (id == blockEntityId) return;
+        blockEntityId = id;
+        if (rendering && current != null) uniforms(current);
+    }
 
     /** Tells the pack (renderStage) what is being drawn; packs written for Iris tell the sun, moon and stars apart by it. */
     public static void renderStage(int stage) {
@@ -1218,10 +1239,14 @@ public final class Shaders {
             case "fogDensity" -> new double[]{0.1};
             case "fogStart" -> new double[]{f.far * 0.75};
             case "fogEnd" -> new double[]{f.far};
-            case "heldItemId", "heldItemId2" -> new double[]{-1};
+            case "heldItemId" -> new double[]{f.heldItem == null || pack == null ? -1 : pack.itemId(f.heldItem)};
+            case "heldItemId2" -> new double[]{-1};
+            case "heldBlockLightValue" -> new double[]{f.heldItemLight};
+            case "entityId" -> new double[]{entityId};
+            case "blockEntityId" -> new double[]{blockEntityId};
             case "shadowMapResolution" -> new double[]{shadowResolution};
             case "renderStage" -> new double[]{renderStage};
-            case "entityId", "blockEntityId", "heldBlockLightValue", "heldBlockLightValue2", "currentRenderedItemId",
+            case "heldBlockLightValue2", "currentRenderedItemId",
                 "playerMood", "velocity", "darknessFactor", "darknessLightFactor", "isElytraFlying", "is_invisible" -> new double[]{0};
             default -> null;
         };
