@@ -19,7 +19,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
  * closes, where the launcher shows them too.
  */
 public class GuiAdditionSettings extends GuiScreen {
-    private static final int DONE = 200, RESET = 201, FOLDER = 202, SETTING = 300;
+    private static final int DONE = 200, RESET = 201, FOLDER = 202, SHADER_OPTIONS = 203, SETTING = 300;
 
     private final GuiScreen parent;
     private final Addition addition;
@@ -46,6 +46,12 @@ public class GuiAdditionSettings extends GuiScreen {
                 : new GuiButton(SETTING + i, x, y, 150, 20, "");
             controls.add(b);
             buttonList.add(b);
+        }
+        if (addition.id().equals(Additions.SHADER_PACKS)) {
+            int i = settings.size();
+            GuiButton options = new GuiButton(SHADER_OPTIONS, width / 2 - 155 + (i % 2) * 160, top + (i / 2) * 24, 150, 20, "Shader Options...");
+            options.enabled = shaderPack() != null;
+            buttonList.add(options);
         }
         boolean files = settings.stream().anyMatch(s -> s.type() == Addition.Setting.Type.FILE);
         if (files) {
@@ -86,6 +92,9 @@ public class GuiAdditionSettings extends GuiScreen {
             initGui();
         } else if (button.id == FOLDER) {
             openFolder();
+        } else if (button.id == SHADER_OPTIONS) {
+            GuiShaderOptions options = shaderPack() == null ? null : GuiShaderOptions.open(this, shaderPack());
+            if (options != null) mc.displayGuiScreen(options);
         } else if (button.id >= SETTING) {
             Addition.Setting s = addition.settings().get(button.id - SETTING);
             String value = additions.setting(addition.id(), s.id());
@@ -101,7 +110,15 @@ public class GuiAdditionSettings extends GuiScreen {
                 default -> {}
             }
             refresh();
+            for (GuiButton b : buttonList) if (b.id == SHADER_OPTIONS) b.enabled = shaderPack() != null;
         }
+    }
+
+    /** The Shader Packs addition's picked pack file, or null. */
+    private java.nio.file.Path shaderPack() {
+        Addition.Setting s = addition.setting("pack");
+        String name = s == null ? "" : additions.setting(addition.id(), s.id());
+        return name == null || name.isEmpty() ? null : additions.folder(s).resolve(name);
     }
 
     /** {@code text}, cut short with "..." if it is wider than {@code width}. */

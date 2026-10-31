@@ -87,8 +87,8 @@ final class AdditionsTest {
         additions.setSetting(Additions.SOLID_CROSSHAIR, "color", "Plaid");
         assertEquals("Green", additions.setting(Additions.SOLID_CROSSHAIR, "color"));
         additions.setSetting(Additions.COORDINATES, "showFacing", "false");
-        additions.setSetting(Additions.SHADERS, "file", "../secret.fsh");
-        assertEquals("", additions.setting(Additions.SHADERS, "file"), "files come from the addition's own folder");
+        additions.setSetting(Additions.SHADER_PACKS, "pack", "../secret.zip");
+        assertEquals("", additions.setting(Additions.SHADER_PACKS, "pack"), "files come from the addition's own folder");
         additions.save();
         List<String> lines = Files.readAllLines(file);
         assertTrue(lines.contains("fullBright.brightness:100"));
@@ -100,12 +100,12 @@ final class AdditionsTest {
         assertTrue(again.settingOn(Additions.COORDINATES, "showFacing"));
         assertNull(again.setting(Additions.COORDINATES, "nothing"));
 
-        Addition.Setting shader = again.find(Additions.SHADERS).setting("file");
-        Files.createDirectories(dir.resolve("shaders"));
-        Files.writeString(dir.resolve("shaders/b.fsh"), "");
-        Files.writeString(dir.resolve("shaders/A.glsl"), "");
-        Files.writeString(dir.resolve("shaders/notes.txt"), "");
-        assertEquals(List.of("A.glsl", "b.fsh"), again.files(shader));
+        Addition.Setting pack = again.find(Additions.SHADER_PACKS).setting("pack");
+        Files.createDirectories(dir.resolve("shaderpacks"));
+        Files.writeString(dir.resolve("shaderpacks/b.zip"), "");
+        Files.writeString(dir.resolve("shaderpacks/A.zip"), "");
+        Files.writeString(dir.resolve("shaderpacks/notes.txt"), "");
+        assertEquals(List.of("A.zip", "b.zip"), again.files(pack));
     }
 
     @Test
