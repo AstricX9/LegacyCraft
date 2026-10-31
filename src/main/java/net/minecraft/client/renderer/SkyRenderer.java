@@ -235,6 +235,7 @@ public final class SkyRenderer {
         glEnable(GL_FOG);
         glColor3f(skyR, skyG, skyB);
         glCallList(skyList);
+        if (net.minecraft.client.shaders.Shaders.active()) horizon();
         glDisable(GL_FOG);
         glDisable(GL_ALPHA_TEST);
         glEnable(GL_BLEND);
@@ -475,6 +476,25 @@ public final class SkyRenderer {
         for (int i = 0; i < vertices.length; i += 3) glVertex3f(vertices[i], vertices[i + 1], vertices[i + 2]);
         glEnd();
         glEndList();
+    }
+
+    /**
+     * Shader packs colour the sky per pixel, but the sky and void planes leave
+     * a gap round the horizon that would show the clear colour as a flat band.
+     * Like Iris, close it with a small cylinder and floor around the eye.
+     */
+    private static void horizon() {
+        glDisable(GL_CULL_FACE);
+        glBegin(GL_QUADS);
+        for (int i = 0; i < 16; i++) {
+            double a0 = i * Math.PI / 8, a1 = (i + 1) * Math.PI / 8;
+            float x0 = (float) Math.cos(a0) * 16f, z0 = (float) Math.sin(a0) * 16f;
+            float x1 = (float) Math.cos(a1) * 16f, z1 = (float) Math.sin(a1) * 16f;
+            glVertex3f(x0, 16f, z0); glVertex3f(x1, 16f, z1); glVertex3f(x1, -16f, z1); glVertex3f(x0, -16f, z0);
+            glVertex3f(x0, -16f, z0); glVertex3f(x1, -16f, z1); glVertex3f(0f, -16f, 0f); glVertex3f(0f, -16f, 0f);
+        }
+        glEnd();
+        glEnable(GL_CULL_FACE);
     }
 
     /** A 768x768 grid of 64-block quads at a height, facing down (sky) or up (the plane below the horizon). */
