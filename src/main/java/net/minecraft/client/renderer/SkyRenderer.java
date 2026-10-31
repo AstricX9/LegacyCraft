@@ -214,6 +214,9 @@ public final class SkyRenderer {
 
     public float angle() { return angle; }
 
+    /** This frame's sky colour (red, green, blue). */
+    public float[] skyColor() { return new float[]{skyR, skyG, skyB}; }
+
     /**
      * Draws the sky around the camera. The modelview must hold only the
      * camera's rotation; fog is expected to be set up for the sky (0 to the
@@ -222,6 +225,7 @@ public final class SkyRenderer {
     public void renderSky(long worldTime, double eyeY) {
         if (nether) return;
         if (skyList < 0) buildLists();
+        net.minecraft.client.shaders.Shaders.use("gbuffers_skybasic");
         glDisable(GL_TEXTURE_2D);
         // Culled as in vanilla: the sky and void planes are one-sided, so the
         // dark void plane is hidden when the eye is below it (under y=63).
@@ -255,6 +259,7 @@ public final class SkyRenderer {
             glPopMatrix();
         }
 
+        net.minecraft.client.shaders.Shaders.use("gbuffers_skytextured");
         glEnable(GL_TEXTURE_2D);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
         glPushMatrix();
@@ -280,6 +285,7 @@ public final class SkyRenderer {
         glTexCoord2f(u0, v0); glVertex3f(size, -100f, -size);
         glTexCoord2f(u1, v0); glVertex3f(-size, -100f, -size);
         glEnd();
+        net.minecraft.client.shaders.Shaders.use("gbuffers_skybasic");
         glDisable(GL_TEXTURE_2D);
         float stars = starBrightness(angle);
         if (stars > 0f) {

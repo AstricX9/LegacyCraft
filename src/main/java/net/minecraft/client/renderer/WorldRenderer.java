@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL13.*;
 import static org.lwjgl.opengl.GL15.*;
+import static org.lwjgl.opengl.GL20.*;
 
 /**
  * Draws the world the way 1.8.9's RenderGlobal does: in 16x16x16 sections,
@@ -51,7 +52,6 @@ public final class WorldRenderer {
     }
 
     private static final int CHUNK = Chunk.SIZE, SECTIONS = Chunk.HEIGHT / 16;
-    private static final int BYTES_PER_VERTEX = SectionMesher.INTS_PER_VERTEX * 4;
     /** Milliseconds per frame spent generating chunks, uploading meshes and building edited sections. */
     private static final long GENERATE_BUDGET = 6_000_000L, UPLOAD_BUDGET = 3_000_000L;
     private static final int MAX_URGENT_PER_FRAME = 8, MAX_SUBMIT_PER_FRAME = 24, RESORTS_PER_FRAME = 6;
@@ -84,6 +84,12 @@ public final class WorldRenderer {
         });
         maxInFlight = threads * 3;
         world.addListener(listener);
+        // A shader pack needs the terrain meshed with normals and block IDs; without one, the plain layout.
+        net.minecraft.client.shaders.Shaders.onMeshFormatChange = () -> {
+            SectionMesher.shaderPack = net.minecraft.client.shaders.Shaders.pack();
+            for (Column column : columns.values()) for (Section section : column.sections) section.mark(false);
+        };
+        SectionMesher.shaderPack = net.minecraft.client.shaders.Shaders.pack();
     }
 
     private final World.Listener listener = new World.Listener() {
@@ -106,6 +112,8 @@ public final class WorldRenderer {
     private static final class Section {
         final int x, y, z;
         int opaqueBuffer, opaqueVertices, cutoutBuffer, cutoutVertices, translucentBuffer, translucentVertices;
+        /** Ints per vertex of its buffers (the plain or the shader-pack layout). */
+        int stride = SectionMesher.INTS_PER_VERTEX;
         /** x, y, z of the chests, signs, banners and end portals in it, drawn by their tile-entity renderers. */
         int[] blockEntities = NO_BLOCK_ENTITIES;
         /** Kept for re-sorting as the camera moves. */
@@ -246,10 +254,11 @@ public final class WorldRenderer {
     private void upload(Section section, SectionMesher.Mesh mesh, double eyeX, double eyeY, double eyeZ) {
         section.blockEntities = mesh.blockEntityCount == 0 ? NO_BLOCK_ENTITIES
             : java.util.Arrays.copyOf(mesh.blockEntities, mesh.blockEntityCount * 3);
+        section.stride = mesh.opaque.stride;
         section.opaqueBuffer = store(section.opaqueBuffer, mesh.opaque);
-        section.opaqueVertices = mesh.opaque.size / SectionMesher.INTS_PER_VERTEX;
+        section.opaqueVertices = mesh.opaque.size / section.stride;
         section.cutoutBuffer = store(section.cutoutBuffer, mesh.cutout);
-        section.cutoutVertices = mesh.cutout.size / SectionMesher.INTS_PER_VERTEX;
+        section.cutoutVertices = mesh.cutout.size / section.stride;
         if (mesh.translucent.size > 0) {
             float fromX = (float) (eyeX - section.x * 16), fromY = (float) (eyeY - section.y * 16), fromZ = (float) (eyeZ - section.z * 16);
             SectionMesher.sortBackToFront(mesh.translucent, fromX, fromY, fromZ);
@@ -261,7 +270,7 @@ public final class WorldRenderer {
             section.translucent = null;
         }
         section.translucentBuffer = store(section.translucentBuffer, mesh.translucent);
-        section.translucentVertices = mesh.translucent.size / SectionMesher.INTS_PER_VERTEX;
+        section.translucentVertices = mesh.translucent.size / section.stride;
     }
 
     /** Uploads vertex data into a buffer object, creating or freeing it as needed; returns the buffer name. */
@@ -299,20 +308,14 @@ public final class WorldRenderer {
             }
         }
         renderedSections = opaque.size();
-        bindLightmap();
-        atlas.bind();
-        // Smooth lighting interpolates between vertices; menus switch to flat shading for their gradients.
-        glShadeModel(GL_SMOOTH);
-        glEnable(GL_TEXTURE_2D);
+        beginArrays();
         // Solid and cut-out faces draw unblended (EntityRenderer.renderWorldPass): mipmap levels give leaf
         // edges partial alpha, which must not let the sky show through; the alpha test keeps anything above 0.1
         // and the mip generator already dropped what fell below 96/255.
         glDisable(GL_BLEND);
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, .1f);
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_COLOR_ARRAY);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        net.minecraft.client.shaders.Shaders.use("gbuffers_terrain");
         // Opaque and cut-out faces, near to far so the depth test rejects hidden pixels early.
         opaque.sort(Comparator.comparingDouble(section -> distanceSquared(section, eyeX, eyeY, eyeZ)));
         // Back faces are culled like vanilla's terrain pass; without it the touching faces of neighbouring
@@ -328,10 +331,6 @@ public final class WorldRenderer {
             for (Section section : cutout) drawBuffer(section, section.cutoutBuffer, section.cutoutVertices);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, atlas.mipmapLevels() > 0 ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST);
         }
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        // Translucent faces last, still culled like vanilla's translucent layer (the fluid renderer
-        // adds the back-facing copies of water faces itself), far to near, re-sorted inside the nearest sections as the camera moves.
         translucent.sort(Comparator.comparingDouble(section -> -distanceSquared(section, eyeX, eyeY, eyeZ)));
         int resorts = 0;
         for (int i = translucent.size() - 1; i >= 0 && resorts < RESORTS_PER_FRAME; i--) {
@@ -339,8 +338,80 @@ public final class WorldRenderer {
             if (distanceSquared(section, eyeX, eyeY, eyeZ) > 48 * 48) break;
             if (resort(section, eyeX, eyeY, eyeZ)) resorts++;
         }
+        endArrays();
+        pendingTranslucent = translucent;
+        // With a shader pack, entities and the pack's deferred programs come before water and glass.
+        if (!net.minecraft.client.shaders.Shaders.rendering()) renderTranslucent();
+    }
+
+    private List<Section> pendingTranslucent = List.of();
+
+    /** Water, ice and stained glass, after everything else: called by {@link #render} unless a shader pack is drawing the world. */
+    public void renderTranslucent() {
+        List<Section> translucent = pendingTranslucent;
+        pendingTranslucent = List.of();
+        if (translucent.isEmpty()) return;
+        beginArrays();
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, .1f);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        net.minecraft.client.shaders.Shaders.use("gbuffers_water");
+        // Translucent faces last, still culled like vanilla's translucent layer (the fluid renderer
+        // adds the back-facing copies of water faces itself), far to near, re-sorted inside the nearest sections as the camera moves.
         for (Section section : translucent) drawBuffer(section, section.translucentBuffer, section.translucentVertices);
+        endArrays();
+    }
+
+    /**
+     * The shader pack's shadow map: every built section the current (sun's)
+     * matrices can see, solid and cut-out, then {@code between}, then translucent.
+     */
+    public void renderShadow(Runnable between) {
+        readFrustum();
+        List<Section> translucent = new ArrayList<>();
+        beginArrays();
+        glDisable(GL_BLEND);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, .1f);
         glDisable(GL_CULL_FACE);
+        for (Column column : columns.values()) {
+            for (Section section : column.sections) {
+                if (section.opaqueVertices == 0 && section.cutoutVertices == 0 && section.translucentVertices == 0) continue;
+                if (!inFrustum(section.x * 16, section.y * 16, section.z * 16)) continue;
+                if (section.opaqueVertices > 0) drawBuffer(section, section.opaqueBuffer, section.opaqueVertices);
+                if (section.cutoutVertices > 0) drawBuffer(section, section.cutoutBuffer, section.cutoutVertices);
+                if (section.translucentVertices > 0) translucent.add(section);
+            }
+        }
+        between.run();
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        for (Section section : translucent) drawBuffer(section, section.translucentBuffer, section.translucentVertices);
+        endArrays();
+    }
+
+    private void beginArrays() {
+        bindLightmap();
+        atlas.bind();
+        // Smooth lighting interpolates between vertices; menus switch to flat shading for their gradients.
+        glShadeModel(GL_SMOOTH);
+        glEnable(GL_TEXTURE_2D);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_COLOR_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    }
+
+    private void endArrays() {
+        glDisable(GL_CULL_FACE);
+        glDisableClientState(GL_NORMAL_ARRAY);
+        glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE);
+        glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE);
+        glVertexAttrib4f(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE, 0, 0, 0, 1);
+        glVertexAttrib4f(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE, 0, 0, 0, 1);
+        glNormal3f(0, 0, 1);
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_COLOR_ARRAY);
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -403,13 +474,26 @@ public final class WorldRenderer {
     }
 
     private void drawBuffer(Section section, int buffer, int vertices) {
+        int bytes = section.stride * 4;
         glBindBuffer(GL_ARRAY_BUFFER, buffer);
-        glVertexPointer(3, GL_FLOAT, BYTES_PER_VERTEX, 0L);
-        glColorPointer(4, GL_UNSIGNED_BYTE, BYTES_PER_VERTEX, 12L);
-        glTexCoordPointer(2, GL_FLOAT, BYTES_PER_VERTEX, 16L);
+        glVertexPointer(3, GL_FLOAT, bytes, 0L);
+        glColorPointer(4, GL_UNSIGNED_BYTE, bytes, 12L);
+        glTexCoordPointer(2, GL_FLOAT, bytes, 16L);
         glClientActiveTexture(GL_TEXTURE1);
-        glTexCoordPointer(2, GL_FLOAT, BYTES_PER_VERTEX, 24L);
+        glTexCoordPointer(2, GL_FLOAT, bytes, 24L);
         glClientActiveTexture(GL_TEXTURE0);
+        if (section.stride == SectionMesher.SHADER_INTS_PER_VERTEX) {
+            glEnableClientState(GL_NORMAL_ARRAY);
+            glNormalPointer(GL_BYTE, bytes, 32L);
+            glEnableVertexAttribArray(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE);
+            glVertexAttribPointer(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE, 2, GL_SHORT, false, bytes, 36L);
+            glEnableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE);
+            glVertexAttribPointer(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE, 2, GL_UNSIGNED_SHORT, true, bytes, 40L);
+        } else {
+            glDisableClientState(GL_NORMAL_ARRAY);
+            glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE);
+            glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE);
+        }
         glPushMatrix();
         glTranslatef(section.x * 16, section.y * 16, section.z * 16);
         glDrawArrays(GL_QUADS, 0, vertices);

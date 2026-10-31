@@ -32,6 +32,15 @@ final class SectionMesher {
      * (level + 0.5) / 16 for sky and block light) so the time of day can change without rebuilding.
      */
     static final int INTS_PER_VERTEX = 8, INTS_PER_QUAD = 4 * INTS_PER_VERTEX;
+    /**
+     * With a shader pack each vertex carries three more ints: the face normal (signed bytes x, y, z), the
+     * pack's block ID (mc_Entity, a short) and the quad's texture centre (mc_midTexCoord, two normalized
+     * unsigned shorts); faces aren't shaded by direction and the ambient occlusion goes in the alpha, as
+     * OptiFine does with separateAo.
+     */
+    static final int SHADER_INTS_PER_VERTEX = 11;
+    /** The pack the terrain is meshed for, or null for the plain layout: set on the render thread, read by the workers. */
+    static volatile net.minecraft.client.shaders.ShaderPack shaderPack;
     /** Vanilla's TRANSLUCENT block layer. */
     private static final Set<String> TRANSLUCENT = Set.of("water", "flowing_water", "ice", "stained_glass",
         "stained_glass_pane", "slime", "portal");
@@ -54,12 +63,59 @@ final class SectionMesher {
     static final class Buffer {
         int[] data = new int[INTS_PER_QUAD * 64];
         int size;
+        /** Ints per vertex: {@link #INTS_PER_VERTEX}, or {@link #SHADER_INTS_PER_VERTEX} once {@link #widen}ed. */
+        int stride = INTS_PER_VERTEX;
+        /** Shader block ID of each quad, filled by {@link #tag}; quads before {@code tagged} have theirs. */
+        private int[] ids = new int[64];
+        private int tagged;
+
+        /** Gives the quads added since the last call the shader block ID {@code id}. */
+        void tag(int id) {
+            int quads = quads();
+            if (quads > ids.length) ids = Arrays.copyOf(ids, Math.max(quads, ids.length * 2));
+            Arrays.fill(ids, tagged, quads, id);
+            tagged = quads;
+        }
+
+        /** Rewrites the plain vertices in the shader layout, adding each quad's normal, block ID and texture centre. */
+        void widen() {
+            int quads = quads();
+            int[] wide = new int[quads * 4 * SHADER_INTS_PER_VERTEX];
+            for (int q = 0; q < quads; q++) {
+                int base = q * INTS_PER_QUAD;
+                float[] p = new float[12];
+                float midU = 0, midV = 0;
+                for (int v = 0; v < 4; v++) {
+                    for (int c = 0; c < 3; c++) p[v * 3 + c] = Float.intBitsToFloat(data[base + v * INTS_PER_VERTEX + c]);
+                    midU += Float.intBitsToFloat(data[base + v * INTS_PER_VERTEX + 4]) / 4;
+                    midV += Float.intBitsToFloat(data[base + v * INTS_PER_VERTEX + 5]) / 4;
+                }
+                // The normal from the diagonals, so quads with a repeated corner still get one.
+                float ax = p[6] - p[0], ay = p[7] - p[1], az = p[8] - p[2], bx = p[9] - p[3], by = p[10] - p[4], bz = p[11] - p[5];
+                float nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+                float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+                if (length > 0) { nx /= length; ny /= length; nz /= length; } else ny = 1;
+                int normal = (Math.round(nz * 127) & 255) << 16 | (Math.round(ny * 127) & 255) << 8 | (Math.round(nx * 127) & 255);
+                int id = q < tagged ? ids[q] : 0;
+                int mid = (Math.round(Math.max(0, Math.min(1, midV)) * 65535) << 16) | Math.round(Math.max(0, Math.min(1, midU)) * 65535);
+                for (int v = 0; v < 4; v++) {
+                    int to = (q * 4 + v) * SHADER_INTS_PER_VERTEX;
+                    System.arraycopy(data, base + v * INTS_PER_VERTEX, wide, to, INTS_PER_VERTEX);
+                    wide[to + 8] = normal;
+                    wide[to + 9] = id & 0xffff;
+                    wide[to + 10] = mid;
+                }
+            }
+            data = wide;
+            size = wide.length;
+            stride = SHADER_INTS_PER_VERTEX;
+        }
 
         void ensure(int more) {
             if (size + more > data.length) data = Arrays.copyOf(data, Math.max(data.length * 2, size + more));
         }
 
-        int quads() { return size / INTS_PER_QUAD; }
+        int quads() { return size / (stride * 4); }
     }
 
     /** A finished section mesh: the three layers, ready to upload, and where its tile-entity-drawn blocks are. */
@@ -94,6 +150,7 @@ final class SectionMesher {
 
     Mesh build(SectionSnapshot view, int sectionX, int sectionY, int sectionZ) {
         Mesh mesh = new Mesh();
+        net.minecraft.client.shaders.ShaderPack shader = shaderPack;
         BlockLighting lighting = new BlockLighting(view);
         BlockLighting.Result light = new BlockLighting.Result();
         int startX = sectionX * 16, startY = sectionY * 16, startZ = sectionZ * 16;
@@ -112,8 +169,9 @@ final class SectionMesher {
                         continue;
                     }
                     if (block.renderType() == Block.RenderType.FLUID && Liquids.isLiquid(block)) {
-                        fluids.build(TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque,
-                            view, state, x, y, z, startX, startY, startZ);
+                        Buffer target = TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque;
+                        fluids.build(target, view, state, x, y, z, startX, startY, startZ);
+                        if (shader != null) target.tag(shader.blockId(block.name().path(), state::get));
                         continue;
                     }
                     ActualState actual = block.actualState(view, x, y, z, state);
@@ -128,10 +186,16 @@ final class SectionMesher {
                         if (cull != null && !faceVisible(state, view.getState(x + cull.xOffset, y + cull.yOffset, z + cull.zOffset)))
                             continue;
                         lighting.light(block, model, quad, x, y, z, light);
-                        emitQuad(target, view, x, y, z, startX, startY, startZ, actual, quad, light);
+                        emitQuad(target, view, x, y, z, startX, startY, startZ, actual, quad, light, shader != null);
                     }
+                    if (shader != null) target.tag(shader.blockId(name, actual::get));
                 }
             }
+        }
+        if (shader != null) {
+            mesh.opaque.widen();
+            mesh.cutout.widen();
+            mesh.translucent.widen();
         }
         return mesh;
     }
@@ -148,11 +212,11 @@ final class SectionMesher {
     }
 
     private void emitQuad(Buffer out, RenderView view, int x, int y, int z, int startX, int startY, int startZ,
-                          ActualState state, BakedQuad quad, BlockLighting.Result light) {
+                          ActualState state, BakedQuad quad, BlockLighting.Result light, boolean shader) {
         Block block = state.block();
         TextureAtlas.Tile tile = atlas.tile(quad.texture());
         Direction face = quad.face();
-        float shade = !quad.shade() ? 1f : face == Direction.UP ? 1f : face == Direction.DOWN ? .5f
+        float shade = !quad.shade() || shader ? 1f : face == Direction.UP ? 1f : face == Direction.DOWN ? .5f
             : (face == Direction.NORTH || face == Direction.SOUTH) ? .8f : .6f;
         boolean water = block.material().equals("water");
         int tint = quad.tintIndex() >= 0 || water ? color(view, state, x, z) : 0xffffff;
@@ -166,7 +230,8 @@ final class SectionMesher {
             data[at++] = Float.floatToRawIntBits(x - startX + quad.x(i));
             data[at++] = Float.floatToRawIntBits(y - startY + quad.y(i));
             data[at++] = Float.floatToRawIntBits(z - startZ + quad.z(i));
-            data[at++] = rgba(red * occlusion, green * occlusion, blue * occlusion, alpha);
+            data[at++] = shader && !water ? rgba(red, green, blue, channel(occlusion))
+                : rgba(red * occlusion, green * occlusion, blue * occlusion, alpha);
             data[at++] = Float.floatToRawIntBits(mix(tile.u0(), tile.u1(), quad.u(i)));
             data[at++] = Float.floatToRawIntBits(mix(tile.v0(), tile.v1(), quad.v(i)));
             data[at++] = Float.floatToRawIntBits((light.sky[i] + .5f) / 16f);
@@ -224,10 +289,10 @@ final class SectionMesher {
         float[] distance = new float[quads];
         Integer[] order = new Integer[quads];
         for (int q = 0; q < quads; q++) {
-            int base = q * INTS_PER_QUAD;
+            int base = q * buffer.stride * 4;
             float cx = 0, cy = 0, cz = 0;
             for (int v = 0; v < 4; v++) {
-                int at = base + v * INTS_PER_VERTEX;
+                int at = base + v * buffer.stride;
                 cx += Float.intBitsToFloat(buffer.data[at]);
                 cy += Float.intBitsToFloat(buffer.data[at + 1]);
                 cz += Float.intBitsToFloat(buffer.data[at + 2]);
@@ -238,8 +303,9 @@ final class SectionMesher {
         }
         Arrays.sort(order, (a, b) -> Float.compare(distance[b], distance[a]));
         int[] sorted = new int[buffer.size];
+        int quadInts = buffer.stride * 4;
         for (int q = 0; q < quads; q++)
-            System.arraycopy(buffer.data, order[q] * INTS_PER_QUAD, sorted, q * INTS_PER_QUAD, INTS_PER_QUAD);
+            System.arraycopy(buffer.data, order[q] * quadInts, sorted, q * quadInts, quadInts);
         buffer.data = sorted;
     }
 }

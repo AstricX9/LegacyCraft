@@ -1,0 +1,21 @@
+{
+  "id": "shaderPacks",
+  "category": "graphics",
+  "scope": "game",
+  "default": false,
+  "name": "Shader Packs",
+  "description": "Runs an OptiFine shader pack (like Complementary or BSL) from the instance's shaderpacks folder. Needs a graphics card with OpenGL 3.3.",
+  "settings": [
+    {
+      "id": "pack",
+      "type": "file",
+      "name": "Shader Pack",
+      "description": "The pack's .zip in the instance's shaderpacks folder. Options go in a .txt file named after it, as with OptiFine.",
+      "folder": "shaderpacks",
+      "extensions": [
+        ".zip"
+      ],
+      "default": ""
+    }
+  ]
+}
