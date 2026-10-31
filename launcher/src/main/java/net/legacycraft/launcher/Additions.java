@@ -74,8 +74,11 @@ final class Additions {
             Path dir = gameDir.resolve(folder);
             if (!Files.isDirectory(dir)) return names;
             try (java.util.stream.Stream<Path> stream = Files.list(dir)) {
-                stream.filter(Files::isRegularFile).map(p -> p.getFileName().toString())
-                    .filter(n -> extensions.isEmpty() || extensions.stream().anyMatch(x -> n.toLowerCase(java.util.Locale.ROOT).endsWith(x)))
+                // An extension of "/" also lists folders (shader packs can be unzipped).
+                stream.filter(p -> Files.isRegularFile(p) || extensions.contains("/") && Files.isDirectory(p))
+                    .filter(p -> Files.isDirectory(p) || extensions.isEmpty()
+                        || extensions.stream().anyMatch(x -> p.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(x)))
+                    .map(p -> p.getFileName().toString())
                     .sorted(String.CASE_INSENSITIVE_ORDER).forEach(names::add);
             } catch (IOException e) {
                 System.err.println("Couldn't list " + dir + ": " + e.getMessage());

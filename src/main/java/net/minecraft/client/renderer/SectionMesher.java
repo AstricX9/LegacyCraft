@@ -33,12 +33,13 @@ final class SectionMesher {
      */
     static final int INTS_PER_VERTEX = 8, INTS_PER_QUAD = 4 * INTS_PER_VERTEX;
     /**
-     * With a shader pack each vertex carries three more ints: the face normal (signed bytes x, y, z), the
-     * pack's block ID (mc_Entity, a short) and the quad's texture centre (mc_midTexCoord, two normalized
-     * unsigned shorts); faces aren't shaded by direction and the ambient occlusion goes in the alpha, as
-     * OptiFine does with separateAo.
+     * With a shader pack each vertex carries four more ints: the face normal (signed bytes x, y, z), the
+     * pack's block ID (mc_Entity, a short), the quad's texture centre (mc_midTexCoord, two normalized
+     * unsigned shorts) and Iris's at_midBlock (signed bytes: the way to the block's centre in 64ths of a
+     * block, then the light the block gives); faces aren't shaded by direction and the ambient occlusion
+     * goes in the alpha, as OptiFine does with separateAo.
      */
-    static final int SHADER_INTS_PER_VERTEX = 11;
+    static final int SHADER_INTS_PER_VERTEX = 12;
     /** The pack the terrain is meshed for, or null for the plain layout: set on the render thread, read by the workers. */
     static volatile net.minecraft.client.shaders.ShaderPack shaderPack;
     /** Vanilla's TRANSLUCENT block layer. */
@@ -65,15 +66,22 @@ final class SectionMesher {
         int size;
         /** Ints per vertex: {@link #INTS_PER_VERTEX}, or {@link #SHADER_INTS_PER_VERTEX} once {@link #widen}ed. */
         int stride = INTS_PER_VERTEX;
-        /** Shader block ID of each quad, filled by {@link #tag}; quads before {@code tagged} have theirs. */
-        private int[] ids = new int[64];
+        /**
+         * Shader block ID of each quad and its block (position in the section, 4 bits each, and light
+         * level), filled by {@link #tag}; quads before {@code tagged} have theirs.
+         */
+        private int[] ids = new int[64], blocks = new int[64];
         private int tagged;
 
-        /** Gives the quads added since the last call the shader block ID {@code id}. */
-        void tag(int id) {
+        /** Gives the quads added since the last call the shader block ID {@code id} and their block's place and light. */
+        void tag(int id, int x, int y, int z, int light) {
             int quads = quads();
-            if (quads > ids.length) ids = Arrays.copyOf(ids, Math.max(quads, ids.length * 2));
+            if (quads > ids.length) {
+                ids = Arrays.copyOf(ids, Math.max(quads, ids.length * 2));
+                blocks = Arrays.copyOf(blocks, ids.length);
+            }
             Arrays.fill(ids, tagged, quads, id);
+            Arrays.fill(blocks, tagged, quads, (x & 15) | (y & 15) << 4 | (z & 15) << 8 | (light & 15) << 12);
             tagged = quads;
         }
 
@@ -96,7 +104,7 @@ final class SectionMesher {
                 float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
                 if (length > 0) { nx /= length; ny /= length; nz /= length; } else ny = 1;
                 int normal = (Math.round(nz * 127) & 255) << 16 | (Math.round(ny * 127) & 255) << 8 | (Math.round(nx * 127) & 255);
-                int id = q < tagged ? ids[q] : 0;
+                int id = q < tagged ? ids[q] : 0, block = q < tagged ? blocks[q] : 0;
                 int mid = (Math.round(Math.max(0, Math.min(1, midV)) * 65535) << 16) | Math.round(Math.max(0, Math.min(1, midU)) * 65535);
                 for (int v = 0; v < 4; v++) {
                     int to = (q * 4 + v) * SHADER_INTS_PER_VERTEX;
@@ -104,12 +112,18 @@ final class SectionMesher {
                     wide[to + 8] = normal;
                     wide[to + 9] = id & 0xffff;
                     wide[to + 10] = mid;
+                    // at_midBlock: from this corner to the block's centre, in 64ths (within a byte for any corner of the block).
+                    int cx = Math.round(((block & 15) + 0.5f - p[v * 3]) * 64), cy = Math.round(((block >> 4 & 15) + 0.5f - p[v * 3 + 1]) * 64);
+                    int cz = Math.round(((block >> 8 & 15) + 0.5f - p[v * 3 + 2]) * 64);
+                    wide[to + 11] = (block >> 12 & 15) << 24 | (clampByte(cz) & 255) << 16 | (clampByte(cy) & 255) << 8 | (clampByte(cx) & 255);
                 }
             }
             data = wide;
             size = wide.length;
             stride = SHADER_INTS_PER_VERTEX;
         }
+
+        private static int clampByte(int v) { return Math.max(-128, Math.min(127, v)); }
 
         void ensure(int more) {
             if (size + more > data.length) data = Arrays.copyOf(data, Math.max(data.length * 2, size + more));
@@ -171,7 +185,8 @@ final class SectionMesher {
                     if (block.renderType() == Block.RenderType.FLUID && Liquids.isLiquid(block)) {
                         Buffer target = TRANSLUCENT.contains(block.name().path()) ? mesh.translucent : mesh.opaque;
                         fluids.build(target, view, state, x, y, z, startX, startY, startZ);
-                        if (shader != null) target.tag(shader.blockId(block.name().path(), state::get));
+                        if (shader != null)
+                            target.tag(shader.blockId(block.name().path(), state::get), x - startX, y - startY, z - startZ, block.lightLevel());
                         continue;
                     }
                     ActualState actual = block.actualState(view, x, y, z, state);
@@ -188,7 +203,7 @@ final class SectionMesher {
                         lighting.light(block, model, quad, x, y, z, light);
                         emitQuad(target, view, x, y, z, startX, startY, startZ, actual, quad, light, shader != null);
                     }
-                    if (shader != null) target.tag(shader.blockId(name, actual::get));
+                    if (shader != null) target.tag(shader.blockId(name, actual::get), x - startX, y - startY, z - startZ, block.lightLevel());
                 }
             }
         }

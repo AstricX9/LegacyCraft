@@ -1841,6 +1841,7 @@ public final class Minecraft implements GuiContext {
             if (!(entity instanceof MovingEntity moving)) continue;
             double ex = moving.renderX(partialTicks), ey = moving.renderY(partialTicks), ez = moving.renderZ(partialTicks);
             if ((ex - player.x) * (ex - player.x) + (ez - player.z) * (ez - player.z) > limit) continue;
+            net.minecraft.client.shaders.Shaders.entity(moving.entityId());
             if (entity instanceof EntityCreeper creeper) {
                 mobRenderer.renderCreeper(creeper, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
@@ -1888,8 +1889,10 @@ public final class Minecraft implements GuiContext {
                 if (item != null) mobRenderer.renderThrownItem(thrown, new ItemStack(item), partialTicks);
             }
         }
+        net.minecraft.client.shaders.Shaders.entity(null);
         renderSkulls(limit);
         renderBlockEntities(limit);
+        net.minecraft.client.shaders.Shaders.blockEntity(null, null);
         if (mobRenderer.bossRendered && ingameGui != null)
             ingameGui.setBossStatus(I18n.format(mobRenderer.bossName), mobRenderer.bossHealthScale);
         if (shadows && gameSettings.thirdPersonView != 0 && !player.dead)
@@ -1932,6 +1935,7 @@ public final class Minecraft implements GuiContext {
             float[] light = net.minecraft.client.renderer.LightMap.color(world.getSkyLight(x, y, z), world.getBlockLight(x, y, z));
             boolean lit = !state.block().name().path().equals("end_portal");
             if (lit) net.minecraft.client.renderer.StandardLighting.enable();
+            net.minecraft.client.shaders.Shaders.blockEntity(state.block().name().path(), state::get);
             blockEntityRenderer.render(state, x, y, z, world::getState, light, levelInfo.totalTime, partialTicks, camera);
             if (lit) net.minecraft.client.renderer.StandardLighting.disable();
         });
@@ -1951,6 +1955,7 @@ public final class Minecraft implements GuiContext {
                 iterator.remove();
                 continue;
             }
+            net.minecraft.client.shaders.Shaders.blockEntity("skull", state::get);
             mobRenderer.renderSkullBlock(pos.x(), pos.y(), pos.z(), state.metadata() & 7, entry.getValue());
         }
     }
@@ -2351,7 +2356,11 @@ public final class Minecraft implements GuiContext {
         renderItemEntities(renderDistance);
         renderMobs(renderDistance);
         tableBooks.render(world, guiTextures, partialTicks, player.x, player.z, Math.min(64.0, renderDistance));
-        if (gameSettings.thirdPersonView != 0 && !player.dead) renderPlayerModel();
+        if (gameSettings.thirdPersonView != 0 && !player.dead) {
+            net.minecraft.client.shaders.Shaders.entity("player");
+            renderPlayerModel();
+            net.minecraft.client.shaders.Shaders.entity(null);
+        }
         WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? target() : null;
         net.minecraft.client.shaders.Shaders.use("gbuffers_damagedblock");
         drawDestroyProgress();
@@ -2411,6 +2420,10 @@ public final class Minecraft implements GuiContext {
         f.nightVision = player.nightVisionBrightness(partialTicks);
         f.blindness = player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS) ? 1f : 0f;
         f.hideGui = gameSettings.hideGUI;
+        ItemStack held = inventory == null ? null : inventory.getCurrentItem();
+        f.heldItem = held == null ? null : held.item().vanillaId().path();
+        Block heldBlock = held == null ? null : held.item().placedBlock();
+        f.heldItemLight = heldBlock == null ? 0 : heldBlock.lightLevel();
         System.arraycopy(fog, 0, f.fog, 0, 3);
         System.arraycopy(sky.skyColor(), 0, f.sky, 0, 3);
         net.minecraft.client.shaders.Shaders.atlasTexture = atlas.textureId();
@@ -2833,6 +2846,7 @@ public final class Minecraft implements GuiContext {
     private void renderItemEntities(int renderDistance) {
         double limit = (double) renderDistance * renderDistance;
         glEnable(GL_DEPTH_TEST);
+        net.minecraft.client.shaders.Shaders.entity("Item");
         for (Entity entity : server.entities().values()) {
             if (!(entity instanceof EntityItem item) || item.isRemoved()) continue;
             double x = item.prevX + (item.x() - item.prevX) * partialTicks;
@@ -2843,6 +2857,7 @@ public final class Minecraft implements GuiContext {
             renderDroppedItem(item.stack(), x, y, z, item.age + partialTicks, item.hoverStart);
             if (item.isBurning()) renderEntityFire(x, y, z, (float) EntityItem.SIZE, (float) EntityItem.SIZE);
         }
+        net.minecraft.client.shaders.Shaders.entity(null);
         for (ItemPickup pickup : itemPickups) {
             // EntityPickupFX.renderParticle: from where the item was to half a block above the player's feet, easing in.
             float progress = (pickup.ticks + partialTicks) / ItemPickup.DURATION;

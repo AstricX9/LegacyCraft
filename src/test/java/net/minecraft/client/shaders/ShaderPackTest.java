@@ -123,6 +123,41 @@ class ShaderPackTest {
     }
 
     @Test
+    void entityAndItemIdsMatch189Names(@TempDir Path dir) throws Exception {
+        Path pack = dir.resolve("Pack");
+        Files.createDirectories(pack.resolve("shaders"));
+        Files.writeString(pack.resolve("shaders/entity.properties"), """
+            #if MC_VERSION >= 11300
+            entity.50012=iron_golem
+            #else
+            entity.50012=villager_golem
+            #endif
+            entity.50052=magma_cube
+            entity.50016=player
+            """);
+        Files.writeString(pack.resolve("shaders/item.properties"), "item.44002=torch\nitem.45004=minecraft:wooden_sword bow\n");
+        ShaderPack loaded = ShaderPack.load(pack, Map.of("MC_VERSION", "10809"));
+        assertEquals(50012, loaded.entityId("VillagerGolem"));
+        assertEquals(50052, loaded.entityId("LavaSlime"), "1.8.9's name for the magma cube");
+        assertEquals(50016, loaded.entityId("player"));
+        assertEquals(-1, loaded.entityId("Creeper"));
+        assertEquals(44002, loaded.itemId("torch"));
+        assertEquals(45004, loaded.itemId("wooden_sword"));
+        assertEquals(-1, loaded.itemId("stick"));
+    }
+
+    @Test
+    void extensionLinesMoveUpToTheVersionLine(@TempDir Path dir) throws Exception {
+        Path pack = dir.resolve("Pack");
+        Files.createDirectories(pack.resolve("shaders"));
+        Files.writeString(pack.resolve("shaders/shadow.vsh"),
+            "#version 130\nuniform float a;\n#if 1\n    #extension GL_ARB_shader_image_load_store : enable\n#endif\nvoid main() {}\n");
+        String source = ShaderPack.load(pack, Map.of("MC_VERSION", "10809")).program("world0", "shadow", ".vsh");
+        assertTrue(source.startsWith("#version 130\n#extension GL_ARB_shader_image_load_store : enable\n#define MC_VERSION 10809\n"), source);
+        assertEquals(1, source.split("#extension", -1).length - 1, source);
+    }
+
+    @Test
     void compileErrorsSkipTheDriversWarnings() {
         assertEquals("0(70) : error C1503: undefined variable \"MC_RENDER_STAGE_MOON\"", Shaders.firstError(
             "0(1033) : warning C7533: global function texture2DLod is deprecated after version 120\n"

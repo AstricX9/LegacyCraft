@@ -10,10 +10,11 @@
       "id": "pack",
       "type": "file",
       "name": "Shader Pack",
-      "description": "The pack's .zip in the instance's shaderpacks folder. Options go in a .txt file named after it, as with OptiFine.",
+      "description": "The pack's .zip, or its unzipped folder, in the instance's shaderpacks folder. Options go in a .txt file named after it, as with OptiFine.",
       "folder": "shaderpacks",
       "extensions": [
-        ".zip"
+        ".zip",
+        "/"
       ],
       "default": ""
     },

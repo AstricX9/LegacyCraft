@@ -322,6 +322,7 @@ public final class WorldRenderer {
         // leaves (fancy leaves draw both) z-fight. Menus and item rendering turn culling off, so set it here.
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_TERRAIN_SOLID);
         for (Section section : opaque)
             if (section.opaqueVertices > 0) drawBuffer(section, section.opaqueBuffer, section.opaqueVertices);
         // The CUTOUT layer without mipmaps (setBlurMipmap(false, false) around it), so plants keep their
@@ -339,6 +340,7 @@ public final class WorldRenderer {
             if (resort(section, eyeX, eyeY, eyeZ)) resorts++;
         }
         endArrays();
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_NONE);
         pendingTranslucent = translucent;
         // With a shader pack, entities and the pack's deferred programs come before water and glass.
         if (!net.minecraft.client.shaders.Shaders.rendering()) renderTranslucent();
@@ -359,10 +361,12 @@ public final class WorldRenderer {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         net.minecraft.client.shaders.Shaders.use("gbuffers_water");
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_TERRAIN_TRANSLUCENT);
         // Translucent faces last, still culled like vanilla's translucent layer (the fluid renderer
         // adds the back-facing copies of water faces itself), far to near, re-sorted inside the nearest sections as the camera moves.
         for (Section section : translucent) drawBuffer(section, section.translucentBuffer, section.translucentVertices);
         endArrays();
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_NONE);
     }
 
     /**
@@ -377,6 +381,7 @@ public final class WorldRenderer {
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, .1f);
         glDisable(GL_CULL_FACE);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_TERRAIN_SOLID);
         for (Column column : columns.values()) {
             for (Section section : column.sections) {
                 if (section.opaqueVertices == 0 && section.cutoutVertices == 0 && section.translucentVertices == 0) continue;
@@ -389,8 +394,10 @@ public final class WorldRenderer {
         between.run();
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_TERRAIN_TRANSLUCENT);
         for (Section section : translucent) drawBuffer(section, section.translucentBuffer, section.translucentVertices);
         endArrays();
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_NONE);
     }
 
     private void beginArrays() {
@@ -409,6 +416,7 @@ public final class WorldRenderer {
         glDisableClientState(GL_NORMAL_ARRAY);
         glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE);
         glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE);
+        glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_BLOCK_ATTRIBUTE);
         glVertexAttrib4f(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE, 0, 0, 0, 1);
         glVertexAttrib4f(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE, 0, 0, 0, 1);
         glNormal3f(0, 0, 1);
@@ -489,10 +497,13 @@ public final class WorldRenderer {
             glVertexAttribPointer(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE, 2, GL_SHORT, false, bytes, 36L);
             glEnableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE);
             glVertexAttribPointer(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE, 2, GL_UNSIGNED_SHORT, true, bytes, 40L);
+            glEnableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_BLOCK_ATTRIBUTE);
+            glVertexAttribPointer(net.minecraft.client.shaders.Shaders.MID_BLOCK_ATTRIBUTE, 4, GL_BYTE, false, bytes, 44L);
         } else {
             glDisableClientState(GL_NORMAL_ARRAY);
             glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.ENTITY_ATTRIBUTE);
             glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_TEX_ATTRIBUTE);
+            glDisableVertexAttribArray(net.minecraft.client.shaders.Shaders.MID_BLOCK_ATTRIBUTE);
         }
         glPushMatrix();
         glTranslatef(section.x * 16, section.y * 16, section.z * 16);
