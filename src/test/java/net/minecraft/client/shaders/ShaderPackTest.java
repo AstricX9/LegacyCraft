@@ -147,6 +147,17 @@ class ShaderPackTest {
     }
 
     @Test
+    void extensionLinesMoveUpToTheVersionLine(@TempDir Path dir) throws Exception {
+        Path pack = dir.resolve("Pack");
+        Files.createDirectories(pack.resolve("shaders"));
+        Files.writeString(pack.resolve("shaders/shadow.vsh"),
+            "#version 130\nuniform float a;\n#if 1\n    #extension GL_ARB_shader_image_load_store : enable\n#endif\nvoid main() {}\n");
+        String source = ShaderPack.load(pack, Map.of("MC_VERSION", "10809")).program("world0", "shadow", ".vsh");
+        assertTrue(source.startsWith("#version 130\n#extension GL_ARB_shader_image_load_store : enable\n#define MC_VERSION 10809\n"), source);
+        assertEquals(1, source.split("#extension", -1).length - 1, source);
+    }
+
+    @Test
     void compileErrorsSkipTheDriversWarnings() {
         assertEquals("0(70) : error C1503: undefined variable \"MC_RENDER_STAGE_MOON\"", Shaders.firstError(
             "0(1033) : warning C7533: global function texture2DLod is deprecated after version 120\n"

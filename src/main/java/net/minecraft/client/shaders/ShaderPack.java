@@ -117,9 +117,20 @@ public final class ShaderPack {
         return addMacros(out.toString());
     }
 
-    /** Puts the standard macros after the #version line (and its #extension lines' place is still before any code). */
+    /**
+     * Puts the standard macros after the #version line, and moves #extension lines up there too:
+     * packs put them mid-file (inside #if), which NVIDIA allows but Mesa doesn't, as Iris does.
+     */
     private String addMacros(String source) {
         StringBuilder defines = new StringBuilder();
+        Matcher extension = Pattern.compile("^[ \\t]*#[ \\t]*extension[^\\n]*\\n", Pattern.MULTILINE).matcher(source);
+        StringBuilder rest = new StringBuilder();
+        while (extension.find()) {
+            defines.append(extension.group().trim()).append('\n');
+            extension.appendReplacement(rest, "\n");
+        }
+        extension.appendTail(rest);
+        source = rest.toString();
         for (Map.Entry<String, String> e : standardMacros.entrySet())
             defines.append("#define ").append(e.getKey()).append(' ').append(e.getValue()).append('\n');
         Matcher version = Pattern.compile("^\\s*#version[^\\n]*\\n", Pattern.MULTILINE).matcher(source);
@@ -200,8 +211,8 @@ public final class ShaderPack {
                         System.err.println("Shader pack " + name + ": skipping " + key + ": " + ex.getMessage());
                     }
                 } else {
-                    // Buffer sizes may be written as option names (size.buffer.colortex1 = REFLECTION_RES REFLECTION_RES).
-                    properties.put(key, key.startsWith("size.buffer.") ? values.expand(value) : value);
+                    // Buffer and image sizes may be written as option names (size.buffer.colortex1 = REFLECTION_RES REFLECTION_RES).
+                    properties.put(key, key.startsWith("size.buffer.") || key.startsWith("image.") ? values.expand(value) : value);
                 }
             }
         }

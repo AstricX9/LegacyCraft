@@ -139,11 +139,37 @@ public final class Shaders {
         int alphaFunc = -1;
         float alphaRef;
         final boolean[] mipmap = new boolean[COLORTEX];
+        /** A compute program (Iris .csh): dispatched workGroups times, or over the screen scaled by workGroupsRender. */
+        boolean compute;
+        int[] workGroups;
+        float[] workGroupsRender = {1, 1};
         Program(String name) { this.name = name; }
     }
 
     private record Uniform(String name, int location, int type) {}
-    private record Sampler(String name, int unit, boolean shadow) {}
+    private record Sampler(String name, int unit, boolean shadow, int target) {}
+
+    /**
+     * A pack's own texture (Iris custom images, {@code image.NAME = sampler format internalFormat
+     * pixelType clear relative width height [depth]}): programs write it as the image NAME on image
+     * unit {@code unit} and read it as the sampler {@code sampler}.
+     */
+    private static final class Image {
+        final String name, sampler;
+        final int unit, format, internalFormat, pixelType;
+        final boolean clear, relative;
+        final float[] size;
+        int texture;
+        Image(String name, String sampler, int unit, int format, int internalFormat, int pixelType, boolean clear, boolean relative, float[] size) {
+            this.name = name; this.sampler = sampler; this.unit = unit; this.format = format; this.internalFormat = internalFormat;
+            this.pixelType = pixelType; this.clear = clear; this.relative = relative; this.size = size;
+        }
+        int target() { return size.length == 3 ? org.lwjgl.opengl.GL12.GL_TEXTURE_3D : GL_TEXTURE_2D; }
+    }
+
+    private static final List<Image> images = new ArrayList<>();
+    private static final List<Program> setup = new ArrayList<>(), shadowcomp = new ArrayList<>();
+    private static boolean setupDone;
 
     // ---- Loading -------------------------------------------------------------------------------
 
@@ -207,7 +233,8 @@ public final class Shaders {
         "TERRAIN_SOLID", "TERRAIN_CUTOUT_MIPPED", "TERRAIN_CUTOUT", "ENTITIES", "BLOCK_ENTITIES", "DESTROY", "OUTLINE",
         "DEBUG", "HAND_SOLID", "TERRAIN_TRANSLUCENT", "TRIPWIRE", "PARTICLES", "CLOUDS", "RAIN_SNOW", "WORLD_BORDER",
         "HAND_TRANSLUCENT"};
-    public static final int STAGE_NONE = 0, STAGE_SKY = 1, STAGE_SUNSET = 2, STAGE_SUN = 4, STAGE_MOON = 5, STAGE_STARS = 6, STAGE_VOID = 7;
+    public static final int STAGE_NONE = 0, STAGE_SKY = 1, STAGE_SUNSET = 2, STAGE_SUN = 4, STAGE_MOON = 5, STAGE_STARS = 6, STAGE_VOID = 7,
+        STAGE_TERRAIN_SOLID = 8, STAGE_TERRAIN_TRANSLUCENT = 17;
     private static int renderStage;
     private static int entityId = -1, blockEntityId = -1;
 
@@ -230,11 +257,24 @@ public final class Shaders {
 
     /** Tells the pack (renderStage) what is being drawn; packs written for Iris tell the sun, moon and stars apart by it. */
     public static void renderStage(int stage) {
+        if (stage == renderStage) return;
         renderStage = stage;
-        if (rendering && !shadowPass && current != null) uniforms(current);
+        if (rendering && current != null) uniforms(current);
     }
 
-    private static final java.util.Set<String> IRIS_FEATURES = java.util.Set.of("SEPARATE_HARDWARE_SAMPLERS");
+    /** The Iris features we provide: custom images and compute shaders need OpenGL 4.3. */
+    private static java.util.Set<String> irisFeatures() {
+        return glVersion() >= 430
+            ? java.util.Set.of("SEPARATE_HARDWARE_SAMPLERS", "CUSTOM_IMAGES", "COMPUTE_SHADERS", "BLOCK_EMISSION_ATTRIBUTE")
+            : java.util.Set.of("SEPARATE_HARDWARE_SAMPLERS");
+    }
+
+    /** The context's OpenGL version as 100 * major + 10 * minor (4.6 is 460). */
+    private static int glVersion() {
+        String version = glGetString(GL_VERSION);
+        Matcher v = Pattern.compile("(\\d+)\\.(\\d+)").matcher(version == null ? "" : version);
+        return v.find() ? Integer.parseInt(v.group(1)) * 100 + Integer.parseInt(v.group(2)) * 10 : 210;
+    }
 
     /** In Iris mode, the features the pack requires (iris.features.required) that aren't provided, or null. */
     private static String missingIrisFeatures() {
@@ -242,7 +282,7 @@ public final class Shaders {
         if (required == null) return null;
         List<String> missing = new ArrayList<>();
         for (String feature : required.trim().split("\\s+"))
-            if (!feature.isEmpty() && !IRIS_FEATURES.contains(feature.toUpperCase(Locale.ROOT))) missing.add(feature);
+            if (!feature.isEmpty() && !irisFeatures().contains(feature.toUpperCase(Locale.ROOT))) missing.add(feature);
         return missing.isEmpty() ? null : String.join(", ", missing);
     }
 
@@ -272,11 +312,7 @@ public final class Shaders {
     private static Map<String, String> standardMacros() {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("MC_VERSION", "10809");
-        String version = glGetString(GL_VERSION);
-        int gl = 210;
-        Matcher v = Pattern.compile("(\\d+)\\.(\\d+)").matcher(version == null ? "" : version);
-        if (v.find()) gl = Integer.parseInt(v.group(1)) * 100 + Integer.parseInt(v.group(2)) * 10;
-        m.put("MC_GL_VERSION", Integer.toString(gl));
+        m.put("MC_GL_VERSION", Integer.toString(glVersion()));
         String glsl = glGetString(GL_SHADING_LANGUAGE_VERSION);
         Matcher s = Pattern.compile("(\\d+)\\.(\\d+)").matcher(glsl == null ? "" : glsl);
         m.put("MC_GLSL_VERSION", s.find() ? Integer.toString(Integer.parseInt(s.group(1)) * 100 + Integer.parseInt(s.group(2))) : "120");
@@ -292,7 +328,7 @@ public final class Shaders {
             // Iris announces itself, its version and the optional features it has (iris.features.optional).
             m.put("IS_IRIS", "");
             m.put("IRIS_VERSION", "10800");
-            for (String feature : IRIS_FEATURES) m.put("IRIS_FEATURE_" + feature, "");
+            for (String feature : irisFeatures()) m.put("IRIS_FEATURE_" + feature, "");
             for (int i = 0; i < RENDER_STAGES.length; i++) m.put("MC_RENDER_STAGE_" + RENDER_STAGES[i], String.valueOf(i));
         }
         return m;
@@ -310,20 +346,21 @@ public final class Shaders {
             "gbuffers_skytextured", "gbuffers_clouds", "gbuffers_terrain", "gbuffers_damagedblock", "gbuffers_block",
             "gbuffers_beaconbeam", "gbuffers_item", "gbuffers_entities", "gbuffers_entities_glowing", "gbuffers_armor_glint",
             "gbuffers_spidereyes", "gbuffers_hand", "gbuffers_weather", "gbuffers_water", "gbuffers_hand_water"};
+        if (iris) readImages();
         for (String name : names) programs.put(name, compileOrSkip(name));
         shadowProgram = compileOrSkip("shadow");
-        // OptiFine numbers its passes up to 15, Iris up to 99 and adds begin (before the shadow map) and prepare (after it).
+        // OptiFine numbers its passes up to 15, Iris up to 99 and adds begin (before the shadow map), shadowcomp
+        // and prepare (after it) and setup (once); an Iris pass may also run compute programs before its fragment one.
+        boolean compute = iris && glVersion() >= 430;
+        if (compute) addPass(setup, "setup", true);
         for (int i = 0; i < (iris ? 100 : 16); i++) {
             String suffix = i == 0 ? "" : Integer.toString(i);
-            Program p = compileOrSkip("deferred" + suffix);
-            if (p != null) deferred.add(p);
-            p = compileOrSkip("composite" + suffix);
-            if (p != null) composite.add(p);
+            addPass(deferred, "deferred" + suffix, compute);
+            addPass(composite, "composite" + suffix, compute);
             if (!iris) continue;
-            p = compileOrSkip("begin" + suffix);
-            if (p != null) begin.add(p);
-            p = compileOrSkip("prepare" + suffix);
-            if (p != null) prepare.add(p);
+            addPass(begin, "begin" + suffix, compute);
+            addPass(prepare, "prepare" + suffix, compute);
+            if (compute) addPass(shadowcomp, "shadowcomp" + suffix, true);
         }
         finalProgram = compileOrSkip("final");
         if (finalProgram == null) {
@@ -340,6 +377,51 @@ public final class Shaders {
         return true;
     }
 
+    /**
+     * Adds a pass's programs to {@code passes}: with {@code compute}, its compute programs (NAME.csh,
+     * then NAME_a.csh to NAME_z.csh); then its fragment program, unless the pass is only compute (shadowcomp, setup).
+     */
+    private static void addPass(List<Program> passes, String name, boolean compute) {
+        if (compute) {
+            for (char c = '`'; c <= 'z'; c++) {
+                Program p = compileOrSkip(c == '`' ? name : name + "_" + c, true);
+                if (p != null) passes.add(p);
+            }
+        }
+        if (name.startsWith("shadowcomp") || name.startsWith("setup")) return;
+        Program p = compileOrSkip(name);
+        if (p != null) passes.add(p);
+    }
+
+    /** The pack's custom images (Iris), each on its own image unit. */
+    private static void readImages() {
+        for (Map.Entry<String, String> e : pack.properties.entrySet()) {
+            if (!e.getKey().startsWith("image.")) continue;
+            String[] parts = e.getValue().trim().split("\\s+");
+            try {
+                boolean relative = parts[5].equalsIgnoreCase("true");
+                int dimensions = relative ? 2 : parts.length - 6;
+                if (parts.length < 8 || dimensions < 2 || dimensions > 3) throw new IllegalArgumentException("needs a size");
+                float[] size = new float[dimensions];
+                for (int i = 0; i < dimensions; i++) size[i] = Float.parseFloat(parts[6 + i]);
+                images.add(new Image(e.getKey().substring(6), parts[0], images.size(), glConstant(parts[1]), glConstant(parts[2]),
+                    glConstant(parts[3]), parts[4].equalsIgnoreCase("true"), relative, size));
+            } catch (RuntimeException ex) {
+                report.accept("Shader pack " + pack.name + ": skipping " + e.getKey() + ": " + ex.getMessage());
+            }
+        }
+    }
+
+    /** A GL constant by its name in a pack (rgba16f, red_integer, unsigned_int...). */
+    static int glConstant(String name) {
+        String field = "GL_" + name.toUpperCase(Locale.ROOT);
+        for (Class<?> gl : new Class<?>[]{org.lwjgl.opengl.GL11.class, org.lwjgl.opengl.GL12.class, org.lwjgl.opengl.GL30.class,
+            org.lwjgl.opengl.GL31.class, org.lwjgl.opengl.GL33.class, org.lwjgl.opengl.GL42.class}) {
+            try { return gl.getField(field).getInt(null); } catch (ReflectiveOperationException ignored) {}
+        }
+        throw new IllegalArgumentException("unknown " + name);
+    }
+
     private static boolean enabled(String name) {
         String value = pack.property("program." + dimension + "/" + name + ".enabled");
         if (value == null) value = pack.property("program." + name + ".enabled");
@@ -352,9 +434,11 @@ public final class Shaders {
     private static final Pattern CONST = Pattern.compile("^\\s*(?:/\\*)?\\s*const\\s+(\\w+)\\s+(\\w+)\\s*=\\s*([^;]+);");
 
     /** A program that doesn't build is reported and left out, like one the pack doesn't have (OptiFine does the same). */
-    private static Program compileOrSkip(String name) {
+    private static Program compileOrSkip(String name) { return compileOrSkip(name, false); }
+
+    private static Program compileOrSkip(String name, boolean compute) {
         try {
-            return compile(name);
+            return compute ? compileCompute(name) : compile(name);
         } catch (RuntimeException e) {
             report.accept("Shader pack " + pack.name + ": " + e.getMessage());
             return null;
@@ -398,6 +482,33 @@ public final class Shaders {
         }
         readInterface(p);
         readBlend(p);
+        return p;
+    }
+
+    /** A compute program (Iris), from NAME.csh; null if the pack has none. */
+    private static Program compileCompute(String name) {
+        if (!enabled(name)) return null;
+        String source = pack.program(dimension, name, ".csh");
+        if (source == null) return null;
+        Program p = new Program(name);
+        p.compute = true;
+        p.drawBuffers = new int[0];
+        for (String line : pack.activeLines(source)) {
+            Matcher m = CONST.matcher(line);
+            if (m.find()) constant(p, m.group(1), m.group(2), m.group(3).trim());
+        }
+        int cs = shader(org.lwjgl.opengl.GL43.GL_COMPUTE_SHADER, source, name + ".csh");
+        p.id = glCreateProgram();
+        glAttachShader(p.id, cs);
+        glLinkProgram(p.id);
+        glDeleteShader(cs);
+        if (glGetProgrami(p.id, GL_LINK_STATUS) == GL_FALSE) {
+            String log = glGetProgramInfoLog(p.id);
+            glDeleteProgram(p.id);
+            dump(name + ".link", log);
+            throw new RuntimeException(name + " didn't link: " + firstError(log));
+        }
+        readInterface(p);
         return p;
     }
 
@@ -459,6 +570,14 @@ public final class Shaders {
         }
         try {
             switch (name) {
+                case "workGroups" -> {
+                    float[] n = numbers(value);
+                    p.workGroups = new int[]{(int) n[0], (int) n[1], Math.max(1, (int) n[2])};
+                }
+                case "workGroupsRender" -> {
+                    float[] n = numbers(value);
+                    p.workGroupsRender = new float[]{n[0], n[1]};
+                }
                 case "shadowMapResolution" -> shadowResolution = (int) Double.parseDouble(value);
                 case "shadowDistance" -> shadowDistance = (float) Double.parseDouble(value);
                 case "shadowIntervalSize" -> shadowIntervalSize = (float) Double.parseDouble(value);
@@ -507,6 +626,10 @@ public final class Shaders {
             int location = glGetUniformLocation(p.id, name);
             if (location < 0 || name.startsWith("gl_")) continue;
             int t = type.get(0);
+            if (isImage(t)) {
+                for (Image image : images) if (image.name.equals(name)) glUniform1i(location, image.unit);
+                continue;
+            }
             if (isSampler(t)) {
                 // The texture being drawn with stays on unit 0 and the lightmap on 1, as the game binds them.
                 int u = p.name.startsWith("gbuffers_") || p.name.equals("shadow")
@@ -514,12 +637,17 @@ public final class Shaders {
                     : unit++;
                 if (p.name.startsWith("gbuffers_") && name.equals("gcolor")) u = 0;
                 glUniform1i(location, u);
-                p.samplers.add(new Sampler(name, u, t == GL_SAMPLER_2D_SHADOW));
+                boolean is3d = t == GL_SAMPLER_3D || t == GL_INT_SAMPLER_3D || t == GL_UNSIGNED_INT_SAMPLER_3D;
+                p.samplers.add(new Sampler(name, u, t == GL_SAMPLER_2D_SHADOW, is3d ? org.lwjgl.opengl.GL12.GL_TEXTURE_3D : GL_TEXTURE_2D));
             } else {
                 p.uniforms.add(new Uniform(name, location, t));
             }
         }
         glUseProgram(0);
+    }
+
+    private static boolean isImage(int type) {
+        return type >= org.lwjgl.opengl.GL42.GL_IMAGE_1D && type <= org.lwjgl.opengl.GL42.GL_UNSIGNED_INT_IMAGE_2D_MULTISAMPLE_ARRAY;
     }
 
     private static boolean isSampler(int type) {
@@ -577,8 +705,13 @@ public final class Shaders {
         for (Program p : composite) glDeleteProgram(p.id);
         for (Program p : begin) glDeleteProgram(p.id);
         for (Program p : prepare) glDeleteProgram(p.id);
+        for (Program p : setup) glDeleteProgram(p.id);
+        for (Program p : shadowcomp) glDeleteProgram(p.id);
         begin.clear();
         prepare.clear();
+        setup.clear();
+        shadowcomp.clear();
+        setupDone = false;
         if (finalProgram != null) glDeleteProgram(finalProgram.id);
         if (shadowProgram != null) glDeleteProgram(shadowProgram.id);
         programs.clear();
@@ -587,6 +720,7 @@ public final class Shaders {
         finalProgram = shadowProgram = current = null;
         // Buffer formats come from the programs: make them again.
         destroyBuffers();
+        images.clear();
     }
 
     private static void destroyBuffers() {
@@ -595,6 +729,7 @@ public final class Shaders {
             whiteTexture, normalTexture, blackTexture}) if (t != 0) glDeleteTextures(t);
         for (int t : packTextures.values()) glDeleteTextures(t);
         packTextures.clear();
+        for (Image image : images) { if (image.texture != 0) glDeleteTextures(image.texture); image.texture = 0; }
         for (int f : new int[]{gbufferFbo, passFbo, shadowFbo}) if (f != 0) glDeleteFramebuffers(f);
         depthtex0 = depthtex1 = depthtex2 = shadowtex0 = shadowtex1 = shadowcolor0 = shadowcolor1 = noiseTexture = 0;
         whiteTexture = normalTexture = blackTexture = 0;
@@ -652,9 +787,32 @@ public final class Shaders {
         whiteTexture = solid(255, 255, 255, 255);
         blackTexture = solid(0, 0, 0, 0);
         normalTexture = solid(127, 127, 255, 255);
+        for (Image image : images) createImage(image);
         noiseTexture = loadPackTexture(pack.property("texture.noise"));
         if (noiseTexture == 0) noiseTexture = noise(noiseResolution);
         else packTextures.values().remove(noiseTexture);
+    }
+
+    private static void createImage(Image image) {
+        int target = image.target();
+        image.texture = glGenTextures();
+        glBindTexture(target, image.texture);
+        boolean integer = isInteger(image.internalFormat);
+        glTexParameteri(target, GL_TEXTURE_MIN_FILTER, integer ? GL_NEAREST : GL_LINEAR);
+        glTexParameteri(target, GL_TEXTURE_MAG_FILTER, integer ? GL_NEAREST : GL_LINEAR);
+        glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        if (image.size.length == 3) {
+            glTexParameteri(target, org.lwjgl.opengl.GL12.GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+            org.lwjgl.opengl.GL12.glTexImage3D(target, 0, image.internalFormat, (int) image.size[0], (int) image.size[1], (int) image.size[2],
+                0, image.format, image.pixelType, (ByteBuffer) null);
+        } else {
+            int w = image.relative ? Math.max(1, Math.round(width * image.size[0])) : (int) image.size[0];
+            int h = image.relative ? Math.max(1, Math.round(height * image.size[1])) : (int) image.size[1];
+            glTexImage2D(target, 0, image.internalFormat, w, h, 0, image.format, image.pixelType, (ByteBuffer) null);
+        }
+        org.lwjgl.opengl.GL44.glClearTexImage(image.texture, 0, image.format, image.pixelType, (ByteBuffer) null);
+        glBindTexture(target, 0);
     }
 
     private static int bufferWidth(int i) { return Math.max(1, Math.round(width * scale[i])); }
@@ -759,6 +917,8 @@ public final class Shaders {
         all.addAll(composite);
         all.addAll(begin);
         all.addAll(prepare);
+        all.addAll(setup);
+        all.addAll(shadowcomp);
         if (shadowProgram != null) all.add(shadowProgram);
         if (finalProgram != null) all.add(finalProgram);
         return all;
@@ -815,6 +975,16 @@ public final class Shaders {
         glDepthMask(true);
         glClearDepth(1);
         glClear(GL_DEPTH_BUFFER_BIT);
+        // Images keep their unit for the whole frame; those marked clear start each frame empty.
+        for (Image image : images) {
+            if (image.clear) org.lwjgl.opengl.GL44.glClearTexImage(image.texture, 0, image.format, image.pixelType, (ByteBuffer) null);
+            org.lwjgl.opengl.GL42.glBindImageTexture(image.unit, image.texture, 0, image.size.length == 3, 0,
+                org.lwjgl.opengl.GL15.GL_READ_WRITE, image.internalFormat);
+        }
+        if (!setupDone) {
+            setupDone = true;
+            if (!setup.isEmpty()) runPasses(setup);
+        }
         if (!begin.isEmpty()) {
             runPasses(begin);
             glBindFramebuffer(GL_FRAMEBUFFER, gbufferFbo);
@@ -899,13 +1069,14 @@ public final class Shaders {
             if (s.unit < 2) continue;
             int texture = samplerTexture(s.name, stage);
             glActiveTexture(GL_TEXTURE0 + s.unit);
-            glBindTexture(GL_TEXTURE_2D, texture);
+            glBindTexture(s.target, texture);
             glBindSampler(s.unit, s.shadow ? compareSampler : 0);
         }
         glActiveTexture(GL_TEXTURE0);
     }
 
     private static int samplerTexture(String name, String stage) {
+        for (Image image : images) if (image.sampler.equals(name)) return image.texture;
         String custom = pack.property("texture." + stage + "." + name);
         if (custom != null) return loadPackTexture(custom);
         custom = pack.property("customTexture." + name);
@@ -978,6 +1149,10 @@ public final class Shaders {
     private static void runPasses(List<Program> passes) {
         glBindFramebuffer(GL_FRAMEBUFFER, passFbo);
         for (Program p : passes) {
+            if (p.compute) {
+                dispatch(p);
+                continue;
+            }
             attach(p.drawBuffers, true);
             int first = p.drawBuffers.length > 0 ? p.drawBuffers[0] : 0;
             glViewport(0, 0, bufferWidth(first), bufferHeight(first));
@@ -992,6 +1167,25 @@ public final class Shaders {
             for (int b : p.drawBuffers) if (b >= 0 && b < COLORTEX && colortex[b][0] != 0) flip[b] = 1 - flip[b];
         }
         glViewport(0, 0, width, height);
+    }
+
+    /** Runs a compute program over its work groups, then lets later programs see what it wrote. */
+    private static void dispatch(Program p) {
+        current = p;
+        glUseProgram(p.id);
+        uniforms(p);
+        samplers(p, true);
+        // Images written by the shadow pass or a fragment program must be finished first.
+        org.lwjgl.opengl.GL42.glMemoryBarrier(org.lwjgl.opengl.GL42.GL_ALL_BARRIER_BITS);
+        int[] groups = p.workGroups;
+        if (groups == null) {
+            int[] local = new int[3];
+            org.lwjgl.opengl.GL20.glGetProgramiv(p.id, org.lwjgl.opengl.GL43.GL_COMPUTE_WORK_GROUP_SIZE, local);
+            groups = new int[]{(int) Math.ceil(width * p.workGroupsRender[0] / Math.max(1, local[0])),
+                (int) Math.ceil(height * p.workGroupsRender[1] / Math.max(1, local[1])), 1};
+        }
+        org.lwjgl.opengl.GL43.glDispatchCompute(Math.max(1, groups[0]), Math.max(1, groups[1]), Math.max(1, groups[2]));
+        org.lwjgl.opengl.GL42.glMemoryBarrier(org.lwjgl.opengl.GL42.GL_ALL_BARRIER_BITS);
     }
 
     /** Draws a quad over the whole target with {@code p}, OptiFine-style: (0,0)-(1,1) under an orthographic projection. */
@@ -1038,8 +1232,9 @@ public final class Shaders {
     public static void shadowPass(Consumer<Runnable> drawTerrain) {
         if (!rendering) return;
         if (shadowProgram != null) drawShadowMap(drawTerrain);
-        // Iris's prepare passes run once the shadow map is ready, before the terrain.
-        if (prepare.isEmpty() && shadowProgram == null) return;
+        // Iris's shadowcomp and prepare passes run once the shadow map is ready, before the terrain.
+        if (prepare.isEmpty() && shadowcomp.isEmpty() && shadowProgram == null) return;
+        if (!shadowcomp.isEmpty()) runPasses(shadowcomp);
         if (!prepare.isEmpty()) runPasses(prepare);
         glBindFramebuffer(GL_FRAMEBUFFER, gbufferFbo);
         glViewport(0, 0, width, height);
