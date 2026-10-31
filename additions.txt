@@ -1,13 +1,17 @@
-enabled:false
+enabled:true
 toggleSneak:false
-toggleSprint:true
+toggleSprint:false
 fullBright:false
-shaders:false
-coordinates:true
-fpsCounter:false
+fullBright.brightness:100
+shaderPacks:false
+shaderPacks.pack:ComplementaryReimagined_r5.9.3.zip
+shaderPacks.loader:Iris
+coordinates:false
+fpsCounter:true
 noHurtTilt:false
 solidCrosshair:false
-steadyFov:false
-fullBright.brightness:100
-shaders.shader:Vibrant
 solidCrosshair.color:White
+steadyFov:false
+shaders:false
+shaders.shader:Custom File
+shaders.file:
