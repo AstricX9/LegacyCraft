@@ -31,8 +31,7 @@ import java.util.Map;
 public final class Additions {
     public static final String TOGGLE_SPRINT = "toggleSprint", TOGGLE_SNEAK = "toggleSneak", FULL_BRIGHT = "fullBright",
         COORDINATES = "coordinates", FPS_COUNTER = "fpsCounter", NO_HURT_TILT = "noHurtTilt", STEADY_FOV = "steadyFov",
-        SOLID_CROSSHAIR = "solidCrosshair", SHADERS = "shaders",
-        SHADER_PACKS = "shaderPacks";
+        SOLID_CROSSHAIR = "solidCrosshair", SHADER_PACKS = "shaderPacks";
 
     static final String CATALOG = "/assets/legacycraft/additions/";
     /** The additions.txt line that turns Additions on or off for the instance. */

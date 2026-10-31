@@ -92,6 +92,37 @@ class ShaderPackTest {
     }
 
     @Test
+    void readsAndSavesTheOptionsItsScreensShow(@TempDir Path dir) throws Exception {
+        Path pack = dir.resolve("Pack");
+        Files.createDirectories(pack.resolve("shaders/world0"));
+        Files.writeString(pack.resolve("shaders/world0/final.fsh"), """
+            #version 130
+            #define QUALITY 2 //[0 1 2 3]
+            #define BLOOM
+            //#define DOF
+            #define INTERNAL 5
+            const float shadowDistance = 128.0; //[64.0 128.0 256.0]
+            """);
+        Files.writeString(pack.resolve("shaders/shaders.properties"),
+            "screen=QUALITY BLOOM [MORE]\nscreen.MORE=DOF shadowDistance\nprofile.LOW=QUALITY=0 !BLOOM\n");
+        ShaderPack loaded = ShaderPack.load(pack, Map.of());
+        Map<String, ShaderPack.Option> options = loaded.options();
+        assertEquals(List.of("QUALITY", "BLOOM", "DOF", "shadowDistance"), List.copyOf(options.keySet()));
+        assertEquals(List.of("0", "1", "2", "3"), options.get("QUALITY").values());
+        assertEquals("true", options.get("BLOOM").defaultValue());
+        assertEquals("false", options.get("DOF").defaultValue());
+        assertEquals("128.0", options.get("shadowDistance").defaultValue());
+
+        loaded.saveOptions(Map.of("QUALITY", "2", "DOF", "true", "shadowDistance", "256.0"));
+        assertEquals("DOF=true\nshadowDistance=256.0\n", Files.readString(dir.resolve("Pack.txt")), "defaults aren't written");
+        String source = ShaderPack.load(pack, Map.of()).program("world0", "final", ".fsh");
+        assertTrue(source.contains("\n#define DOF"), source);
+        assertTrue(source.contains("const float shadowDistance = 256.0;"), source);
+        loaded.saveOptions(Map.of());
+        assertFalse(Files.exists(dir.resolve("Pack.txt")), "all defaults: no file");
+    }
+
+    @Test
     void matrixInverseUndoesTheMatrix() {
         float[] m = {2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 5, 6, 7, 1};
         float[] inverse = new float[16];

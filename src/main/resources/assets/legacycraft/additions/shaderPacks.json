@@ -4,7 +4,7 @@
   "scope": "game",
   "default": false,
   "name": "Shader Packs",
-  "description": "Runs an OptiFine shader pack (like Complementary or BSL) from the instance's shaderpacks folder. Needs a graphics card with OpenGL 3.3.",
+  "description": "Runs an OptiFine or Iris shader pack (like Complementary or BSL) from the instance's shaderpacks folder. Needs a graphics card with OpenGL 3.3.",
   "settings": [
     {
       "id": "pack",
@@ -16,6 +16,17 @@
         ".zip"
       ],
       "default": ""
+    },
+    {
+      "id": "loader",
+      "type": "choice",
+      "name": "Loader",
+      "description": "Which mod the pack is run as. Iris adds its own passes and lets packs check for it; packs that need Iris-only features (like compute shaders) won't load.",
+      "options": [
+        "OptiFine",
+        "Iris"
+      ],
+      "default": "OptiFine"
     }
   ]
 }

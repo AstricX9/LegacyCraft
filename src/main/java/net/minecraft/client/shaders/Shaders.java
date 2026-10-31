@@ -91,6 +91,9 @@ public final class Shaders {
     private static Program finalProgram, shadowProgram, current;
     private static String currentName;
     private static boolean rendering, shadowPass;
+    /** Load packs as Iris does (IS_IRIS, Iris's extra programs) rather than as OptiFine. */
+    private static boolean iris;
+    private static final List<Program> begin = new ArrayList<>(), prepare = new ArrayList<>();
 
     // Buffers.
     private static int width, height, gbufferFbo, passFbo, shadowFbo;
@@ -146,8 +149,9 @@ public final class Shaders {
      * second, so swapping the file reloads it. Call each frame with the GL
      * context current.
      */
-    public static void select(Path packFile, Consumer<String> chat) {
+    public static void select(Path packFile, boolean asIris, Consumer<String> chat) {
         report = chat;
+        if (asIris != iris) { iris = asIris; loadedKey = ""; }
         long now = System.nanoTime();
         if (now - lastCheck > 1_000_000_000L) {
             lastCheck = now;
@@ -178,6 +182,13 @@ public final class Shaders {
                 meshFormatChanged();
                 return;
             }
+            String missing = missingIrisFeatures();
+            if (missing != null) {
+                chat.accept("Shader pack " + pack.name + " needs Iris features LegacyCraft doesn't have yet: " + missing);
+                pack = null;
+                meshFormatChanged();
+                return;
+            }
         }
         dimension = frame.dimension;
         if (!compileAll()) {
@@ -186,6 +197,25 @@ public final class Shaders {
         }
         meshFormatChanged();
     }
+
+    /** Iris features a pack may ask for that this pipeline provides. */
+    private static final java.util.Set<String> IRIS_FEATURES = java.util.Set.of("SEPARATE_HARDWARE_SAMPLERS");
+
+    /** In Iris mode, the features the pack requires (iris.features.required) that aren't provided, or null. */
+    private static String missingIrisFeatures() {
+        String required = iris ? pack.property("iris.features.required") : null;
+        if (required == null) return null;
+        List<String> missing = new ArrayList<>();
+        for (String feature : required.trim().split("\\s+"))
+            if (!feature.isEmpty() && !IRIS_FEATURES.contains(feature.toUpperCase(Locale.ROOT))) missing.add(feature);
+        return missing.isEmpty() ? null : String.join(", ", missing);
+    }
+
+    /** Reads a pack for its settings screen (with the GL context current, for the standard macros). */
+    public static ShaderPack readForOptions(Path packFile) throws IOException { return ShaderPack.load(packFile, standardMacros()); }
+
+    /** Loads the pack again on the next frame (after its options changed). */
+    public static void reload() { loadedKey = ""; lastCheck = 0; }
 
     /** Whether a pack is loaded and running. */
     public static boolean active() { return pack != null && finalProgram != null; }
@@ -223,6 +253,12 @@ public final class Shaders {
         m.put("MC_RENDER_QUALITY", "1.0");
         m.put("MC_SHADOW_QUALITY", "1.0");
         m.put("MC_HAND_DEPTH", "0.125");
+        if (iris) {
+            // Iris announces itself, its version and the optional features it has (iris.features.optional).
+            m.put("IS_IRIS", "");
+            m.put("IRIS_VERSION", "10800");
+            for (String feature : IRIS_FEATURES) m.put("IRIS_FEATURE_" + feature, "");
+        }
         return m;
     }
 
@@ -240,11 +276,18 @@ public final class Shaders {
             "gbuffers_spidereyes", "gbuffers_hand", "gbuffers_weather", "gbuffers_water", "gbuffers_hand_water"};
         for (String name : names) programs.put(name, compileOrSkip(name));
         shadowProgram = compileOrSkip("shadow");
-        for (int i = 0; i < 16; i++) {
-            Program p = compileOrSkip(i == 0 ? "deferred" : "deferred" + i);
+        // OptiFine numbers its passes up to 15, Iris up to 99 and adds begin (before the shadow map) and prepare (after it).
+        for (int i = 0; i < (iris ? 100 : 16); i++) {
+            String suffix = i == 0 ? "" : Integer.toString(i);
+            Program p = compileOrSkip("deferred" + suffix);
             if (p != null) deferred.add(p);
-            p = compileOrSkip(i == 0 ? "composite" : "composite" + i);
+            p = compileOrSkip("composite" + suffix);
             if (p != null) composite.add(p);
+            if (!iris) continue;
+            p = compileOrSkip("begin" + suffix);
+            if (p != null) begin.add(p);
+            p = compileOrSkip("prepare" + suffix);
+            if (p != null) prepare.add(p);
         }
         finalProgram = compileOrSkip("final");
         if (finalProgram == null) {
@@ -490,6 +533,10 @@ public final class Shaders {
         for (Program p : programs.values()) if (p != null) glDeleteProgram(p.id);
         for (Program p : deferred) glDeleteProgram(p.id);
         for (Program p : composite) glDeleteProgram(p.id);
+        for (Program p : begin) glDeleteProgram(p.id);
+        for (Program p : prepare) glDeleteProgram(p.id);
+        begin.clear();
+        prepare.clear();
         if (finalProgram != null) glDeleteProgram(finalProgram.id);
         if (shadowProgram != null) glDeleteProgram(shadowProgram.id);
         programs.clear();
@@ -668,6 +715,8 @@ public final class Shaders {
         for (Program p : programs.values()) if (p != null) all.add(p);
         all.addAll(deferred);
         all.addAll(composite);
+        all.addAll(begin);
+        all.addAll(prepare);
         if (shadowProgram != null) all.add(shadowProgram);
         if (finalProgram != null) all.add(finalProgram);
         return all;
@@ -724,6 +773,10 @@ public final class Shaders {
         glDepthMask(true);
         glClearDepth(1);
         glClear(GL_DEPTH_BUFFER_BIT);
+        if (!begin.isEmpty()) {
+            runPasses(begin);
+            glBindFramebuffer(GL_FRAMEBUFFER, gbufferFbo);
+        }
         // The lightmap coordinates come as (sky, block); packs read (block, sky) through texture matrix 1.
         glActiveTexture(GL_TEXTURE1);
         glMatrixMode(GL_TEXTURE);
@@ -941,7 +994,17 @@ public final class Shaders {
      * translucent layers. Run after {@link #beginWorld}.
      */
     public static void shadowPass(Consumer<Runnable> drawTerrain) {
-        if (!rendering || shadowProgram == null) return;
+        if (!rendering) return;
+        if (shadowProgram != null) drawShadowMap(drawTerrain);
+        // Iris's prepare passes run once the shadow map is ready, before the terrain.
+        if (prepare.isEmpty() && shadowProgram == null) return;
+        if (!prepare.isEmpty()) runPasses(prepare);
+        glBindFramebuffer(GL_FRAMEBUFFER, gbufferFbo);
+        glViewport(0, 0, width, height);
+        use("gbuffers_basic");
+    }
+
+    private static void drawShadowMap(Consumer<Runnable> drawTerrain) {
         int res = Math.max(256, Math.min(8192, shadowResolution));
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
         glDrawBuffers(new int[]{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1});
@@ -976,9 +1039,6 @@ public final class Shaders {
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
         glPopMatrix();
-        glBindFramebuffer(GL_FRAMEBUFFER, gbufferFbo);
-        glViewport(0, 0, width, height);
-        use("gbuffers_basic");
     }
 
     /** OptiFine's shadow camera: looking down the sun (or moon), snapped to a grid so shadows don't shimmer as you move. */

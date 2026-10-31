@@ -29,8 +29,11 @@ import java.util.zip.ZipInputStream;
 public final class ShaderPack {
     private static final Pattern INCLUDE = Pattern.compile("^\\s*#\\s*include\\s+[\"<](.+?)[\">].*$");
     private static final Pattern OPTION = Pattern.compile("^(\\s*)(//)?\\s*#define\\s+(\\w+)(?:\\s+([^\\s/]+))?(.*)$");
+    private static final Pattern CONST_OPTION = Pattern.compile("^(\\s*)const\\s+(\\w+)\\s+(\\w+)\\s*=\\s*([^;]+);(.*)$");
+    private static final Pattern VALUES = Pattern.compile("//\\s*\\[(.*?)]");
 
     public final String name;
+    private final Path path;
     /** Files under {@code shaders/}, by path relative to it ("world0/final.fsh", "lib/common.glsl"). */
     private final Map<String, byte[]> files;
     private final Map<String, String> options;
@@ -47,7 +50,8 @@ public final class ShaderPack {
     record CustomUniform(String type, String name, Expression.Node expression, boolean uniform) {}
     private record BlockRule(int id, String[][] conditions) {}
 
-    private ShaderPack(String name, Map<String, byte[]> files, Map<String, String> options, Map<String, String> standardMacros) {
+    private ShaderPack(Path path, String name, Map<String, byte[]> files, Map<String, String> options, Map<String, String> standardMacros) {
+        this.path = path;
         this.name = name;
         this.files = files;
         this.options = options;
@@ -88,7 +92,7 @@ public final class ShaderPack {
             try (InputStream in = Files.newInputStream(config)) { p.load(in); }
             for (String key : p.stringPropertyNames()) options.put(key, p.getProperty(key).trim());
         }
-        ShaderPack pack = new ShaderPack(name, files, options, standardMacros);
+        ShaderPack pack = new ShaderPack(path, name, files, options, standardMacros);
         pack.readProperties();
         return pack;
     }
@@ -151,7 +155,13 @@ public final class ShaderPack {
 
     /** A #define line with the player's value for that option, if they changed it. */
     private String option(String line) {
-        if (options.isEmpty() || !line.contains("#define")) return line;
+        if (options.isEmpty()) return line;
+        if (line.contains("const")) {
+            Matcher c = CONST_OPTION.matcher(line);
+            if (c.matches() && options.containsKey(c.group(3)))
+                return c.group(1) + "const " + c.group(2) + " " + c.group(3) + " = " + options.get(c.group(3)) + ";" + c.group(5);
+        }
+        if (!line.contains("#define")) return line;
         Matcher m = OPTION.matcher(line);
         if (!m.matches() || !options.containsKey(m.group(3))) return line;
         String value = options.get(m.group(3));
@@ -188,7 +198,8 @@ public final class ShaderPack {
                         System.err.println("Shader pack " + name + ": skipping " + key + ": " + ex.getMessage());
                     }
                 } else {
-                    properties.put(key, values.expand(value));
+                    // Buffer sizes may be written as option names (size.buffer.colortex1 = REFLECTION_RES REFLECTION_RES).
+                    properties.put(key, key.startsWith("size.buffer.") ? values.expand(value) : value);
                 }
             }
         }
@@ -246,4 +257,85 @@ public final class ShaderPack {
     }
 
     public String property(String key) { return properties.get(key); }
+
+    public Map<String, String> properties() { return java.util.Collections.unmodifiableMap(properties); }
+
+    // ---- Options (the pack's settings screens) ---------------------------------------------------
+
+    /**
+     * A setting the pack offers: a switch ({@code #define X} / {@code //#define X}) or a value
+     * with its choices ({@code #define X 2 //[0 1 2]}, {@code const float x = 1.0; //[0.5 1.0]}).
+     */
+    public record Option(String name, String defaultValue, List<String> values, boolean toggle) {}
+
+    /**
+     * The options named on the pack's screens and sliders, in file order, with their defaults
+     * from the sources (the player's values are in {@link #optionValues}).
+     */
+    public Map<String, Option> options() {
+        java.util.Set<String> shown = new java.util.HashSet<>();
+        for (Map.Entry<String, String> e : properties.entrySet())
+            if (e.getKey().equals("screen") || e.getKey().startsWith("screen.") || e.getKey().equals("sliders")
+                || e.getKey().startsWith("profile."))
+                for (String token : e.getValue().split("\\s+")) shown.add(token.replaceAll("^!|=.*$", ""));
+        Map<String, Option> found = new LinkedHashMap<>();
+        List<String> names = new ArrayList<>(files.keySet());
+        java.util.Collections.sort(names);
+        for (String file : names) {
+            if (!file.endsWith(".glsl") && !file.endsWith(".fsh") && !file.endsWith(".vsh") && !file.endsWith(".gsh")) continue;
+            for (String line : new String(files.get(file), StandardCharsets.UTF_8).split("\r?\n")) {
+                Matcher m = OPTION.matcher(line), c = CONST_OPTION.matcher(line);
+                String name, value;
+                boolean toggle;
+                if (m.matches()) {
+                    name = m.group(3);
+                    toggle = m.group(4) == null;
+                    value = toggle ? Boolean.toString(m.group(2) == null) : m.group(4);
+                } else if (c.matches()) {
+                    name = c.group(3);
+                    toggle = false;
+                    value = c.group(4).trim();
+                } else continue;
+                if (found.containsKey(name)) continue;
+                Matcher v = VALUES.matcher(m.matches() ? m.group(5) : c.group(5));
+                List<String> values = v.find() ? List.of(v.group(1).trim().split("\\s+")) : List.of();
+                // Without screens, any value with a list of choices is an option; with them, what they show.
+                if (shown.isEmpty() ? (toggle || values.isEmpty()) : !shown.contains(name)) continue;
+                if (toggle) values = List.of("true", "false");
+                else if (!values.contains(value)) { values = new ArrayList<>(values); values.add(0, value); }
+                found.put(name, new Option(name, value, List.copyOf(values), toggle));
+            }
+        }
+        return found;
+    }
+
+    /** The player's changed options (from {@code <pack>.txt}), by name. */
+    public Map<String, String> optionValues() { return Map.copyOf(options); }
+
+    /** Saves the player's options to {@code <pack>.txt}, leaving out those at their default. */
+    public void saveOptions(Map<String, String> values) throws IOException {
+        Map<String, Option> known = options();
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> e : new java.util.TreeMap<>(values).entrySet()) {
+            Option o = known.get(e.getKey());
+            if (o == null || o.defaultValue().equals(e.getValue())) continue;
+            out.append(e.getKey()).append('=').append(e.getValue()).append('\n');
+        }
+        Path config = path.resolveSibling(name + ".txt");
+        if (out.length() == 0) Files.deleteIfExists(config);
+        else Files.writeString(config, out.toString(), StandardCharsets.UTF_8);
+    }
+
+    /** The pack's English names for options, screens, values and profiles (lang/en_US.lang). */
+    public Map<String, String> lang() {
+        Map<String, String> out = new HashMap<>();
+        for (String file : files.keySet()) {
+            if (!file.toLowerCase(Locale.ROOT).equals("lang/en_us.lang")) continue;
+            for (String line : new String(files.get(file), StandardCharsets.UTF_8).split("\r?\n")) {
+                int eq = line.indexOf('=');
+                if (eq > 0 && !line.startsWith("#")) out.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+            }
+        }
+        return out;
+    }
 }

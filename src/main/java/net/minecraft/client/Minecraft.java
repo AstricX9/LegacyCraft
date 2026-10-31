@@ -135,7 +135,6 @@ public final class Minecraft implements GuiContext {
     /** This instance's Additions (additions.txt in the game folder); all off is plain 1.8.9. */
     private net.minecraft.client.additions.Additions additions = net.minecraft.client.additions.Additions.defaults();
     private final net.minecraft.client.additions.ToggleKeys toggleKeys = new net.minecraft.client.additions.ToggleKeys();
-    private final net.minecraft.client.additions.ShaderPass shaderPass = new net.minecraft.client.additions.ShaderPass();
     /** The built-in 1.8.9 pack with the selected resource packs layered over it. */
     private final net.minecraft.client.resources.ResourcePackRepository resourceManager =
         new net.minecraft.client.resources.ResourcePackRepository(ClasspathResourceManager.fromSystemProperty());
@@ -2110,9 +2109,9 @@ public final class Minecraft implements GuiContext {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if (inWorld) {
                 net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : "world0";
-                net.minecraft.client.shaders.Shaders.select(shaderPackFile(), message -> printChatLine(message, 0));
+                net.minecraft.client.shaders.Shaders.select(shaderPackFile(),
+                    "Iris".equals(additions.setting(net.minecraft.client.additions.Additions.SHADER_PACKS, "loader")), message -> printChatLine(message, 0));
                 renderWorld(fog);
-                shaderPass.apply(additions, width, height, message -> printChatLine(message, 0));
             }
         } finally {
             if (inWorld) {
