@@ -199,6 +199,20 @@ public final class Shaders {
     }
 
     /** Iris features a pack may ask for that this pipeline provides. */
+    /** Iris's renderStage values, in order (MC_RENDER_STAGE_NONE is 0). */
+    private static final String[] RENDER_STAGES = {"NONE", "SKY", "SUNSET", "CUSTOM_SKY", "SUN", "MOON", "STARS", "VOID",
+        "TERRAIN_SOLID", "TERRAIN_CUTOUT_MIPPED", "TERRAIN_CUTOUT", "ENTITIES", "BLOCK_ENTITIES", "DESTROY", "OUTLINE",
+        "DEBUG", "HAND_SOLID", "TERRAIN_TRANSLUCENT", "TRIPWIRE", "PARTICLES", "CLOUDS", "RAIN_SNOW", "WORLD_BORDER",
+        "HAND_TRANSLUCENT"};
+    public static final int STAGE_NONE = 0, STAGE_SKY = 1, STAGE_SUNSET = 2, STAGE_SUN = 4, STAGE_MOON = 5, STAGE_STARS = 6, STAGE_VOID = 7;
+    private static int renderStage;
+
+    /** Tells the pack (renderStage) what is being drawn; packs written for Iris tell the sun, moon and stars apart by it. */
+    public static void renderStage(int stage) {
+        renderStage = stage;
+        if (rendering && !shadowPass && current != null) uniforms(current);
+    }
+
     private static final java.util.Set<String> IRIS_FEATURES = java.util.Set.of("SEPARATE_HARDWARE_SAMPLERS");
 
     /** In Iris mode, the features the pack requires (iris.features.required) that aren't provided, or null. */
@@ -258,6 +272,7 @@ public final class Shaders {
             m.put("IS_IRIS", "");
             m.put("IRIS_VERSION", "10800");
             for (String feature : IRIS_FEATURES) m.put("IRIS_FEATURE_" + feature, "");
+            for (int i = 0; i < RENDER_STAGES.length; i++) m.put("MC_RENDER_STAGE_" + RENDER_STAGES[i], String.valueOf(i));
         }
         return m;
     }
@@ -358,7 +373,7 @@ public final class Shaders {
             String log = glGetProgramInfoLog(p.id);
             glDeleteProgram(p.id);
             dump(name + ".link", log);
-            throw new RuntimeException(name + " didn't link: " + firstLine(log));
+            throw new RuntimeException(name + " didn't link: " + firstError(log));
         }
         readInterface(p);
         readBlend(p);
@@ -373,7 +388,7 @@ public final class Shaders {
             String log = glGetShaderInfoLog(shader);
             glDeleteShader(shader);
             dump(name, log + "\n----\n" + numbered(source));
-            throw new RuntimeException(name + " didn't compile: " + firstLine(log));
+            throw new RuntimeException(name + " didn't compile: " + firstError(log));
         }
         return shader;
     }
@@ -393,6 +408,12 @@ public final class Shaders {
         String[] lines = source.split("\n", -1);
         for (int i = 0; i < lines.length; i++) out.append(i + 1).append(": ").append(lines[i]).append('\n');
         return out.toString();
+    }
+
+    /** The first line of a compile log that reports an error, skipping the warnings drivers list before it. */
+    static String firstError(String log) {
+        for (String line : log.split("\n")) if (line.toLowerCase(Locale.ROOT).contains("error")) return line.trim();
+        return firstLine(log);
     }
 
     private static String firstLine(String log) {
@@ -1199,7 +1220,8 @@ public final class Shaders {
             case "fogEnd" -> new double[]{f.far};
             case "heldItemId", "heldItemId2" -> new double[]{-1};
             case "shadowMapResolution" -> new double[]{shadowResolution};
-            case "renderStage", "entityId", "blockEntityId", "heldBlockLightValue", "heldBlockLightValue2", "currentRenderedItemId",
+            case "renderStage" -> new double[]{renderStage};
+            case "entityId", "blockEntityId", "heldBlockLightValue", "heldBlockLightValue2", "currentRenderedItemId",
                 "playerMood", "velocity", "darknessFactor", "darknessLightFactor", "isElytraFlying", "is_invisible" -> new double[]{0};
             default -> null;
         };

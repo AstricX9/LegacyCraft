@@ -123,6 +123,14 @@ class ShaderPackTest {
     }
 
     @Test
+    void compileErrorsSkipTheDriversWarnings() {
+        assertEquals("0(70) : error C1503: undefined variable \"MC_RENDER_STAGE_MOON\"", Shaders.firstError(
+            "0(1033) : warning C7533: global function texture2DLod is deprecated after version 120\n"
+                + "0(70) : error C1503: undefined variable \"MC_RENDER_STAGE_MOON\"\n"));
+        assertEquals("just a note", Shaders.firstError("just a note\nmore"));
+    }
+
+    @Test
     void matrixInverseUndoesTheMatrix() {
         float[] m = {2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 5, 6, 7, 1};
         float[] inverse = new float[16];

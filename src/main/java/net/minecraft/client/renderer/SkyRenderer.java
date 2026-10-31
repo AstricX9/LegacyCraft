@@ -234,13 +234,16 @@ public final class SkyRenderer {
         glDepthMask(false);
         glEnable(GL_FOG);
         glColor3f(skyR, skyG, skyB);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_SKY);
         glCallList(skyList);
+        if (net.minecraft.client.shaders.Shaders.active()) horizon();
         glDisable(GL_FOG);
         glDisable(GL_ALPHA_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         if (sunrise != null) {
+            net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_SUNSET);
             glShadeModel(GL_SMOOTH);
             glPushMatrix();
             glRotatef(90f, 1f, 0f, 0f);
@@ -268,6 +271,7 @@ public final class SkyRenderer {
         glRotatef(angle * 360f, 1f, 0f, 0f);
         float size = 30f;
         textures.bind(SUN);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_SUN);
         glBegin(GL_QUADS);
         glTexCoord2f(0, 0); glVertex3f(-size, 100f, -size);
         glTexCoord2f(1, 0); glVertex3f(size, 100f, -size);
@@ -276,6 +280,7 @@ public final class SkyRenderer {
         glEnd();
         size = 20f;
         textures.bind(MOON_PHASES);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_MOON);
         int phase = moonPhase(worldTime);
         int column = phase % 4, row = phase / 4 % 2;
         float u0 = column / 4f, v0 = row / 2f, u1 = (column + 1) / 4f, v1 = (row + 1) / 2f;
@@ -289,6 +294,7 @@ public final class SkyRenderer {
         glDisable(GL_TEXTURE_2D);
         float stars = starBrightness(angle);
         if (stars > 0f) {
+            net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_STARS);
             glColor4f(stars, stars, stars, stars);
             glDisable(GL_CULL_FACE);
             glCallList(starList);
@@ -302,6 +308,7 @@ public final class SkyRenderer {
 
         glDisable(GL_TEXTURE_2D);
         double belowHorizon = eyeY - HORIZON;
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_VOID);
         if (belowHorizon < 0) {
             // Under the horizon the view down is closed off in black before the dark plane.
             glColor3f(0f, 0f, 0f);
@@ -329,6 +336,7 @@ public final class SkyRenderer {
         glEnable(GL_TEXTURE_2D);
         glDepthMask(true);
         glColor4f(1f, 1f, 1f, 1f);
+        net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_NONE);
     }
 
     /**
@@ -475,6 +483,25 @@ public final class SkyRenderer {
         for (int i = 0; i < vertices.length; i += 3) glVertex3f(vertices[i], vertices[i + 1], vertices[i + 2]);
         glEnd();
         glEndList();
+    }
+
+    /**
+     * Shader packs colour the sky per pixel, but the sky and void planes leave
+     * a gap round the horizon that would show the clear colour as a flat band.
+     * Like Iris, close it with a small cylinder and floor around the eye.
+     */
+    private static void horizon() {
+        glDisable(GL_CULL_FACE);
+        glBegin(GL_QUADS);
+        for (int i = 0; i < 16; i++) {
+            double a0 = i * Math.PI / 8, a1 = (i + 1) * Math.PI / 8;
+            float x0 = (float) Math.cos(a0) * 16f, z0 = (float) Math.sin(a0) * 16f;
+            float x1 = (float) Math.cos(a1) * 16f, z1 = (float) Math.sin(a1) * 16f;
+            glVertex3f(x0, 16f, z0); glVertex3f(x1, 16f, z1); glVertex3f(x1, -16f, z1); glVertex3f(x0, -16f, z0);
+            glVertex3f(x0, -16f, z0); glVertex3f(x1, -16f, z1); glVertex3f(0f, -16f, 0f); glVertex3f(0f, -16f, 0f);
+        }
+        glEnd();
+        glEnable(GL_CULL_FACE);
     }
 
     /** A 768x768 grid of 64-block quads at a height, facing down (sky) or up (the plane below the horizon). */
