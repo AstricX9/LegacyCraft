@@ -340,6 +340,7 @@ public final class TextureAtlas {
     }
 
     public void bind() { glBindTexture(GL_TEXTURE_2D, textureId); }
+    public int textureId() { return textureId; }
     public void bindWidgets() { glBindTexture(GL_TEXTURE_2D, widgetsTextureId); }
     public void bindIcons() { glBindTexture(GL_TEXTURE_2D, iconsTextureId); }
     public Tile tile(ResourceLocation name) {

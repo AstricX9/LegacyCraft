@@ -2109,6 +2109,8 @@ public final class Minecraft implements GuiContext {
             else glClearColor(0.50f, 0.69f, 1.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if (inWorld) {
+                net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : "world0";
+                net.minecraft.client.shaders.Shaders.select(shaderPackFile(), message -> printChatLine(message, 0));
                 renderWorld(fog);
                 shaderPass.apply(additions, width, height, message -> printChatLine(message, 0));
             }
@@ -2316,6 +2318,15 @@ public final class Minecraft implements GuiContext {
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
         loadCamera();
+        boolean shaders = net.minecraft.client.shaders.Shaders.active();
+        if (shaders) {
+            // The pack gets the terrain's projection and the camera's rotation, then draws its shadow map first.
+            fillShaderFrame(fog, liquid);
+            perspective(worldFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
+            glMatrixMode(GL_MODELVIEW);
+            net.minecraft.client.shaders.Shaders.beginWorld(width, height);
+            net.minecraft.client.shaders.Shaders.shadowPass(renderer::renderShadow);
+        }
         if (skyVisible) {
             setupFog(liquid, 0f, renderDistance);
             perspective(worldFov(), width / (double) height, 0.05, renderDistance * 2.0);
@@ -2335,14 +2346,23 @@ public final class Minecraft implements GuiContext {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_TEXTURE_2D);
         renderer.render(player, renderDistance);
+        net.minecraft.client.shaders.Shaders.use("gbuffers_basic");
         if (gameSettings.showChunkBorders) DebugRenderer.renderChunkBorders(player.x, player.y, player.z);
+        net.minecraft.client.shaders.Shaders.use("gbuffers_entities");
         renderItemEntities(renderDistance);
         renderMobs(renderDistance);
         tableBooks.render(world, guiTextures, partialTicks, player.x, player.z, Math.min(64.0, renderDistance));
         if (gameSettings.thirdPersonView != 0 && !player.dead) renderPlayerModel();
         WorldRenderer.Hit hit = currentScreen == null && !isSpectator() ? target() : null;
+        net.minecraft.client.shaders.Shaders.use("gbuffers_damagedblock");
         drawDestroyProgress();
+        net.minecraft.client.shaders.Shaders.use("gbuffers_line");
         if (hit != null && !gameSettings.hideGUI) drawSelection(hit);
+        if (shaders) {
+            net.minecraft.client.shaders.Shaders.endOpaque();
+            renderer.renderTranslucent();
+        }
+        net.minecraft.client.shaders.Shaders.use("gbuffers_textured_lit");
         renderParticles();
         if (eyeY >= SkyRenderer.CLOUD_HEIGHT) {
             glPushMatrix();
@@ -2350,8 +2370,51 @@ public final class Minecraft implements GuiContext {
             renderClouds(renderDistance, skyVisible);
             glPopMatrix();
         }
-        glClear(GL_DEPTH_BUFFER_BIT);
+        // With a shader pack the hand keeps the world's depth (packs tell it apart by MC_HAND_DEPTH).
+        if (shaders) net.minecraft.client.shaders.Shaders.beforeHand();
+        else glClear(GL_DEPTH_BUFFER_BIT);
+        net.minecraft.client.shaders.Shaders.use("gbuffers_hand");
         renderHand(renderDistance);
+        if (shaders) {
+            net.minecraft.client.shaders.Shaders.endWorld();
+            if (gameSettings.thirdPersonView == 0 && !player.dead) renderOverlays();
+        }
+    }
+
+    /** The Shader Packs addition's pack, or null when it's off or none is picked. */
+    private Path shaderPackFile() {
+        String id = net.minecraft.client.additions.Additions.SHADER_PACKS;
+        if (!additions.isOn(id)) return null;
+        String name = additions.setting(id, "pack");
+        if (name == null || name.isEmpty()) return null;
+        return additions.folder(additions.find(id).setting("pack")).resolve(name);
+    }
+
+    /** What the shader pack's uniforms read this frame. */
+    private void fillShaderFrame(float[] fog, String liquid) {
+        net.minecraft.client.shaders.Shaders.Frame f = net.minecraft.client.shaders.Shaders.frame;
+        f.worldTime = levelInfo.worldTime;
+        f.celestialAngle = sky.angle();
+        f.rain = world.isRaining() ? 1f : 0f;
+        f.far = gameSettings.renderDistanceChunks * 16f;
+        f.cameraX = player.x;
+        f.cameraY = player.eyeY();
+        f.cameraZ = player.z;
+        f.look[0] = (float) player.dirX();
+        f.look[1] = (float) player.dirY();
+        f.look[2] = (float) player.dirZ();
+        int x = (int) Math.floor(player.x), y = (int) Math.floor(player.eyeY()), z = (int) Math.floor(player.z);
+        boolean inside = y >= 0 && y < World.HEIGHT;
+        f.eyeSkyLight = inside ? world.getSkyLight(x, y, z) : y >= World.HEIGHT ? 15 : 0;
+        f.eyeBlockLight = inside ? world.getBlockLight(x, y, z) : 0;
+        f.eyeInWater = "water".equals(liquid) ? 1 : "lava".equals(liquid) ? 2 : 0;
+        f.moonPhase = (int) (levelInfo.worldTime / 24000L % 8L);
+        f.nightVision = player.nightVisionBrightness(partialTicks);
+        f.blindness = player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS) ? 1f : 0f;
+        f.hideGui = gameSettings.hideGUI;
+        System.arraycopy(fog, 0, f.fog, 0, 3);
+        System.arraycopy(sky.skyColor(), 0, f.sky, 0, 3);
+        net.minecraft.client.shaders.Shaders.atlasTexture = atlas.textureId();
     }
 
     /** Particles face the camera: the player's view, turned round in the front third-person view. */
@@ -2490,6 +2553,14 @@ public final class Minecraft implements GuiContext {
         glDisable(GL_FOG);
         float fov = "water".equals(cameraLiquid()) ? 60f : 70f;
         perspective(fov, width / (double) height, 0.05, renderDistance * 2.0);
+        if (net.minecraft.client.shaders.Shaders.rendering()) {
+            // OptiFine squeezes the hand's depth to an eighth (MC_HAND_DEPTH) so it stays in front of the world.
+            float[] projection = new float[16];
+            glGetFloatv(GL_PROJECTION_MATRIX, projection);
+            glLoadIdentity();
+            glScalef(1f, 1f, 0.125f);
+            glMultMatrixf(projection);
+        }
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
         if (!gameSettings.hideGUI && !isSpectator()) {
@@ -2500,14 +2571,17 @@ public final class Minecraft implements GuiContext {
             glPopMatrix();
             glShadeModel(GL_SMOOTH);
         }
-        renderOverlays();
+        // With a shader pack the overlays go over the pack's finished picture instead.
+        if (!net.minecraft.client.shaders.Shaders.rendering()) renderOverlays();
     }
 
     /** The underwater tint and the flames of a burning player, over the view (ItemRenderer.renderOverlays). */
     private void renderOverlays() {
         if (isSpectator()) return;
         glDisable(GL_ALPHA_TEST);
-        if (eyesUnderWater()) renderWaterOverlay();
+        net.minecraft.client.shaders.ShaderPack pack = net.minecraft.client.shaders.Shaders.pack();
+        boolean waterOverlay = pack == null || !"false".equals(pack.property("underwaterOverlay"));
+        if (waterOverlay && eyesUnderWater()) renderWaterOverlay();
         if (playerFire > 0) renderFireOverlay();
         glEnable(GL_ALPHA_TEST);
         glColor4f(1, 1, 1, 1);
@@ -2732,6 +2806,10 @@ public final class Minecraft implements GuiContext {
     /** Clouds with the terrain fog and a far plane four times the render distance (the modelview holds only the camera's rotation). */
     private void renderClouds(int renderDistance, boolean skyVisible) {
         if (!skyVisible || !gameSettings.clouds) return;
+        // Packs that draw their own clouds turn the game's off (clouds=off in shaders.properties).
+        net.minecraft.client.shaders.ShaderPack pack = net.minecraft.client.shaders.Shaders.pack();
+        if (pack != null && "off".equals(pack.property("clouds"))) return;
+        net.minecraft.client.shaders.Shaders.use("gbuffers_clouds");
         perspective(worldFov(), width / (double) height, 0.05, renderDistance * 4.0);
         glMatrixMode(GL_MODELVIEW);
         sky.renderClouds(player.x, player.eyeY(), player.z, partialTicks, gameSettings.fancyGraphics);

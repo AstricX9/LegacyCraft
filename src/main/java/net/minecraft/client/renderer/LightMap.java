@@ -87,8 +87,23 @@ public final class LightMap {
         return Math.max(0f, Math.min(1f, channel * .96f + .03f));
     }
 
-    /** RGB multiplier for fractional (averaged) light levels, 0-15 each. */
+    /**
+     * RGB multiplier for fractional (averaged) light levels, 0-15 each. While
+     * a shader pack draws the world, the pack does the lighting: this sets the
+     * light as the lightmap coordinate it reads and returns white.
+     */
     public static float[] color(float sky, float block) {
+        if (net.minecraft.client.shaders.Shaders.rendering()) {
+            sky = Math.max(0, Math.min(15, sky));
+            block = Math.max(0, Math.min(15, block));
+            org.lwjgl.opengl.GL13.glMultiTexCoord2f(org.lwjgl.opengl.GL13.GL_TEXTURE1, (sky + .5f) / 16f, (block + .5f) / 16f);
+            return new float[]{1f, 1f, 1f};
+        }
+        return texel(sky, block);
+    }
+
+    /** The lightmap's colour for these light levels (what {@link #color} returns without a shader pack). */
+    public static float[] texel(float sky, float block) {
         float[][][] current = table;
         sky = Math.max(0, Math.min(15, sky));
         block = Math.max(0, Math.min(15, block));
