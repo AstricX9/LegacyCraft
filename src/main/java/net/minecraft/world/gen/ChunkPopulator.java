@@ -12,7 +12,8 @@ import java.util.Random;
  * chunk borders; then water freezes and snow falls where it is cold enough.
  *
  * <p>After decoration the biome's animals are placed in groups
- * ({@link #spawnAnimals}). Structures (villages, mineshafts, strongholds,
+ * ({@link #spawnAnimals}). Strongholds are built first, as vanilla does
+ * ({@link Stronghold}); the other structures (villages, mineshafts,
  * temples, monuments) are not generated (deviations.yml). HYPOTHESIS,
  * recalled.
  */
@@ -21,11 +22,16 @@ public final class ChunkPopulator {
     private final GenBlocks b;
     private final BiomeDecorator decorator;
     private final Random rand = new Random();
+    private final Stronghold strongholds;
 
-    public ChunkPopulator(GenBlocks blocks, long seed) {
+    public ChunkPopulator(GenBlocks blocks, long seed) { this(blocks, seed, null); }
+
+    /** @param strongholds the world's strongholds, or null for none */
+    public ChunkPopulator(GenBlocks blocks, long seed, Stronghold strongholds) {
         this.seed = seed;
         this.b = blocks;
         this.decorator = new BiomeDecorator(blocks);
+        this.strongholds = strongholds;
     }
 
     public void populate(GenWorld w, int chunkX, int chunkZ) {
@@ -36,6 +42,7 @@ public final class ChunkPopulator {
         long zMultiplier = rand.nextLong() / 2L * 2L + 1L;
         rand.setSeed((long) chunkX * xMultiplier + (long) chunkZ * zMultiplier ^ seed);
 
+        if (strongholds != null) strongholds.generate(w, chunkX, chunkZ);
         int id = biome.id();
         if (id != 2 && id != 17 && rand.nextInt(4) == 0) {
             int lx = rand.nextInt(16) + 8, ly = rand.nextInt(256), lz = rand.nextInt(16) + 8;

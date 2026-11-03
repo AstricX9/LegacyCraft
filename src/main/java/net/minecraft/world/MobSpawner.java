@@ -120,7 +120,7 @@ public final class MobSpawner {
     /** The monsters LegacyCraft has. */
     public static boolean monsterExists(String entity) {
         return switch (entity) {
-            case "Creeper", "Skeleton", "Zombie", "Spider", "PigZombie", "Ghast", "LavaSlime", "Blaze" -> true;
+            case "Creeper", "Skeleton", "Zombie", "Spider", "PigZombie", "Ghast", "LavaSlime", "Blaze", "Enderman" -> true;
             default -> false;
         };
     }
@@ -128,7 +128,7 @@ public final class MobSpawner {
     /** The share of the dimension's usual monster weight that LegacyCraft can spawn (the cap is cut to it). */
     private static float implementedShare(World world) {
         if (world.isNether()) return 1f;
-        if (world.isEnd()) return 0f; // shortcut: no endermen yet, so nothing spawns in the End
+        if (world.isEnd()) return 1f;
         int total = 0, implemented = 0;
         for (SpawnEntry entry : OVERWORLD_MONSTERS) {
             total += entry.weight();

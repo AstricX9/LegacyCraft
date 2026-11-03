@@ -232,6 +232,7 @@ public final class Minecraft implements GuiContext {
                 case "largesmoke" -> ParticleManager.Kind.LARGE_SMOKE;
                 case "flame" -> ParticleManager.Kind.FLAME;
                 case "happyVillager" -> ParticleManager.Kind.HAPPY_VILLAGER;
+                case "portal" -> ParticleManager.Kind.PORTAL;
                 default -> null;
             };
             if (type != null) particles.spawn(type, x, y, z, vx, vy, vz, null);
@@ -1206,7 +1207,7 @@ public final class Minecraft implements GuiContext {
                             ? BlockState.of(blockRegistry.get("minecraft:obsidian"), 0) : BlockState.of(blockRegistry.air(), 0));
         } else if (fromEnd) {
             // Leaving the End through its exit portal: The End. and back to the player's spawn point
-            // (EntityPlayerMP.travelToDimension, ServerConfigurationManager.recreatePlayerEntity). shortcut: no end poem.
+            // (EntityPlayerMP.travelToDimension, ServerConfigurationManager.recreatePlayerEntity).
             triggerAchievement("theEnd2");
             x = player.spawnX;
             z = player.spawnZ;
@@ -1234,7 +1235,8 @@ public final class Minecraft implements GuiContext {
         displayGuiScreen(loadingScreen);
         int radius = Math.min(MAX_SPAWN_RADIUS, gameSettings.renderDistanceChunks + 1);
         preparing = new SpawnPreparation((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, radius, () -> {
-            displayGuiScreen(null);
+            // Out through the exit portal: the end poem and credits roll first (GuiWinGame).
+            displayGuiScreen(fromEnd && throughPortal ? new net.minecraft.client.gui.GuiWinGame() : null);
             if (soundHandler != null && throughPortal) soundHandler.playUi("portal.travel", random.nextFloat() * 0.4f + 0.8f);
         });
     }
@@ -1895,6 +1897,7 @@ public final class Minecraft implements GuiContext {
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.15f, 0.75f);
             } else if (entity instanceof net.minecraft.entity.monster.EntityPigZombie || entity instanceof net.minecraft.entity.monster.EntitySkeleton
                 || entity instanceof net.minecraft.entity.monster.EntityZombie || entity instanceof net.minecraft.entity.monster.EntitySpider
+                || entity instanceof net.minecraft.entity.monster.EntityEnderman
                 || entity instanceof net.minecraft.entity.monster.EntityBlaze || entity instanceof net.minecraft.entity.monster.EntityGhast
                 || entity instanceof net.minecraft.entity.monster.EntityMagmaCube) {
                 EntityLiving mob = (EntityLiving) entity;
@@ -3750,7 +3753,8 @@ public final class Minecraft implements GuiContext {
         if (item.kind() == Item.Kind.SPAWN_EGG) return spawnEggOnLiquid(held);
         if (item.name().path().equals("boat")) return placeBoat(held);
         if (item.name().path().equals("glass_bottle")) return fillBottle(held);
-        if (item.name().path().equals("egg") || item.name().path().equals("snowball")) {
+        if (item.name().path().equals("ender_eye")) return throwEnderEye(held);
+        if (item.name().path().equals("egg") || item.name().path().equals("snowball") || item.name().path().equals("ender_pearl")) {
             throwItem(held);
             return true;
         }
@@ -3850,18 +3854,43 @@ public final class Minecraft implements GuiContext {
     }
 
     /**
+     * ItemEnderEye.onItemRightClick: not at an end portal frame, and only
+     * where there are strongholds (the overworld), an eye leaves the
+     * player's feet toward the nearest one with the bow sound, used up
+     * unless in Creative.
+     */
+    private boolean throwEnderEye(ItemStack held) {
+        WorldRenderer.Hit hit = target();
+        if (hit != null && world.get(hit.x(), hit.y(), hit.z()).name().path().equals("end_portal_frame")) return false;
+        int[] target = world.strongholds() == null ? null : world.strongholds().nearest(player.x, player.y, player.z);
+        if (target == null) return false;
+        net.minecraft.entity.EntityEnderEye eye = new net.minecraft.entity.EntityEnderEye(world, player.x, player.y, player.z);
+        eye.moveTowards(target[0], target[1], target[2]);
+        spawnEntity(eye);
+        playSound("random.bow", player.x, player.y, player.z, 0.5f, 0.4f / (random.nextFloat() * 0.4f + 0.8f));
+        if (!isCreative()) {
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+        return true;
+    }
+
+    /**
      * ItemEgg / ItemSnowball.onItemRightClick: thrown at once with the bow
      * sound (0.5, pitch 0.4 / 0.8-1.2), used up unless in Creative.
      */
     private void throwItem(ItemStack held) {
-        boolean egg = held.item().name().path().equals("egg");
+        String name = held.item().name().path();
         if (!isCreative()) {
             held.split(1);
             if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
         }
         playSound("random.bow", player.x, player.y, player.z, 0.5f, 0.4f / (random.nextFloat() * 0.4f + 0.8f));
-        net.minecraft.entity.EntityThrowable thrown = egg ? new net.minecraft.entity.EntityEgg(world, player.x, player.y, player.z)
-            : new net.minecraft.entity.EntitySnowball(world, player.x, player.y, player.z);
+        net.minecraft.entity.EntityThrowable thrown = switch (name) {
+            case "egg" -> new net.minecraft.entity.EntityEgg(world, player.x, player.y, player.z);
+            case "ender_pearl" -> new net.minecraft.entity.EntityEnderPearl(world, player.x, player.y, player.z);
+            default -> new net.minecraft.entity.EntitySnowball(world, player.x, player.y, player.z);
+        };
         spawnEntity(thrown.aimFrom(player, random));
     }
 

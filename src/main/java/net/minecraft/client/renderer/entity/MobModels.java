@@ -111,6 +111,49 @@ public final class MobModels {
     }
 
     /**
+     * ModelEnderman (64x32): ModelBiped lifted 14 pixels with thin 30-pixel
+     * limbs whose swing is halved and held within 0.4, the arms forward while
+     * carrying a block; the jaw (the shrunken hat) stays put while the head
+     * rises 5 pixels to scream.
+     */
+    public static void enderman(Pose pose, float age, boolean carrying, boolean screaming) {
+        AnimalModels.textureWidth = 64f;
+        AnimalModels.textureHeight = 32f;
+        float f = -14f;
+        Part head = new Part(0, f + 1f, 0, cube(-4, -8, -4, 8, 8, 8, 0, 0, 0, false));
+        Part jaw = new Part(0, f + 1f, 0, cube(-4, -8, -4, 8, 8, 8, -0.5f, 0, 16, false));
+        Part body = new Part(0, f, 0, cube(-4, 0, -2, 8, 12, 4, 0, 32, 16, false));
+        Part rightArm = new Part(-5, 2 + f, 0, cube(-1, -2, -1, 2, 30, 2, 0, 56, 0, false));
+        Part leftArm = new Part(5, 2 + f, 0, cube(-1, -2, -1, 2, 30, 2, 0, 56, 0, true));
+        Part rightLeg = new Part(-2, 9 + f, 0, cube(-1, 0, -1, 2, 30, 2, 0, 56, 0, false));
+        Part leftLeg = new Part(2, 9 + f, 0, cube(-1, 0, -1, 2, 30, 2, 0, 56, 0, true));
+        head.ry = jaw.ry = (float) Math.toRadians(pose.headYaw());
+        head.rx = jaw.rx = (float) Math.toRadians(pose.pitch());
+        rightArm.rx = (float) Math.cos(pose.swing() * 0.6662f + Math.PI) * pose.amount();
+        leftArm.rx = (float) Math.cos(pose.swing() * 0.6662f) * pose.amount();
+        rightLeg.rx = (float) Math.cos(pose.swing() * 0.6662f) * 1.4f * pose.amount();
+        leftLeg.rx = (float) Math.cos(pose.swing() * 0.6662f + Math.PI) * 1.4f * pose.amount();
+        rightArm.rz = (float) Math.cos(age * 0.09f) * 0.05f + 0.05f;
+        leftArm.rz = -((float) Math.cos(age * 0.09f) * 0.05f + 0.05f);
+        rightArm.rx += (float) Math.sin(age * 0.067f) * 0.05f;
+        leftArm.rx -= (float) Math.sin(age * 0.067f) * 0.05f;
+        for (Part limb : new Part[]{rightArm, leftArm, rightLeg, leftLeg}) limb.rx = Math.max(-0.4f, Math.min(0.4f, limb.rx * 0.5f));
+        if (carrying) {
+            rightArm.rx = leftArm.rx = -0.5f;
+            rightArm.rz = 0.05f;
+            leftArm.rz = -0.05f;
+        }
+        if (screaming) head.py -= 5f;
+        head.draw();
+        jaw.draw();
+        body.draw();
+        rightArm.draw();
+        leftArm.draw();
+        rightLeg.draw();
+        leftLeg.draw();
+    }
+
+    /**
      * ModelSpider (64x32): head, neck and abdomen on a 15-pixel pivot line and
      * four legs a side splayed out, sweeping forward and back and lifting in
      * pairs as it walks.

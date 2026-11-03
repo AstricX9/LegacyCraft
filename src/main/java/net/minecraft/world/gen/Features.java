@@ -239,7 +239,7 @@ public final class Features {
     }
 
     /** BlockChest.correctFacing: face away from the single full block beside it. Metadata N2 S3 W4 E5. */
-    private static int chestFacing(GenWorld w, int x, int y, int z) {
+    static int chestFacing(GenWorld w, int x, int y, int z) {
         GenBlocks b = w.blocks();
         int[] meta = {2, 5, 3, 4}; // N, E, S, W
         int[] opposite = {2, 3, 0, 1};

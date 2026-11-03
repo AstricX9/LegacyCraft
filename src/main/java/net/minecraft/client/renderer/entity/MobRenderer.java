@@ -36,6 +36,8 @@ public final class MobRenderer {
     public static final ResourceLocation CHICKEN = new ResourceLocation("minecraft:textures/entity/chicken.png");
     public static final ResourceLocation PIGMAN = new ResourceLocation("minecraft:textures/entity/zombie_pigman.png");
     public static final ResourceLocation ZOMBIE = new ResourceLocation("minecraft:textures/entity/zombie/zombie.png");
+    public static final ResourceLocation ENDERMAN = new ResourceLocation("minecraft:textures/entity/enderman/enderman.png");
+    public static final ResourceLocation ENDERMAN_EYES = new ResourceLocation("minecraft:textures/entity/enderman/enderman_eyes.png");
     public static final ResourceLocation SPIDER = new ResourceLocation("minecraft:textures/entity/spider/spider.png");
     public static final ResourceLocation SKELETON = new ResourceLocation("minecraft:textures/entity/skeleton/skeleton.png");
     public static final ResourceLocation WITHER_SKELETON = new ResourceLocation("minecraft:textures/entity/skeleton/wither_skeleton.png");
@@ -233,8 +235,15 @@ public final class MobRenderer {
      * RendererLivingEntity, with the held item in the right hand
      * (LayerHeldItem). Blazes and magma cubes are drawn fully lit.
      */
+    private final java.util.Random jitter = new java.util.Random();
+
     public void renderMob(net.minecraft.entity.EntityLiving mob, float partialTicks) {
         double x = mob.renderX(partialTicks), y = mob.renderY(partialTicks), z = mob.renderZ(partialTicks);
+        // RenderEnderman: a screaming enderman shakes.
+        if (mob instanceof net.minecraft.entity.monster.EntityEnderman e && e.screaming) {
+            x += jitter.nextGaussian() * 0.02;
+            z += jitter.nextGaussian() * 0.02;
+        }
         float body = interpolateRotation(mob.prevRenderYawOffset, mob.renderYawOffset, partialTicks);
         float head = interpolateRotation(mob.prevRotationYawHead, mob.rotationYawHead, partialTicks);
         float pitch = mob.prevRotationPitch + (mob.rotationPitch - mob.prevRotationPitch) * partialTicks;
@@ -258,6 +267,12 @@ public final class MobRenderer {
         } else if (mob instanceof net.minecraft.entity.monster.EntityZombie zombie) {
             texture = ZOMBIE;
             model = () -> MobModels.biped(pose, age, 0f, false, true, zombie.isChild());
+        } else if (mob instanceof net.minecraft.entity.monster.EntityEnderman enderman) {
+            texture = ENDERMAN;
+            model = () -> {
+                MobModels.enderman(pose, age, enderman.carried != null, enderman.screaming);
+                return null;
+            };
         } else if (mob instanceof net.minecraft.entity.monster.EntitySpider) {
             texture = SPIDER;
             model = () -> {
@@ -314,6 +329,7 @@ public final class MobRenderer {
             glDepthFunc(GL_LEQUAL);
             glEnable(GL_TEXTURE_2D);
         }
+        if (mob instanceof net.minecraft.entity.monster.EntityEnderman enderman) endermanLayers(enderman, pose, age, light);
         if (arm != null && mob.heldItem != null && items != null) {
             glPushMatrix();
             if (mob.isChild()) {
@@ -332,6 +348,37 @@ public final class MobRenderer {
         StandardLighting.disable();
         glColor4f(1, 1, 1, 1);
         if (mob.isBurning()) fireRequests.add(new double[] {x, y, z, mob.width, mob.height});
+    }
+
+    /**
+     * LayerEndermanEyes (the eyes added on top at full brightness) and
+     * LayerHeldBlock (the carried block held out in front at half size).
+     */
+    private void endermanLayers(net.minecraft.entity.monster.EntityEnderman enderman, AnimalModels.Pose pose, float age, float[] light) {
+        textures.bind(ENDERMAN_EYES);
+        glEnable(GL_BLEND);
+        glDisable(GL_ALPHA_TEST);
+        glBlendFunc(GL_ONE, GL_ONE);
+        StandardLighting.disable();
+        glDepthFunc(GL_LEQUAL);
+        glColor4f(1f, 1f, 1f, 1f);
+        MobModels.enderman(pose, age, enderman.carried != null, enderman.screaming);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_BLEND);
+        glEnable(GL_ALPHA_TEST);
+        StandardLighting.enable();
+        if (enderman.carried == null || items == null) return;
+        glPushMatrix();
+        glTranslatef(0f, 0.6875f, -0.75f);
+        glRotatef(20f, 1f, 0f, 0f);
+        glRotatef(45f, 0f, 1f, 0f);
+        glTranslatef(0.25f, 0.1875f, 0.25f);
+        glScalef(-0.5f, -0.5f, 0.5f);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_CULL_FACE);
+        items.renderBlockModel(enderman.carried, light[0], light[1], light[2]);
+        glDisable(GL_CULL_FACE);
+        glPopMatrix();
     }
 
     /**

@@ -451,7 +451,11 @@
     last (0 on the first world of a session), and a biome's top block as last
     set by the surface builder is what caves put back over dirt.
   replica_behavior: >
-    No overworld structures (Nether fortresses exist, DEV-036); dungeon chests are empty and spawners have no mob (the
+    Strongholds are the only overworld structure (Nether fortresses exist, DEV-036):
+    their chests are empty, they are rebuilt from the seed rather than saved
+    to data/Stronghold.dat, their blocks draw from their own Random instead of
+    the population one, and the credits pause the game where vanilla takes the
+    player out of the world; dungeon chests are empty and spawners have no mob (the
     Random draws spent on the loot are skipped, so the rest of that chunk's
     decoration diverges after a dungeon with a chest); animals are placed after decoration but only sheep, pigs,
     chickens and cows appear (DEV-035); population writes without per-block relighting
@@ -1008,7 +1012,7 @@
     All of the above (HYPOTHESIS: recalled constants), with these
     differences. In the overworld only creepers, skeletons, zombies and
     spiders exist: the spawn cycle still draws from the whole biome monster
-    list (slimes, endermen and witches spawn nothing) and the cap of 70 is
+    list (slimes and witches spawn nothing; endermen spawn, and are the End's only mob) and the cap of 70 is
     cut to their share so they are as common as in vanilla. Zombies have no
     villager zombies, reinforcements, door breaking, item pickup or random
     armour; spiders have no jockeys, Hard-difficulty effects or glowing

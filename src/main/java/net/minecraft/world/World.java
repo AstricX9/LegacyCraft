@@ -162,6 +162,9 @@ public final class World implements IBlockWorld {
     public boolean isEnd() { return dimension == Dimension.END; }
     /** The End's generator (for its spikes), or null. */
     public net.minecraft.world.gen.EndGenerator endGenerator() { return endGenerator; }
+    /** The overworld's strongholds (not on superflat), or null. */
+    private final net.minecraft.world.gen.Stronghold strongholds;
+    public net.minecraft.world.gen.Stronghold strongholds() { return strongholds; }
     /** The Nether's generator (for its fortresses), or null. */
     public net.minecraft.world.gen.NetherGenerator netherGenerator() { return netherGenerator; }
 
@@ -198,7 +201,11 @@ public final class World implements IBlockWorld {
         genBlocks = new GenBlocks(registry);
         boolean nether = dimension == Dimension.NETHER, end = dimension == Dimension.END;
         generator = flat == null && !nether && !end ? new ChunkGenerator(genBlocks, biomeRegistry, biomes.layers(), seed) : null;
-        populator = nether || end ? null : new ChunkPopulator(genBlocks, seed);
+        strongholds = generator == null ? null : new net.minecraft.world.gen.Stronghold(genBlocks, seed, id -> {
+            Biome biome = biomeRegistry.byId(id);
+            return biome != null && biome.depth() > 0;
+        });
+        populator = nether || end ? null : new ChunkPopulator(genBlocks, seed, strongholds);
         Biome only = nether || end ? biomeRegistry.byId(nether ? 8 : 9) : null;
         netherGenerator = nether ? new net.minecraft.world.gen.NetherGenerator(genBlocks, seed) : null;
         netherPopulator = nether ? new net.minecraft.world.gen.NetherPopulator(genBlocks, seed) : null;

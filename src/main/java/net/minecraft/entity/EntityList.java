@@ -19,6 +19,8 @@ public final class EntityList {
             case "ThrownPotion" -> new EntityPotion(world, x, y, z, 0);
             case "Snowball" -> new EntitySnowball(world, x, y, z);
             case "ThrownEgg" -> new EntityEgg(world, x, y, z);
+            case "ThrownEnderpearl" -> new EntityEnderPearl(world, x, y, z);
+            case "EyeOfEnderSignal" -> new EntityEnderEye(world, x, y, z);
             case "Pig" -> new net.minecraft.entity.passive.EntityPig(world, x, y, z);
             case "PigZombie" -> new net.minecraft.entity.monster.EntityPigZombie(world, x, y, z);
             case "Skeleton" -> new net.minecraft.entity.monster.EntitySkeleton(world, x, y, z);
@@ -37,6 +39,7 @@ public final class EntityList {
             case "Chicken" -> new net.minecraft.entity.passive.EntityChicken(world, x, y, z);
             case "Boat" -> new EntityBoat(world, x, y, z);
             case "VillagerGolem" -> new net.minecraft.entity.passive.EntityIronGolem(world, x, y, z);
+            case "Enderman" -> new net.minecraft.entity.monster.EntityEnderman(world, x, y, z);
             case "EnderDragon" -> new net.minecraft.entity.boss.EntityDragon(world, x, y, z);
             case "EnderCrystal" -> new EntityEnderCrystal(world, x, y, z);
             default -> null;
