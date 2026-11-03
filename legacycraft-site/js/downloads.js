@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var VERSION = 'a1.0.2';
-  var MC_VERSION = '1.8.9';
+  var MC_VERSION = '1.9';
 
   function apply() {
     document.querySelectorAll('.lc-version').forEach(function (el) { el.textContent = VERSION; });
@@ -15,7 +15,7 @@
         if (!response.ok || /text\/html/i.test(response.headers.get('content-type') || '')) return;
         link.href = local;
         link.setAttribute('download', '');
-        link.textContent = 'Download ' + link.dataset.pkg + ' ZIP ↓';
+        link.title = 'Download LegacyCraft ' + VERSION + ' (' + link.dataset.pkg + ')';
       }).catch(function () { /* Keep the Releases link when hosted packages are absent. */ });
     });
   }

@@ -1,18 +1,9 @@
-.btn { display: inline-flex; justify-content: space-between; align-items: center; gap: 30px; padding: 15px 23px; border: 1px solid var(--accent); background: var(--accent); color: #1b2515; font-size: 14px; line-height: 1.5; font-weight: 600; cursor: pointer; transition: background .18s, border-color .18s; }
-.btn:hover { background: #d5f9ad; border-color: #d5f9ad; color: #1b2515; }
-.btn span { font-size: 20px; line-height: 1; }
-.btn-small { padding: 9px 17px; font-size: 12px; gap: 22px; }
-.btn-secondary { color: var(--ink); background: transparent; border-color: var(--line); }
-.btn-secondary:hover { background: var(--panel); color: var(--accent); border-color: var(--accent); }
-.actions { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
-code { font: 13px/1.6 var(--f-mono); overflow-wrap: anywhere; }
-.cmd { display: block; padding: 18px 20px; margin: 16px 0; border: 1px solid var(--line); background: #11150f; white-space: pre; overflow-x: auto; }
-.note { padding: 24px; background: var(--panel); border-left: 2px solid var(--accent); color: var(--dim); }
-.note strong { color: var(--ink); }
-.note p + p { margin-top: 12px; }
-.muted { color: var(--dim); }
-.small { font-size: 13px; }
-.steps { padding-left: 22px; margin-block: 20px; color: var(--dim); }
-.steps li { padding-left: 6px; margin-bottom: 12px; }
-.steps li::marker { color: var(--accent); }
-@media (max-width: 400px) { .actions { gap: 20px; } .btn { padding-inline: 18px; } }
+.note { padding: 10px 12px; background: #2b2b2b; border: 1px solid #444; }
+code { font: 13px/1.5 Consolas, monospace; overflow-wrap: anywhere; }
+pre { padding: 10px; background: #181818; border: 1px solid #444; overflow-x: auto; white-space: pre; }
+details { margin-block: 16px; }
+summary { cursor: pointer; }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.pkg-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pkg-table th, .pkg-table td { border: 1px solid #444; padding: 8px 10px; text-align: left; vertical-align: top; }
+.pkg-table th { background: #303030; font-weight: 400; }
