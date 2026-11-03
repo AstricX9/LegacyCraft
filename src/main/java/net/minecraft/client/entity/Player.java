@@ -74,6 +74,8 @@ public final class Player {
     public boolean inPortal;
     /** Touched an end portal this tick (BlockEndPortal.onEntityCollidedWithBlock: travel is immediate). */
     public boolean inEndPortal;
+    /** The end gateway block the player is touching this tick, or null. */
+    public int[] inEndGateway;
     /** How far the portal's purple haze has built up, 0-1 (EntityPlayerSP.timeInPortal), and last tick's value. */
     public float timeInPortal, prevTimeInPortal;
     public float fallDistance;
@@ -1120,6 +1122,7 @@ public final class Player {
                         case "web" -> inWeb = true;
                         case "portal" -> inPortal = true;
                         case "end_portal" -> inEndPortal = true;
+                        case "end_gateway" -> inEndGateway = new int[]{bx, by, bz};
                         case "cactus" -> attack(DamageSource.CACTUS, 1f);
                         case "slime" -> {
                             if (Math.abs(motionY) < 0.1 && !sneaking) {

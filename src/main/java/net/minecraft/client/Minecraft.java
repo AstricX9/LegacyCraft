@@ -664,6 +664,7 @@ public final class Minecraft implements GuiContext {
             player.naturalRegeneration = Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("naturalRegeneration", "true"));
             if (preparing == null) tickPlayer();
             freezeUnderFeet();
+            useEndGateway();
             updatePortalTime();
             rendererUpdateCount++;
             playerAnimation.tick(player);
@@ -1233,6 +1234,40 @@ public final class Minecraft implements GuiContext {
         }
     }
 
+    private int gatewayCooldown;
+
+    /**
+     * BlockEndGateway / TileEntityEndGateway.teleportEntity: touching a gateway
+     * in the End sends the player to its exit (found and built the first time),
+     * beside it, or into the gateway itself for an exact one. 40 ticks out of
+     * any gateway before the next works.
+     */
+    private void useEndGateway() {
+        int[] at = player.inEndGateway;
+        player.inEndGateway = null;
+        if (at == null) {
+            if (gatewayCooldown > 0) gatewayCooldown--;
+            return;
+        }
+        if (gatewayCooldown > 0 || dimension != net.minecraft.world.Dimension.END || player.dead || dragonFight == null) return;
+        String key = net.minecraft.world.DragonFight.key(at[0], at[1], at[2]);
+        net.minecraft.world.DragonFight.Exit exit = dragonFight.exits.get(key);
+        if (exit == null) {
+            int[] spot = net.minecraft.world.EndGateway.findExit(world, at[0], at[2], random);
+            net.minecraft.world.EndGateway.build(world, spot[0], spot[1], spot[2]);
+            dragonFight.exits.put(net.minecraft.world.DragonFight.key(spot[0], spot[1], spot[2]),
+                new net.minecraft.world.DragonFight.Exit(at[0], at[1], at[2], true));
+            exit = new net.minecraft.world.DragonFight.Exit(spot[0], spot[1], spot[2], false);
+            dragonFight.exits.put(key, exit);
+        }
+        int[] to = exit.exact() ? new int[]{exit.x(), exit.y(), exit.z()}
+            : net.minecraft.world.EndGateway.standingSpot(world, exit.x(), exit.y(), exit.z());
+        player.setPositionAndRotation(to[0] + 0.5, to[1] + 0.5, to[2] + 0.5, player.yaw, player.pitch);
+        player.motionX = player.motionY = player.motionZ = 0;
+        player.fallDistance = 0;
+        gatewayCooldown = 40;
+    }
+
     private Path dragonFightDirectory() {
         return worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve(net.minecraft.world.Dimension.END.folder());
     }
@@ -1249,7 +1284,12 @@ public final class Minecraft implements GuiContext {
         if (cy < 0) cy = net.minecraft.world.EndPodium.centreY(world);
         net.minecraft.world.EndPodium.build(world, cy, true);
         if (first) world.setStateAndUpdate(0, cy + 4, 0, BlockState.defaultOf(blockRegistry.get("minecraft:dragon_egg")));
-        // shortcut: the end gateway isn't opened yet (Phase 3c adds gateways).
+        // DragonFightManager.spawnNewGateway: the next of the twenty slots around the island.
+        if (!dragonFight.gateways.isEmpty()) {
+            int[] at = net.minecraft.world.DragonFight.gatewayPosition(dragonFight.gateways.remove(0));
+            net.minecraft.world.EndGateway.build(world, at[0], at[1], at[2]);
+            playSound("block.end_gateway.spawn", at[0] + 0.5, at[1] + 0.5, at[2] + 0.5, 10f, 1f);
+        }
         triggerAchievement("theEnd2");
     }
 
@@ -2089,7 +2129,7 @@ public final class Minecraft implements GuiContext {
             BlockState state = world.getState(x, y, z);
             if (!net.minecraft.client.renderer.entity.BlockEntityRenderer.draws(state.block().name().path())) return;
             float[] light = net.minecraft.client.renderer.LightMap.color(world.getSkyLight(x, y, z), world.getBlockLight(x, y, z));
-            boolean lit = !state.block().name().path().equals("end_portal");
+            boolean lit = !state.block().name().path().startsWith("end_");
             if (lit) net.minecraft.client.renderer.StandardLighting.enable();
             net.minecraft.client.shaders.Shaders.blockEntity(state.block().name().path(), state::get);
             blockEntityRenderer.render(state, x, y, z, world::getState, light, levelInfo.totalTime, partialTicks, camera);

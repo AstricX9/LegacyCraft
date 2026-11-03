@@ -57,7 +57,7 @@ public final class BlockEntityRenderer {
     public static boolean draws(String block) {
         return switch (block) {
             case "chest", "trapped_chest", "ender_chest", "standing_sign", "wall_sign", "standing_banner", "wall_banner",
-                 "end_portal" -> true;
+                 "end_portal", "end_gateway" -> true;
             default -> false;
         };
     }
@@ -82,7 +82,8 @@ public final class BlockEntityRenderer {
             case "wall_sign" -> sign(false, facing(state), x, y, z, light);
             case "standing_banner" -> banner(true, Integer.parseInt(state.get("rotation")), x, y, z, 0, ticks, partialTicks, light);
             case "wall_banner" -> banner(false, facing(state), x, y, z, 0, ticks, partialTicks, light);
-            case "end_portal" -> endPortal(x, y, z, camera);
+            case "end_portal" -> endPortal(x, y, z, camera, false);
+            case "end_gateway" -> endPortal(x, y, z, camera, true);
             default -> { }
         }
     }
@@ -311,7 +312,12 @@ public final class BlockEntityRenderer {
      * drifting slowly with the clock. {@code camera} is the viewer's feet,
      * where the world is drawn from in 1.8.9.
      */
-    private void endPortal(int x, int y, int z, double[] camera) {
+    /**
+     * The end portal's starfield (RenderEndPortal); {@code cube} draws it on all
+     * six faces of the block for an end gateway (TileEntityEndGatewayRenderer).
+     * shortcut: the gateway's sides reuse the top's projection, so they streak; give them their own planes if it matters.
+     */
+    private void endPortal(int x, int y, int z, double[] camera, boolean cube) {
         float camX = (float) camera[0], camY = (float) camera[1], camZ = (float) camera[2];
         // The modelview here is in world coordinates; 1.8.9 draws tile entities relative to the viewer.
         glPushMatrix();
@@ -320,7 +326,7 @@ public final class BlockEntityRenderer {
         glDisable(GL_LIGHTING);
         glDisable(GL_CULL_FACE);
         Random random = new Random(31100L);
-        float top = 0.75f;
+        float top = cube ? 1f : 0.75f;
         for (int layer = 0; layer < 16; layer++) {
             glPushMatrix();
             float depth = 16 - layer, size = 0.0625f, brightness = 1f / (depth + 1f);
@@ -375,6 +381,14 @@ public final class BlockEntityRenderer {
             glVertex3d(rx, ry + top, rz + 1);
             glVertex3d(rx + 1, ry + top, rz + 1);
             glVertex3d(rx + 1, ry + top, rz);
+            if (cube) {
+                double x1 = rx + 1, y1 = ry + 1, z1 = rz + 1;
+                glVertex3d(rx, ry, rz); glVertex3d(x1, ry, rz); glVertex3d(x1, ry, z1); glVertex3d(rx, ry, z1);
+                glVertex3d(rx, ry, rz); glVertex3d(rx, y1, rz); glVertex3d(x1, y1, rz); glVertex3d(x1, ry, rz);
+                glVertex3d(rx, ry, z1); glVertex3d(x1, ry, z1); glVertex3d(x1, y1, z1); glVertex3d(rx, y1, z1);
+                glVertex3d(rx, ry, rz); glVertex3d(rx, ry, z1); glVertex3d(rx, y1, z1); glVertex3d(rx, y1, rz);
+                glVertex3d(x1, ry, rz); glVertex3d(x1, y1, rz); glVertex3d(x1, y1, z1); glVertex3d(x1, ry, z1);
+            }
             glEnd();
             glPopMatrix();
             glMatrixMode(GL_MODELVIEW);
