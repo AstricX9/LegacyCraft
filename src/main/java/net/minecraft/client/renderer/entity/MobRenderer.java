@@ -36,6 +36,7 @@ public final class MobRenderer {
     public static final ResourceLocation CHICKEN = new ResourceLocation("minecraft:textures/entity/chicken.png");
     public static final ResourceLocation PIGMAN = new ResourceLocation("minecraft:textures/entity/zombie_pigman.png");
     public static final ResourceLocation ZOMBIE = new ResourceLocation("minecraft:textures/entity/zombie/zombie.png");
+    public static final ResourceLocation IRON_GOLEM = new ResourceLocation("minecraft:textures/entity/iron_golem.png");
     public static final ResourceLocation ENDERMAN = new ResourceLocation("minecraft:textures/entity/enderman/enderman.png");
     public static final ResourceLocation ENDERMAN_EYES = new ResourceLocation("minecraft:textures/entity/enderman/enderman_eyes.png");
     public static final ResourceLocation SPIDER = new ResourceLocation("minecraft:textures/entity/spider/spider.png");
@@ -271,6 +272,15 @@ public final class MobRenderer {
             texture = ENDERMAN;
             model = () -> {
                 MobModels.enderman(pose, age, enderman.carried != null, enderman.screaming);
+                return null;
+            };
+        } else if (mob instanceof net.minecraft.entity.passive.EntityIronGolem golem) {
+            texture = IRON_GOLEM;
+            // RenderIronGolem.rotateCorpse: it sways side to side as it walks.
+            if (amount >= 0.01f) glRotatef(6.5f * ((Math.abs((swing + 6f) % 13f - 6.5f) - 3.25f) / 3.25f), 0, 0, 1);
+            float attack = golem.attackTimer > 0 ? golem.attackTimer - partialTicks : 0f;
+            model = () -> {
+                MobModels.ironGolem(pose, attack);
                 return null;
             };
         } else if (mob instanceof net.minecraft.entity.monster.EntitySpider) {
@@ -663,94 +673,6 @@ public final class MobRenderer {
         glVertex3f(0, 0, 1); glVertex3f(1, 0, 1); glVertex3f(1, 1, 1); glVertex3f(0, 1, 1);
         glVertex3f(0, 0, 0); glVertex3f(0, 0, 1); glVertex3f(0, 1, 1); glVertex3f(0, 1, 0);
         glVertex3f(1, 0, 0); glVertex3f(1, 1, 0); glVertex3f(1, 1, 1); glVertex3f(1, 0, 1);
-        glEnd();
-    }
-
-    // ---- guardian (the iron golem's model) -------------------------------------------------------
-
-    /**
-     * The iron golem's model (DEV-039). An ORIGINAL design, not a copy of any
-     * Mojang model or texture: a broad steel body with dark plating, a square
-     * head with a crest and an amber visor, long arms with heavy shoulder
-     * plates and fists, and short legs. Drawn from untextured coloured boxes so
-     * no texture file is needed. Legs swing as it walks, both arms swing up and
-     * over when it attacks, and it flashes red when hurt.
-     */
-    public void renderGuardian(net.minecraft.entity.passive.EntityIronGolem golem, float partialTicks) {
-        double x = golem.renderX(partialTicks), y = golem.renderY(partialTicks), z = golem.renderZ(partialTicks);
-        float body = interpolateRotation(golem.prevRenderYawOffset, golem.renderYawOffset, partialTicks);
-        float head = interpolateRotation(golem.prevRotationYawHead, golem.rotationYawHead, partialTicks);
-        float pitch = golem.prevRotationPitch + (golem.rotationPitch - golem.prevRotationPitch) * partialTicks;
-        float amount = Math.min(1f, golem.prevLimbSwingAmount + (golem.limbSwingAmount - golem.prevLimbSwingAmount) * partialTicks);
-        float swing = golem.limbSwing - golem.limbSwingAmount * (1f - partialTicks);
-        float[] light = light(golem, x, y, z);
-        boolean hurt = golem.hurtTime > 0 || golem.deathTime > 0;
-        float tint = hurt ? 0.4f : 1f;
-        StandardLighting.enable();
-        glPushMatrix();
-        glTranslated(x, y, z);
-        rotateCorpse(golem, body, partialTicks);
-        glEnable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
-        glScalef(-1f, -1f, 1f);
-        glTranslatef(0f, -46f / 16f, 0f);     // model pixels, y down, feet at 46
-        glDisable(GL_CULL_FACE);
-        glDisable(GL_TEXTURE_2D);
-        float[] steel = {0.58f, 0.61f, 0.65f}, plate = {0.34f, 0.36f, 0.41f};
-
-        // Head and crest.
-        glPushMatrix();
-        glTranslatef(0f, 12f / 16f, 0f);
-        glRotatef(head - body, 0, 1, 0);
-        glRotatef(pitch, 1, 0, 0);
-        solid(steel, light, tint, -5, -10, -5, 10, 10, 10);
-        solid(plate, light, tint, -1, -13, -5, 2, 3, 10);
-        glColor4f(1f, 0.72f * tint, 0.2f * tint, 1f);        // the visor glows: not shaded by the light
-        glBegin(GL_QUADS);
-        PlayerModel.box(-4, -6, -5.5f, 8, 2, 0.5f, 0, 0, 0, 64f, 32f);
-        glEnd();
-        glPopMatrix();
-
-        // Torso, chest plate and belt.
-        solid(steel, light, tint, -10, 12, -6, 20, 18, 12);
-        solid(plate, light, tint, -8, 14, -6.5f, 16, 8, 1);
-        solid(plate, light, tint, -10.5f, 28, -6.5f, 21, 3, 13);
-
-        // Arms: swing against the legs, and throw both up and over in an attack.
-        float strike = 0f;
-        if (golem.attackTimer > 0) strike = (float) Math.sin((golem.attackTimer - partialTicks) / 10f * Math.PI);
-        for (int side = -1; side <= 1; side += 2) {
-            float walk = (float) Math.cos(swing * 0.6662f + (side < 0 ? 0 : Math.PI)) * 0.5f * amount;
-            float angle = walk - strike * 2.4f;
-            glPushMatrix();
-            glTranslatef(side * 13f / 16f, 14f / 16f, 0f);
-            glRotatef((float) Math.toDegrees(angle), 1, 0, 0);
-            solid(steel, light, tint, -3, 0, -3, 6, 20, 6);
-            solid(plate, light, tint, -4.5f, -2, -4.5f, 9, 4, 9);
-            solid(plate, light, tint, -3.5f, 18, -3.5f, 7, 6, 7);
-            glPopMatrix();
-        }
-
-        // Legs.
-        for (int side = -1; side <= 1; side += 2) {
-            float angle = (float) Math.cos(swing * 0.6662f + (side < 0 ? Math.PI : 0)) * 1.0f * amount;
-            glPushMatrix();
-            glTranslatef(side * 5f / 16f, 30f / 16f, 0f);
-            glRotatef((float) Math.toDegrees(angle), 1, 0, 0);
-            solid(plate, light, tint, -3.5f, 0, -3.5f, 7, 16, 7);
-            glPopMatrix();
-        }
-        glEnable(GL_TEXTURE_2D);
-        glDisable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
-        glPopMatrix();
-        StandardLighting.disable();
-        glColor4f(1, 1, 1, 1);
-    }
-
-    /** One untextured coloured box in model pixels, lit by {@code light} and dimmed in green and blue when hurt. */
-    private static void solid(float[] colour, float[] light, float tint, float x, float y, float z, float w, float h, float d) {
-        glColor4f(colour[0] * light[0], colour[1] * light[1] * tint, colour[2] * light[2] * tint, 1f);
-        glBegin(GL_QUADS);
-        PlayerModel.box(x, y, z, w, h, d, 0f, 0, 0, 64f, 32f);
         glEnd();
     }
 

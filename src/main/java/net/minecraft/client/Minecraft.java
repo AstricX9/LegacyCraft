@@ -1887,7 +1887,7 @@ public final class Minecraft implements GuiContext {
                 mobRenderer.renderTNT(tnt, tntBlock, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
             } else if (entity instanceof net.minecraft.entity.passive.EntityIronGolem golem) {
-                mobRenderer.renderGuardian(golem, partialTicks);
+                mobRenderer.renderMob(golem, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
             } else if (entity instanceof net.minecraft.entity.EntityBoat boat) {
                 mobRenderer.renderBoat(boat, partialTicks);

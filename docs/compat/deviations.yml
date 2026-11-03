@@ -1270,18 +1270,15 @@
     GolemPattern spawns one when a pumpkin or jack o'lantern is placed on top
     of an iron T (along x or z, nothing beside the bottom block); the blocks
     vanish with break particles. Saved as "VillagerGolem" with PlayerCreated.
-    Model: an ORIGINAL guardian design (not Mojang's golem model or
-    texture): untextured steel and dark-plate boxes, crested head with an
-    amber visor, long arms with shoulder plates, short legs; legs swing
-    while walking and both arms swing up and over on an attack.
+    Model: ModelIronGolem on textures/entity/iron_golem.png (geometry
+    recalled), with the walking sway and the arms thrown up on an attack.
     NOT DONE: village spawning (no villages or villagers), offering
     poppies, and hitting the player.
   reason: >
-    Requested; villages don't exist yet, and the model is an original
-    design rather than a copy of the vanilla one.
+    Requested; villages don't exist yet.
   compatibility_effect: >
-    P2: golems can be built, fight mobs and drop their loot; they use an original
-    guardian model, not the vanilla look.
+    P2: golems can be built, fight mobs and drop their loot, with the
+    vanilla model and texture.
   user_visible: true
 
 - id: DEV-040

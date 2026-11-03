@@ -153,6 +153,48 @@ public final class MobModels {
         leftLeg.draw();
     }
 
+    /** ModelIronGolem.triangleWave: -1..1 and back over {@code period}. */
+    private static float triangle(float f, float period) {
+        return (Math.abs(f % period - period * 0.5f) - period * 0.25f) / (period * 0.25f);
+    }
+
+    /**
+     * ModelIronGolem (128x128, HYPOTHESIS: recalled): head with its nose,
+     * a broad chest over a narrower waist, 30-pixel arms and short legs,
+     * all lifted 7 pixels. Legs and arms swing on a 13-tick triangle wave;
+     * an attack throws both arms up and over (attack ticks left, 10 long).
+     */
+    public static void ironGolem(Pose pose, float attack) {
+        AnimalModels.textureWidth = 128f;
+        AnimalModels.textureHeight = 128f;
+        float f = -7f;
+        Part head = new Part(0, f, -2, cube(-4, -12, -5.5f, 8, 10, 8, 0, 0, 0, false), cube(-1, -5, -7.5f, 2, 4, 2, 0, 24, 0, false));
+        Part body = new Part(0, f, 0, cube(-9, -2, -6, 18, 12, 11, 0, 0, 40, false), cube(-4.5f, 10, -3, 9, 5, 6, 0.5f, 0, 70, false));
+        Part rightArm = new Part(0, f, 0, cube(-13, -2.5f, -3, 4, 30, 6, 0, 60, 21, false));
+        Part leftArm = new Part(0, f, 0, cube(9, -2.5f, -3, 4, 30, 6, 0, 60, 58, false));
+        Part leftLeg = new Part(-4, 18 + f, 0, cube(-3.5f, -3, -3, 6, 16, 5, 0, 37, 0, false));
+        Part rightLeg = new Part(5, 18 + f, 0, cube(-3.5f, -3, -3, 6, 16, 5, 0, 60, 0, true));
+        head.ry = (float) Math.toRadians(pose.headYaw());
+        head.rx = (float) Math.toRadians(pose.pitch());
+        float walk = triangle(pose.swing(), 13f);
+        leftLeg.rx = -1.5f * walk * pose.amount();
+        rightLeg.rx = 1.5f * walk * pose.amount();
+        if (attack > 0) {
+            rightArm.rx = leftArm.rx = -2f + 1.5f * triangle(attack, 10f);
+        } else {
+            rightArm.rx = (-0.2f + 1.5f * walk) * pose.amount();
+            leftArm.rx = (-0.2f - 1.5f * walk) * pose.amount();
+        }
+        head.draw();
+        body.draw();
+        leftLeg.draw();
+        rightLeg.draw();
+        rightArm.draw();
+        leftArm.draw();
+        AnimalModels.textureWidth = 64f;
+        AnimalModels.textureHeight = 32f;
+    }
+
     /**
      * ModelSpider (64x32): head, neck and abdomen on a 15-pixel pivot line and
      * four legs a side splayed out, sweeping forward and back and lifting in
