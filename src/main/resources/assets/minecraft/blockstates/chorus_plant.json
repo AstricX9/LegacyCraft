@@ -1,196 +1,70 @@
 {
-  "variants": {
-    "down=false,east=false,north=false,south=false,up=false,west=false": {
-      "model": "chorus_plant_000000"
-    },
-    "down=false,east=false,north=false,south=false,up=false,west=true": {
-      "model": "chorus_plant_000001"
-    },
-    "down=false,east=false,north=false,south=false,up=true,west=false": {
-      "model": "chorus_plant_000010"
-    },
-    "down=false,east=false,north=false,south=false,up=true,west=true": {
-      "model": "chorus_plant_000011"
-    },
-    "down=false,east=false,north=false,south=true,up=false,west=false": {
-      "model": "chorus_plant_000100"
-    },
-    "down=false,east=false,north=false,south=true,up=false,west=true": {
-      "model": "chorus_plant_000101"
-    },
-    "down=false,east=false,north=false,south=true,up=true,west=false": {
-      "model": "chorus_plant_000110"
-    },
-    "down=false,east=false,north=false,south=true,up=true,west=true": {
-      "model": "chorus_plant_000111"
-    },
-    "down=false,east=false,north=true,south=false,up=false,west=false": {
-      "model": "chorus_plant_001000"
-    },
-    "down=false,east=false,north=true,south=false,up=false,west=true": {
-      "model": "chorus_plant_001001"
-    },
-    "down=false,east=false,north=true,south=false,up=true,west=false": {
-      "model": "chorus_plant_001010"
-    },
-    "down=false,east=false,north=true,south=false,up=true,west=true": {
-      "model": "chorus_plant_001011"
-    },
-    "down=false,east=false,north=true,south=true,up=false,west=false": {
-      "model": "chorus_plant_001100"
-    },
-    "down=false,east=false,north=true,south=true,up=false,west=true": {
-      "model": "chorus_plant_001101"
-    },
-    "down=false,east=false,north=true,south=true,up=true,west=false": {
-      "model": "chorus_plant_001110"
-    },
-    "down=false,east=false,north=true,south=true,up=true,west=true": {
-      "model": "chorus_plant_001111"
-    },
-    "down=false,east=true,north=false,south=false,up=false,west=false": {
-      "model": "chorus_plant_010000"
-    },
-    "down=false,east=true,north=false,south=false,up=false,west=true": {
-      "model": "chorus_plant_010001"
-    },
-    "down=false,east=true,north=false,south=false,up=true,west=false": {
-      "model": "chorus_plant_010010"
-    },
-    "down=false,east=true,north=false,south=false,up=true,west=true": {
-      "model": "chorus_plant_010011"
-    },
-    "down=false,east=true,north=false,south=true,up=false,west=false": {
-      "model": "chorus_plant_010100"
-    },
-    "down=false,east=true,north=false,south=true,up=false,west=true": {
-      "model": "chorus_plant_010101"
-    },
-    "down=false,east=true,north=false,south=true,up=true,west=false": {
-      "model": "chorus_plant_010110"
-    },
-    "down=false,east=true,north=false,south=true,up=true,west=true": {
-      "model": "chorus_plant_010111"
-    },
-    "down=false,east=true,north=true,south=false,up=false,west=false": {
-      "model": "chorus_plant_011000"
-    },
-    "down=false,east=true,north=true,south=false,up=false,west=true": {
-      "model": "chorus_plant_011001"
-    },
-    "down=false,east=true,north=true,south=false,up=true,west=false": {
-      "model": "chorus_plant_011010"
-    },
-    "down=false,east=true,north=true,south=false,up=true,west=true": {
-      "model": "chorus_plant_011011"
-    },
-    "down=false,east=true,north=true,south=true,up=false,west=false": {
-      "model": "chorus_plant_011100"
-    },
-    "down=false,east=true,north=true,south=true,up=false,west=true": {
-      "model": "chorus_plant_011101"
-    },
-    "down=false,east=true,north=true,south=true,up=true,west=false": {
-      "model": "chorus_plant_011110"
-    },
-    "down=false,east=true,north=true,south=true,up=true,west=true": {
-      "model": "chorus_plant_011111"
-    },
-    "down=true,east=false,north=false,south=false,up=false,west=false": {
-      "model": "chorus_plant_100000"
-    },
-    "down=true,east=false,north=false,south=false,up=false,west=true": {
-      "model": "chorus_plant_100001"
-    },
-    "down=true,east=false,north=false,south=false,up=true,west=false": {
-      "model": "chorus_plant_100010"
-    },
-    "down=true,east=false,north=false,south=false,up=true,west=true": {
-      "model": "chorus_plant_100011"
-    },
-    "down=true,east=false,north=false,south=true,up=false,west=false": {
-      "model": "chorus_plant_100100"
-    },
-    "down=true,east=false,north=false,south=true,up=false,west=true": {
-      "model": "chorus_plant_100101"
-    },
-    "down=true,east=false,north=false,south=true,up=true,west=false": {
-      "model": "chorus_plant_100110"
-    },
-    "down=true,east=false,north=false,south=true,up=true,west=true": {
-      "model": "chorus_plant_100111"
-    },
-    "down=true,east=false,north=true,south=false,up=false,west=false": {
-      "model": "chorus_plant_101000"
-    },
-    "down=true,east=false,north=true,south=false,up=false,west=true": {
-      "model": "chorus_plant_101001"
-    },
-    "down=true,east=false,north=true,south=false,up=true,west=false": {
-      "model": "chorus_plant_101010"
-    },
-    "down=true,east=false,north=true,south=false,up=true,west=true": {
-      "model": "chorus_plant_101011"
-    },
-    "down=true,east=false,north=true,south=true,up=false,west=false": {
-      "model": "chorus_plant_101100"
-    },
-    "down=true,east=false,north=true,south=true,up=false,west=true": {
-      "model": "chorus_plant_101101"
-    },
-    "down=true,east=false,north=true,south=true,up=true,west=false": {
-      "model": "chorus_plant_101110"
-    },
-    "down=true,east=false,north=true,south=true,up=true,west=true": {
-      "model": "chorus_plant_101111"
-    },
-    "down=true,east=true,north=false,south=false,up=false,west=false": {
-      "model": "chorus_plant_110000"
-    },
-    "down=true,east=true,north=false,south=false,up=false,west=true": {
-      "model": "chorus_plant_110001"
-    },
-    "down=true,east=true,north=false,south=false,up=true,west=false": {
-      "model": "chorus_plant_110010"
-    },
-    "down=true,east=true,north=false,south=false,up=true,west=true": {
-      "model": "chorus_plant_110011"
-    },
-    "down=true,east=true,north=false,south=true,up=false,west=false": {
-      "model": "chorus_plant_110100"
-    },
-    "down=true,east=true,north=false,south=true,up=false,west=true": {
-      "model": "chorus_plant_110101"
-    },
-    "down=true,east=true,north=false,south=true,up=true,west=false": {
-      "model": "chorus_plant_110110"
-    },
-    "down=true,east=true,north=false,south=true,up=true,west=true": {
-      "model": "chorus_plant_110111"
-    },
-    "down=true,east=true,north=true,south=false,up=false,west=false": {
-      "model": "chorus_plant_111000"
-    },
-    "down=true,east=true,north=true,south=false,up=false,west=true": {
-      "model": "chorus_plant_111001"
-    },
-    "down=true,east=true,north=true,south=false,up=true,west=false": {
-      "model": "chorus_plant_111010"
-    },
-    "down=true,east=true,north=true,south=false,up=true,west=true": {
-      "model": "chorus_plant_111011"
-    },
-    "down=true,east=true,north=true,south=true,up=false,west=false": {
-      "model": "chorus_plant_111100"
-    },
-    "down=true,east=true,north=true,south=true,up=false,west=true": {
-      "model": "chorus_plant_111101"
-    },
-    "down=true,east=true,north=true,south=true,up=true,west=false": {
-      "model": "chorus_plant_111110"
-    },
-    "down=true,east=true,north=true,south=true,up=true,west=true": {
-      "model": "chorus_plant_111111"
-    }
-  }
+    "multipart": [
+        {   "when": { "north": true },
+            "apply": { "model": "chorus_plant_side" }
+        },
+        {   "when": { "east": true },
+            "apply": { "model": "chorus_plant_side", "y": 90, "uvlock": true }
+        },
+        {   "when": { "south": true },
+            "apply": { "model": "chorus_plant_side", "y": 180, "uvlock": true }
+        },
+        {   "when": { "west": true },
+            "apply": { "model": "chorus_plant_side", "y": 270, "uvlock": true }
+        },
+        {   "when": { "up": true },
+            "apply": { "model": "chorus_plant_side", "x": 270, "uvlock": true }
+        },
+        {   "when": { "down": true },
+            "apply": { "model": "chorus_plant_side", "x": 90, "uvlock": true }
+        },
+        {   "when": { "north": false },
+            "apply": [
+                { "model": "chorus_plant_noside", "weight": 2 },
+                { "model": "chorus_plant_noside1" },
+                { "model": "chorus_plant_noside2" },
+                { "model": "chorus_plant_noside3" }
+            ]
+        },
+        {   "when": { "east": false },
+            "apply": [
+                { "model": "chorus_plant_noside1", "y": 90, "uvlock": true },
+                { "model": "chorus_plant_noside2", "y": 90, "uvlock": true },
+                { "model": "chorus_plant_noside3", "y": 90, "uvlock": true },
+                { "model": "chorus_plant_noside", "weight": 2, "y": 90, "uvlock": true }
+            ]
+        },
+        {   "when": { "south": false },
+            "apply": [
+                { "model": "chorus_plant_noside2", "y": 180, "uvlock": true },
+                { "model": "chorus_plant_noside3", "y": 180, "uvlock": true },
+                { "model": "chorus_plant_noside", "weight": 2, "y": 180, "uvlock": true },
+                { "model": "chorus_plant_noside1", "y": 180, "uvlock": true }
+            ]
+        },
+        {   "when": { "west": false },
+            "apply": [
+                { "model": "chorus_plant_noside3", "y": 270, "uvlock": true },
+                { "model": "chorus_plant_noside", "weight": 2, "y": 270, "uvlock": true },
+                { "model": "chorus_plant_noside1", "y": 270, "uvlock": true },
+                { "model": "chorus_plant_noside2", "y": 270, "uvlock": true }
+            ]
+        },
+        {   "when": { "up": false },
+            "apply": [
+                { "model": "chorus_plant_noside", "weight": 2, "x": 270, "uvlock": true },
+                { "model": "chorus_plant_noside3", "x": 270, "uvlock": true },
+                { "model": "chorus_plant_noside1", "x": 270, "uvlock": true },
+                { "model": "chorus_plant_noside2", "x": 270, "uvlock": true }
+            ]
+        },
+        {   "when": { "down": false },
+            "apply": [
+                { "model": "chorus_plant_noside3", "x": 90, "uvlock": true },
+                { "model": "chorus_plant_noside2", "x": 90, "uvlock": true },
+                { "model": "chorus_plant_noside1", "x": 90, "uvlock": true },
+                { "model": "chorus_plant_noside", "weight": 2, "x": 90, "uvlock": true }
+            ]
+        }
+    ]
 }
