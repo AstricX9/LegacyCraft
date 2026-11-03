@@ -1,8 +1,0 @@
-{
-  "class": "slab",
-  "hardness": 2.0,
-  "doubleSlab": "minecraft:purpur_double_slab",
-  "opaque": false,
-  "lightOpacity": 15,
-  "useNeighborBrightness": true
-}

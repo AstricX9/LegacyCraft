@@ -18,7 +18,6 @@
   {"input": "rabbit", "result": "cooked_rabbit", "xp": 0.35},
   {"input": "mutton", "result": "cooked_mutton", "xp": 0.35},
   {"input": "cobblestone", "result": "stone", "xp": 0.1},
-  {"input": "chorus_fruit", "result": "chorus_fruit_popped", "xp": 0.1},
   {"input": "stonebrick", "result": "cracked_stonebrick", "xp": 0.1},
   {"input": "clay_ball", "result": "brick", "xp": 0.3},
   {"input": "clay", "result": "hardened_clay", "xp": 0.35},

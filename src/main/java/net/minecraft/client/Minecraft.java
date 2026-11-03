@@ -183,10 +183,8 @@ public final class Minecraft implements GuiContext {
     // The singleplayer session; all null on the title screen.
     private World world;
     /** The dimensions' worlds and entity lists this session ({@link #world}/{@link #server} are the current ones). */
-    private World overworld;
-    /** The Nether's and the End's worlds and entity lists, once visited. */
-    private final java.util.EnumMap<net.minecraft.world.Dimension, World> otherWorlds = new java.util.EnumMap<>(net.minecraft.world.Dimension.class);
-    private final java.util.EnumMap<net.minecraft.world.Dimension, IntegratedServer> servers = new java.util.EnumMap<>(net.minecraft.world.Dimension.class);
+    private World overworld, netherWorld;
+    private IntegratedServer overworldServer, netherServer;
     private net.minecraft.world.Dimension dimension = net.minecraft.world.Dimension.OVERWORLD;
     /** Portal travel (Entity.portalCounter / timeUntilPortal): ticks spent in a portal, and the cooldown after travelling. */
     private int portalCounter, timeUntilPortal;
@@ -219,11 +217,6 @@ public final class Minecraft implements GuiContext {
                 particles.spawnSpell(false, x, y, z, 0, 0, 0, (float) vx, (float) vy, (float) vz);
                 return;
             }
-            // shortcut: ParticleDragonBreath drawn as a purple spell swirl, until it has its own sprite and drag.
-            if (kind.equals("dragonbreath")) {
-                particles.spawnSpell(false, x, y, z, vx, vy, vz, 0.72f + random.nextFloat() * 0.15f, 0f, 0.82f + random.nextFloat() * 0.15f);
-                return;
-            }
             ParticleManager.Kind type = switch (kind) {
                 case "explode" -> ParticleManager.Kind.EXPLODE;
                 case "largeexplode" -> ParticleManager.Kind.LARGE_EXPLODE;
@@ -252,14 +245,7 @@ public final class Minecraft implements GuiContext {
             return levelInfo == null || Boolean.parseBoolean(levelInfo.gameRules.getOrDefault(name, "true"));
         }
         @Override public long worldTime() { return levelInfo == null ? 6000 : levelInfo.worldTime; }
-        @Override public void giveExperience(int amount) {
-            if (player == null) return;
-            ItemStack[] equipment = java.util.Arrays.copyOf(inventory.armorInventory, inventory.armorInventory.length + 2);
-            equipment[equipment.length - 2] = inventory.getCurrentItem();
-            equipment[equipment.length - 1] = inventory.getOffhandItem();
-            int left = net.minecraft.enchantment.EnchantmentHelper.mend(amount, equipment, random);
-            if (left > 0) player.addExperience(left);
-        }
+        @Override public void giveExperience(int amount) { if (player != null) player.addExperience(amount); }
         @Override public void globalSound(String event, double x, double y, double z) {
             // RenderGlobal.broadcastSound: 2 blocks from the camera toward the source.
             if (player == null) return;
@@ -656,15 +642,12 @@ public final class Minecraft implements GuiContext {
                 net.minecraft.world.MobSpawner.spawnCreatures(world, entityHost, random, levelInfo.totalTime,
                     levelInfo.spawnX, levelInfo.spawnY, levelInfo.spawnZ);
             spawnGeneratedCreatures();
-            tickDragonFight();
             server.tick();
             tickItemEntities();
             levelInfo.totalTime++;
             player.difficulty = levelInfo.difficulty;
             player.naturalRegeneration = Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("naturalRegeneration", "true"));
             if (preparing == null) tickPlayer();
-            freezeUnderFeet();
-            useEndGateway();
             updatePortalTime();
             rendererUpdateCount++;
             playerAnimation.tick(player);
@@ -672,10 +655,7 @@ public final class Minecraft implements GuiContext {
             tickParticles();
             tickCaveAmbience();
             updateBiomesExplored();
-            if (inventory != null) {
-                firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
-                firstPersonRenderer.tickOffhand(inventory.getOffhandItem());
-            }
+            if (inventory != null) firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
             if (Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("doDaylightCycle", "true"))) levelInfo.worldTime++;
             tickSky();
         }
@@ -689,9 +669,8 @@ public final class Minecraft implements GuiContext {
         }
         ingameGui.updateTick(inventory);
         // EntityPlayer.onUpdate: using stops when the held stack is no longer the one in use.
-        if (player.isUsingItem() && (usingHandStack() != player.itemInUse() || isSpectator()))
+        if (player.isUsingItem() && (inventory.getCurrentItem() != player.itemInUse() || isSpectator()))
             player.clearItemInUse();
-        if (!player.isUsingItem()) offhandInUse = false;
         if (rightClickDelayTimer > 0) rightClickDelayTimer--;
         if (currentScreen != null) {
             playerController.resetBlockRemoving();
@@ -705,7 +684,6 @@ public final class Minecraft implements GuiContext {
             triggerAchievement("openInventory");
             displayGuiScreen(isCreative() ? new GuiContainerCreative() : new GuiInventory());
         } else {
-            while (gameSettings.keyBindSwapHands.isPressed()) if (!isSpectator()) inventory.swapHands();
             while (gameSettings.keyBindDrop.isPressed()) if (!isSpectator()) dropHeldItem(isKeyDown(GLFW_KEY_LEFT_CONTROL) || isKeyDown(GLFW_KEY_RIGHT_CONTROL));
             // Opened from the tick, after the key's own character event has gone by, so "t" or "/" is not typed into the field.
             if (gameSettings.keyBindChat.isPressed()) displayGuiScreen(new GuiChat());
@@ -1021,8 +999,8 @@ public final class Minecraft implements GuiContext {
         overworld = world;
         dimension = net.minecraft.world.Dimension.OVERWORLD;
         chooseSpawn(info);
-        if (settings == null && info.playerDimension != 0 && info.player != null && cliSpawnX == null) {
-            dimension = net.minecraft.world.Dimension.byId(info.playerDimension);
+        if (settings == null && info.playerDimension == -1 && info.player != null && cliSpawnX == null) {
+            dimension = net.minecraft.world.Dimension.NETHER;
             world = dimensionWorld(dimension);
         }
         loadingScreen.setTitle(I18n.format("menu.loadingLevel"));
@@ -1098,10 +1076,6 @@ public final class Minecraft implements GuiContext {
             @Override public void armorBroke(int slot) {
                 playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
             }
-            @Override public void shieldBroke(ItemStack shield) {
-                if (inventory.getOffhandItem() == shield) inventory.setOffhandItem(null);
-                if (inventory.getCurrentItem() == shield) inventory.mainInventory[inventory.currentItem] = null;
-            }
         };
         loadStats();
         applyGameMode();
@@ -1115,7 +1089,7 @@ public final class Minecraft implements GuiContext {
         player.sounds = (event, volume, pitch) -> playSound(event, player.x, player.y, player.z, volume, pitch);
         player.itemUseListener = new Player.ItemUseListener() {
             @Override public void update(ItemStack stack, int particles) { itemUseEffects(stack, particles); }
-            @Override public void finish(ItemStack stack) { withUsingHand(() -> finishItemUse(stack)); }
+            @Override public void finish(ItemStack stack) { finishItemUse(stack); }
         };
         server = dimensionServer(dimension);
         spawnGeneratedCreatures();
@@ -1127,8 +1101,8 @@ public final class Minecraft implements GuiContext {
         particles.sounds = this::playSound;
         eventsInstalled = true;
         installEvents(overworld);
-        otherWorlds.values().forEach(this::installEvents);
-        sky.setDimension(world.dimension());
+        if (netherWorld != null) installEvents(netherWorld);
+        sky.setNether(world.isNether());
         gameSettings.difficulty = levelInfo.difficulty;
         if (worldFolder != null) saveWorld();
         displayGuiScreen(null);
@@ -1157,38 +1131,37 @@ public final class Minecraft implements GuiContext {
 
     // ---- dimensions ---------------------------------------------------------------------------
 
-    /** A dimension's world, loaded from its folder (DIM-1, DIM1) or created the first time it is visited. */
+    /** A dimension's world, loaded from its folder (DIM-1) or created the first time it is visited. */
     private World dimensionWorld(net.minecraft.world.Dimension target) {
         if (target == net.minecraft.world.Dimension.OVERWORLD) return overworld;
-        World existing = otherWorlds.get(target);
-        if (existing != null) return existing;
+        if (netherWorld != null) return netherWorld;
         long seed = levelInfo.randomSeed;
         Path directory = worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve(target.folder());
-        World loaded = null;
         try {
             if (directory != null && WorldStorage.exists(directory))
-                loaded = WorldStorage.load(directory, blockRegistry, s -> createDimensionWorld(s, target));
+                netherWorld = WorldStorage.load(directory, blockRegistry, s -> createNetherWorld(s));
         } catch (IOException error) {
-            System.err.println("Couldn't load " + target + "; it will be regenerated: " + error.getMessage());
+            System.err.println("Couldn't load the Nether; it will be regenerated: " + error.getMessage());
         }
-        if (loaded == null) loaded = createDimensionWorld(seed, target);
-        otherWorlds.put(target, loaded);
-        if (eventsInstalled) installEvents(loaded);
-        return loaded;
+        if (netherWorld == null) netherWorld = createNetherWorld(seed);
+        if (eventsInstalled) installEvents(netherWorld);
+        return netherWorld;
     }
 
-    private World createDimensionWorld(long seed, net.minecraft.world.Dimension target) {
-        World created = new World(blockRegistry, biomeRegistry, seed, null, target);
+    private World createNetherWorld(long seed) {
+        World created = new World(blockRegistry, biomeRegistry, seed, null, net.minecraft.world.Dimension.NETHER);
         created.setSmelting(smelting, this::itemByName);
         return created;
     }
 
     /** A dimension's entity list, its saved entities loaded the first time. */
     private IntegratedServer dimensionServer(net.minecraft.world.Dimension target) {
-        IntegratedServer existing = servers.get(target);
+        boolean nether = target == net.minecraft.world.Dimension.NETHER;
+        IntegratedServer existing = nether ? netherServer : overworldServer;
         if (existing != null) return existing;
         IntegratedServer created = new IntegratedServer(dimensionWorld(target));
-        servers.put(target, created);
+        if (nether) netherServer = created;
+        else overworldServer = created;
         IntegratedServer previous = server;
         server = created;
         loadEntities(target);
@@ -1204,99 +1177,9 @@ public final class Minecraft implements GuiContext {
      * prepared behind the "Downloading terrain" screen, then the travel
      * sound plays.
      */
-    /** The End's dragon fight, loaded the first time the End ticks; null outside a world. */
-    private net.minecraft.world.DragonFight dragonFight;
-
-    /**
-     * DragonFightManager.tick: with the End loaded, the exit portal is built
-     * (unlit while the dragon lives) and the dragon is there unless it was killed.
-     */
-    private void tickDragonFight() {
-        if (dimension != net.minecraft.world.Dimension.END || server == null) return;
-        if (dragonFight == null) {
-            Path directory = dragonFightDirectory();
-            dragonFight = directory == null ? new net.minecraft.world.DragonFight(levelInfo.randomSeed)
-                : net.minecraft.world.DragonFight.load(directory, levelInfo.randomSeed);
-            if (!net.minecraft.world.EndPodium.exists(world))
-                net.minecraft.world.EndPodium.build(world, net.minecraft.world.EndPodium.centreY(world), dragonFight.dragonKilled);
-        }
-        net.minecraft.entity.boss.EntityDragon dragon = null;
-        for (Entity entity : server.entities().values())
-            if (entity instanceof net.minecraft.entity.boss.EntityDragon d && !d.isRemoved()) { dragon = d; break; }
-        if (dragon == null && !dragonFight.dragonKilled) {
-            dragon = new net.minecraft.entity.boss.EntityDragon(world, 0, 128, 0);
-            spawnEntity(dragon);
-        }
-        if (dragon != null && dragon.fight == null) {
-            dragon.fight = dragonFight;
-            dragon.podiumTop = net.minecraft.world.EndPodium.builtY(world) + 4;
-            dragon.onDeath = this::dragonKilled;
-        }
-    }
-
-    private int gatewayCooldown;
-
-    /**
-     * BlockEndGateway / TileEntityEndGateway.teleportEntity: touching a gateway
-     * in the End sends the player to its exit (found and built the first time),
-     * beside it, or into the gateway itself for an exact one. 40 ticks out of
-     * any gateway before the next works.
-     */
-    private void useEndGateway() {
-        int[] at = player.inEndGateway;
-        player.inEndGateway = null;
-        if (at == null) {
-            if (gatewayCooldown > 0) gatewayCooldown--;
-            return;
-        }
-        if (gatewayCooldown > 0 || dimension != net.minecraft.world.Dimension.END || player.dead || dragonFight == null) return;
-        String key = net.minecraft.world.DragonFight.key(at[0], at[1], at[2]);
-        net.minecraft.world.DragonFight.Exit exit = dragonFight.exits.get(key);
-        if (exit == null) {
-            int[] spot = net.minecraft.world.EndGateway.findExit(world, at[0], at[2], random);
-            net.minecraft.world.EndGateway.build(world, spot[0], spot[1], spot[2]);
-            dragonFight.exits.put(net.minecraft.world.DragonFight.key(spot[0], spot[1], spot[2]),
-                new net.minecraft.world.DragonFight.Exit(at[0], at[1], at[2], true));
-            exit = new net.minecraft.world.DragonFight.Exit(spot[0], spot[1], spot[2], false);
-            dragonFight.exits.put(key, exit);
-        }
-        int[] to = exit.exact() ? new int[]{exit.x(), exit.y(), exit.z()}
-            : net.minecraft.world.EndGateway.standingSpot(world, exit.x(), exit.y(), exit.z());
-        player.setPositionAndRotation(to[0] + 0.5, to[1] + 0.5, to[2] + 0.5, player.yaw, player.pitch);
-        player.motionX = player.motionY = player.motionZ = 0;
-        player.fallDistance = 0;
-        gatewayCooldown = 40;
-    }
-
-    private Path dragonFightDirectory() {
-        return worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve(net.minecraft.world.Dimension.END.folder());
-    }
-
-    /**
-     * DragonFightManager.processDragonDeath: the exit portal lights, the egg
-     * appears on its pillar the first time, and the first gateway opens.
-     */
-    private void dragonKilled() {
-        boolean first = !dragonFight.previouslyKilled;
-        dragonFight.dragonKilled = true;
-        dragonFight.previouslyKilled = true;
-        int cy = net.minecraft.world.EndPodium.builtY(world);
-        if (cy < 0) cy = net.minecraft.world.EndPodium.centreY(world);
-        net.minecraft.world.EndPodium.build(world, cy, true);
-        if (first) world.setStateAndUpdate(0, cy + 4, 0, BlockState.defaultOf(blockRegistry.get("minecraft:dragon_egg")));
-        // DragonFightManager.spawnNewGateway: the next of the twenty slots around the island.
-        if (!dragonFight.gateways.isEmpty()) {
-            int[] at = net.minecraft.world.DragonFight.gatewayPosition(dragonFight.gateways.remove(0));
-            net.minecraft.world.EndGateway.build(world, at[0], at[1], at[2]);
-            playSound("block.end_gateway.spawn", at[0] + 0.5, at[1] + 0.5, at[2] + 0.5, 10f, 1f);
-        }
-        triggerAchievement("theEnd2");
-    }
-
     private void changeDimension(net.minecraft.world.Dimension target, boolean throughPortal) {
         if (player == null || target == dimension) return;
-        boolean end = target == net.minecraft.world.Dimension.END, fromEnd = dimension == net.minecraft.world.Dimension.END;
-        double scale = target == net.minecraft.world.Dimension.NETHER ? 1.0 / 8.0 : dimension == net.minecraft.world.Dimension.NETHER ? 8.0 : 1.0;
+        double scale = target == net.minecraft.world.Dimension.NETHER ? 1.0 / 8.0 : 8.0;
         double x = Math.max(-29999872, Math.min(29999872, player.x * scale));
         double z = Math.max(-29999872, Math.min(29999872, player.z * scale));
         double y = player.y;
@@ -1306,23 +1189,7 @@ public final class Minecraft implements GuiContext {
         levelInfo.playerDimension = target.id;
         player.setWorld(world);
         if (target == net.minecraft.world.Dimension.NETHER && throughPortal) triggerAchievement("portal");
-        if (end) {
-            // WorldServer.getSpawnCoordinate and Teleporter.placeInPortal for the End: a 5x5 obsidian platform at (100, 48, 0).
-            triggerAchievement("theEnd");
-            x = 100.5;
-            y = 49;
-            z = 0.5;
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = -2; dz <= 2; dz++)
-                    for (int dy = -1; dy <= 2; dy++)
-                        world.setStateAndUpdate(100 + dx, 49 + dy, dz, dy < 0
-                            ? BlockState.of(blockRegistry.get("minecraft:obsidian"), 0) : BlockState.of(blockRegistry.air(), 0));
-        } else if (fromEnd) {
-            // Leaving the End through its exit portal: back to the player's spawn point (ServerConfigurationManager.recreatePlayerEntity).
-            x = player.spawnX;
-            z = player.spawnZ;
-            y = world.surfaceHeight((int) Math.floor(x), (int) Math.floor(z)) + 2;
-        } else if (throughPortal) {
+        if (throughPortal) {
             double[] spot = net.minecraft.world.Teleporter.placeInPortal(world, x, y, z, random);
             x = spot[0];
             y = spot[1];
@@ -1338,7 +1205,7 @@ public final class Minecraft implements GuiContext {
         if (particles != null) particles.clear();
         particles = new ParticleManager(world, atlas, guiTextures, modelManager, biomeColors);
         particles.sounds = this::playSound;
-        sky.setDimension(world.dimension());
+        sky.setNether(world.isNether());
         loadingScreen.setTitle(I18n.format("multiplayer.downloadingTerrain"));
         loadingScreen.setMessage("");
         loadingScreen.setProgress(0);
@@ -1352,7 +1219,6 @@ public final class Minecraft implements GuiContext {
 
     private void startThrowawayWorld() {
         worldFolder = null;
-        dragonFight = null;
         // Developer worlds start in Creative with a starter hotbar (vanilla worlds start empty).
         WorldSettings settings = new WorldSettings(cliSeed, WorldSettings.GameType.CREATIVE, true, false,
             WorldType.DEFAULT, true, false, "");
@@ -1390,17 +1256,12 @@ public final class Minecraft implements GuiContext {
             Path directory = saveFormat.worldDirectory(worldFolder);
             Files.createDirectories(directory);
             WorldStorage.save(directory, overworld);
-            saveEntities(directory, servers.get(net.minecraft.world.Dimension.OVERWORLD));
-            for (var entry : otherWorlds.entrySet()) {
-                Path dimensionDirectory = directory.resolve(entry.getKey().folder());
-                Files.createDirectories(dimensionDirectory);
-                WorldStorage.save(dimensionDirectory, entry.getValue());
-                saveEntities(dimensionDirectory, servers.get(entry.getKey()));
-            }
-            if (dragonFight != null) {
-                Path endDirectory = directory.resolve(net.minecraft.world.Dimension.END.folder());
-                Files.createDirectories(endDirectory);
-                dragonFight.save(endDirectory);
+            saveEntities(directory, overworldServer);
+            if (netherWorld != null) {
+                Path netherDirectory = directory.resolve(net.minecraft.world.Dimension.NETHER.folder());
+                Files.createDirectories(netherDirectory);
+                WorldStorage.save(netherDirectory, netherWorld);
+                saveEntities(netherDirectory, netherServer);
             }
             levelInfo.sizeOnDisk = directorySize(directory);
             saveFormat.saveWorldInfo(worldFolder, levelInfo);
@@ -1464,12 +1325,11 @@ public final class Minecraft implements GuiContext {
 
     private void closeSession() {
         if (soundHandler != null) soundHandler.stopAll();
-        servers.values().forEach(IntegratedServer::close);
-        if (server != null && !servers.containsValue(server)) server.close();
-        servers.clear();
-        otherWorlds.clear();
-        dragonFight = null;
-        overworld = null;
+        if (overworldServer != null) overworldServer.close();
+        if (netherServer != null) netherServer.close();
+        if (server != null && server != overworldServer && server != netherServer) server.close();
+        overworldServer = netherServer = null;
+        overworld = netherWorld = null;
         eventsInstalled = false;
         dimension = net.minecraft.world.Dimension.OVERWORLD;
         portalCounter = timeUntilPortal = 0;
@@ -1619,7 +1479,6 @@ public final class Minecraft implements GuiContext {
         List<LevelInfo.SavedStack> saved = new ArrayList<>();
         for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) addSaved(saved, slot);
         for (int slot = 100; slot < 100 + InventoryPlayer.ARMOR_SIZE; slot++) addSaved(saved, slot);
-        addSaved(saved, InventoryPlayer.OFFHAND_SAVE_SLOT);
         levelInfo.inventory = saved;
         levelInfo.selectedItemSlot = inventory.currentItem;
         levelInfo.experience = new LevelInfo.Experience(player.experienceLevel, player.experience, player.experienceTotal);
@@ -1679,61 +1538,44 @@ public final class Minecraft implements GuiContext {
             best = Math.sqrt(hx * hx + hy * hy + hz * hz);
         }
         MovingEntity found = null;
-        int foundPart = -1;
         double foundDistance = best;
         for (Entity entity : server.entities().values()) {
             if (entity == ridingBoat) continue;
             if (entity.isRemoved() || !(entity instanceof EntityLiving || entity instanceof EntityTNTPrimed
-                || entity instanceof net.minecraft.entity.EntityBoat || entity instanceof net.minecraft.entity.EntityEnderCrystal
+                || entity instanceof net.minecraft.entity.EntityBoat
                 || entity instanceof net.minecraft.entity.EntityFireball fb && fb.deflectable())) continue;
-            // The dragon is hit through its parts (EntityDragonPart), not its own box.
-            AxisAlignedBB[] boxes = entity instanceof net.minecraft.entity.boss.EntityDragon dragon ? dragon.partBoxes()
-                : new AxisAlignedBB[]{((MovingEntity) entity).boundingBox()};
-            for (int part = 0; part < boxes.length; part++) {
-                AxisAlignedBB box = boxes[part];
-                box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
-                if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
-                    if (foundDistance >= 0) {
-                        found = (MovingEntity) entity;
-                        foundPart = part;
-                        foundDistance = 0;
-                    }
-                    continue;
-                }
-                AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
-                if (entry == null || entry.distance() > best) continue;
-                if (entry.distance() < foundDistance || foundDistance == 0) {
+            AxisAlignedBB box = ((MovingEntity) entity).boundingBox();
+            box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
+            if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
+                if (foundDistance >= 0) {
                     found = (MovingEntity) entity;
-                    foundPart = part;
-                    foundDistance = entry.distance();
+                    foundDistance = 0;
                 }
+                continue;
+            }
+            AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
+            if (entry == null || entry.distance() > best) continue;
+            if (entry.distance() < foundDistance || foundDistance == 0) {
+                found = (MovingEntity) entity;
+                foundDistance = entry.distance();
             }
         }
         if (found == null) return hit;
-        if (found instanceof net.minecraft.entity.boss.EntityDragon dragon) dragon.hitPart = foundPart;
         if (limited && foundDistance > 3.0) return null;
         pointedEntity = found;
         return null;
     }
 
     /**
-     * EntityPlayer.attackTargetEntityWithCurrentItem (1.9): the held item's
-     * attack damage scaled by how charged the attack is (0.2 + 0.8 x
-     * strength squared; enchantment bonus x strength), and the cooldown
-     * restarts. Only a charged hit (over 0.9) can crit (x1.5 while falling,
-     * not sprinting), knock back from a sprint, or sweep (a sword on the
-     * ground, not sprinting: 1 damage and a push to mobs within a block of
-     * the target). Sharpness adds 0.5 a level + 0.5; Knockback throws the
-     * mob further and stops the sprint; Fire Aspect sets it alight; a sword
-     * wears by 1 and a tool by 2; the swing costs 0.3 exhaustion.
+     * EntityPlayer.attackTargetEntityWithCurrentItem: the held item's attack
+     * damage (x1.5 for a critical hit while falling), plus Sharpness 1.25 a
+     * level; Knockback (and sprinting) throw the mob further and stop the
+     * sprint; Fire Aspect sets it alight; a sword wears by 1 and a tool by 2;
+     * the swing costs 0.3 exhaustion.
      */
     private void attackEntity(MovingEntity target) {
         if (target instanceof net.minecraft.entity.EntityBoat boat) {
             if (!isSpectator() && boat.hitByPlayer(isCreative()) && boat == ridingBoat) dismountBoat();
-            return;
-        }
-        if (target instanceof net.minecraft.entity.EntityEnderCrystal crystal) {
-            if (!isSpectator()) crystal.hit(false);
             return;
         }
         if (!isSpectator() && target instanceof net.minecraft.entity.EntityFireball fireball && fireball.deflectable()) {
@@ -1743,27 +1585,14 @@ public final class Minecraft implements GuiContext {
         if (isSpectator() || !(target instanceof EntityLiving mob)) return;
         ItemStack held = inventory.getCurrentItem();
         float damage = player.attackDamage(ToolValues.attackDamage(held == null ? null : held.item()));
-        int sharpness = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.SHARPNESS, held);
-        float bonus = sharpness > 0 ? sharpness * 0.5f + 0.5f : 0f;
-        float strength = player.attackStrength(0.5f);
-        damage *= 0.2f + strength * strength * 0.8f;
-        bonus *= strength;
-        player.resetCooldown();
+        float bonus = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.SHARPNESS, held) * 1.25f;
+        int knockback = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.KNOCKBACK, held)
+            + (player.sprinting ? 1 : 0);
         if (damage <= 0 && bonus <= 0) return;
-        boolean charged = strength > 0.9f;
-        int knockback = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.KNOCKBACK, held);
-        boolean sprintHit = player.sprinting && charged;
-        if (sprintHit) {
-            knockback++;
-            playSound("entity.player.attack.knockback", player.x, player.y, player.z, 1f, 1f);
-        }
-        boolean crit = charged && player.fallDistance > 0 && !player.onGround && !player.onLadder() && !player.inWater
-            && !player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS) && ridingBoat == null && !player.sprinting;
-        if (crit) damage *= 1.5f;
+        boolean crit = player.fallDistance > 0 && !player.onGround && !player.onLadder() && !player.inWater
+            && !player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS);
+        if (crit && damage > 0) damage *= 1.5f;
         damage += bonus;
-        boolean sweep = charged && !crit && !sprintHit && player.onGround
-            && player.motionX * player.motionX + player.motionZ * player.motionZ < 0.1 * 0.1
-            && held != null && ToolValues.type(held.item()) == ToolValues.Type.SWORD;
         int fireAspect = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.FIRE_ASPECT, held);
         boolean lit = false;
         if (fireAspect > 0 && !mob.isBurning()) {
@@ -1773,7 +1602,6 @@ public final class Minecraft implements GuiContext {
         int looting = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.LOOTING, held);
         if (!mob.attackFromPlayer(player, damage, looting)) {
             if (lit) mob.fire = 0;
-            playSound("entity.player.attack.nodamage", player.x, player.y, player.z, 1f, 1f);
             return;
         }
         if (knockback > 0) {
@@ -1783,24 +1611,6 @@ public final class Minecraft implements GuiContext {
             player.motionZ *= 0.6;
             player.sprinting = false;
         }
-        if (sweep) {
-            double yaw = Math.toRadians(player.yaw);
-            net.minecraft.util.AxisAlignedBB around = mob.boundingBox().grow(1.0, 0.25, 1.0);
-            for (Entity entity : new java.util.ArrayList<>(server.entities().values())) {
-                if (!(entity instanceof EntityLiving other) || other == mob || !other.isAlive()) continue;
-                if (!other.boundingBox().intersects(around)) continue;
-                double dx = other.x() - player.x, dy = other.y() - player.y, dz = other.z() - player.z;
-                if (dx * dx + dy * dy + dz * dz >= 9.0) continue;
-                other.knockBack(-Math.sin(yaw), Math.cos(yaw)); // pushed the way the player faces
-                other.attackFromPlayer(player, 1f, looting);
-            }
-            playSound("entity.player.attack.sweep", player.x, player.y, player.z, 1f, 1f);
-            if (particles != null) particles.spawn(ParticleManager.Kind.SWEEP_ATTACK, player.x + Math.sin(yaw),
-                player.y + player.eyeHeight() * 0.5, player.z - Math.cos(yaw), 0, 0, 0, null);
-        }
-        if (crit) playSound("entity.player.attack.crit", player.x, player.y, player.z, 1f, 1f);
-        else if (!sweep) playSound(charged ? "entity.player.attack.strong" : "entity.player.attack.weak",
-            player.x, player.y, player.z, 1f, 1f);
         if (particles != null) {
             if (crit) particles.emitAtEntity(mob, ParticleManager.Kind.CRIT);
             if (bonus > 0) particles.emitAtEntity(mob, ParticleManager.Kind.MAGIC_CRIT);
@@ -1949,7 +1759,7 @@ public final class Minecraft implements GuiContext {
                 px /= length; py /= length; pz /= length;
                 double impact = (1.0 - closeness) * net.minecraft.world.Explosion.exposure(world, x, y, z, player.boundingBox());
                 float damage = (int) ((impact * impact + impact) / 2.0 * 7.0 * reachDistance + 1.0);
-                player.attackByExplosion(damage, attacker, x, z);
+                player.attackByExplosion(damage, attacker);
                 // The client takes the push straight from the explosion packet (no Blast Protection), unless flying in Creative.
                 if (!isSpectator() && !(isCreative() && player.isFlying)) {
                     player.motionX += px * impact;
@@ -2058,12 +1868,6 @@ public final class Minecraft implements GuiContext {
             } else if (entity instanceof net.minecraft.entity.boss.EntityWither wither) {
                 mobRenderer.renderWither(wither, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 1f, 1f);
-            } else if (entity instanceof net.minecraft.entity.boss.EntityDragon dragon) {
-                mobRenderer.renderDragon(dragon, partialTicks);
-            } else if (entity instanceof net.minecraft.entity.EntityEnderCrystal crystal) {
-                mobRenderer.renderCrystal(crystal, partialTicks);
-            } else if (entity instanceof net.minecraft.entity.EntityDragonFireball) {
-                mobRenderer.renderDragonFireball(moving, partialTicks);
             } else if (entity instanceof net.minecraft.entity.EntityWitherSkull skull) {
                 mobRenderer.renderWitherSkull(skull, partialTicks);
             } else if (entity instanceof net.minecraft.entity.EntityArrow arrow) {
@@ -2129,7 +1933,7 @@ public final class Minecraft implements GuiContext {
             BlockState state = world.getState(x, y, z);
             if (!net.minecraft.client.renderer.entity.BlockEntityRenderer.draws(state.block().name().path())) return;
             float[] light = net.minecraft.client.renderer.LightMap.color(world.getSkyLight(x, y, z), world.getBlockLight(x, y, z));
-            boolean lit = !state.block().name().path().startsWith("end_");
+            boolean lit = !state.block().name().path().equals("end_portal");
             if (lit) net.minecraft.client.renderer.StandardLighting.enable();
             net.minecraft.client.shaders.Shaders.blockEntity(state.block().name().path(), state::get);
             blockEntityRenderer.render(state, x, y, z, world::getState, light, levelInfo.totalTime, partialTicks, camera);
@@ -2309,7 +2113,7 @@ public final class Minecraft implements GuiContext {
             else glClearColor(0.50f, 0.69f, 1.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if (inWorld) {
-                net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : world.isEnd() ? "world1" : "world0";
+                net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : "world0";
                 net.minecraft.client.shaders.Shaders.select(shaderPackFile(),
                     "Iris".equals(additions.setting(net.minecraft.client.additions.Additions.SHADER_PACKS, "loader")), message -> printChatLine(message, 0));
                 renderWorld(fog);
@@ -2497,7 +2301,7 @@ public final class Minecraft implements GuiContext {
             Math.max(player == null ? 0f : player.nightVisionBrightness(partialTicks),
                 additions.isOn(net.minecraft.client.additions.Additions.FULL_BRIGHT)
                     ? (float) additions.number(net.minecraft.client.additions.Additions.FULL_BRIGHT, "brightness") / 100f : 0f),
-            world.dimension());
+            world.isNether());
         return fog;
     }
 
@@ -2868,21 +2672,6 @@ public final class Minecraft implements GuiContext {
         StandardLighting.enable();
         glPushMatrix();
         glTranslated(player.x, player.y, player.z);
-        if (player.elytraFlying) {
-            // RenderPlayer.rotateCorpse while gliding: tipped to lie along the view, rolled into turns.
-            glRotatef(180f - body, 0f, 1f, 0f);
-            float time = player.ticksElytraFlying + partialTicks;
-            float lean = Math.max(0f, Math.min(1f, time * time / 100f));
-            glRotatef(lean * (-90f - player.pitch), 1f, 0f, 0f);
-            double lookX = player.dirX(), lookZ = player.dirZ();
-            double motion = player.motionX * player.motionX + player.motionZ * player.motionZ, look = lookX * lookX + lookZ * lookZ;
-            if (motion > 0 && look > 0) {
-                double cos = (player.motionX * lookX + player.motionZ * lookZ) / Math.sqrt(motion * look);
-                double cross = player.motionX * lookZ - player.motionZ * lookX;
-                glRotatef((float) (Math.signum(cross) * Math.toDegrees(Math.acos(Math.max(-1, Math.min(1, cos))))), 0f, 1f, 0f);
-            }
-            glRotatef(-(180f - body), 0f, 1f, 0f);
-        }
         drawPlayer(body, PlayerAnimation.wrap(PlayerAnimation.vanillaYaw(player) - body), player.pitch, swing, amount,
             animation.ticksExisted + partialTicks, animation.swingProgress(partialTicks), eyeLight());
         glPopMatrix();
@@ -2935,10 +2724,7 @@ public final class Minecraft implements GuiContext {
             net.minecraft.client.renderer.entity.SkullRenderer.render(guiTextures, -0.5, 0, -0.5, 1, 180f, headType, light);
             glPopMatrix();
         }
-        ItemStack chest = inventory == null ? null : inventory.armorInventory[2];
-        boolean elytra = chest != null && chest.item().name().path().equals("elytra");
-        if (elytra) renderElytra(light);
-        else if (localCape.present() && gameSettings.isModelPartEnabled("cape")) renderCape(bodyYaw, light);
+        if (localCape.present() && gameSettings.isModelPartEnabled("cape")) renderCape(bodyYaw, light);
         if (player.hurtTime > 0 || player.deathTime > 0) {
             // RendererLivingEntity.setBrightness: a hurt entity is mixed 30% toward red.
             glDisable(GL_TEXTURE_2D);
@@ -2958,17 +2744,6 @@ public final class Minecraft implements GuiContext {
             itemRenderer.renderHeld(held, ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
             glPopMatrix();
         }
-        ItemStack offhand = inventory == null ? null : inventory.getOffhandItem();
-        if (offhand != null) {
-            // 1.9 LayerHeldItem's left hand: the right hand's placement mirrored onto the left arm.
-            glPushMatrix();
-            playerModel.leftArm.transform();
-            glTranslatef(0.0625f, 0.4375f, 0.0625f);
-            if (player.sneaking) glTranslatef(0f, 0.203125f, 0f);
-            glScalef(-1f, 1f, 1f);
-            itemRenderer.renderHeld(offhand, ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
-            glPopMatrix();
-        }
         glPopMatrix();
     }
 
@@ -2981,30 +2756,6 @@ public final class Minecraft implements GuiContext {
      * falling behind upward), walking bobs it with the view bob, and sneaking
      * adds 25 degrees. Called in drawPlayer's model space.
      */
-    /** ModelElytra's wing angles, eased toward their target each frame (AbstractClientPlayer.rotateElytraX/Y/Z). */
-    private float elytraX = 0.2617994f, elytraY, elytraZ = -0.2617994f;
-
-    /** LayerElytra: the wings folded, spread while gliding (more the less steeply it falls), dropped when sneaking; the cape's texture if there is one. */
-    private void renderElytra(float[] light) {
-        float x = 0.2617994f, z = -0.2617994f, pivotY = 0f, y = 0f;
-        if (player.elytraFlying) {
-            float spread = 1f;
-            double length = Math.sqrt(player.motionX * player.motionX + player.motionY * player.motionY + player.motionZ * player.motionZ);
-            if (player.motionY < 0 && length > 0) spread = 1f - (float) Math.pow(-player.motionY / length, 1.5);
-            x = spread * 0.34906584f + (1f - spread) * x;
-            z = spread * -(float) Math.PI / 2f + (1f - spread) * z;
-        } else if (player.sneaking) {
-            x = 0.6981317f; z = -0.7853982f; pivotY = 3f; y = 0.08726646f;
-        }
-        elytraX += (x - elytraX) * 0.1f;
-        elytraY += (y - elytraY) * 0.1f;
-        elytraZ += (z - elytraZ) * 0.1f;
-        if (localCape.present() && gameSettings.isModelPartEnabled("cape")) localCape.bind();
-        else guiTextures.bind(net.minecraft.client.renderer.ArmorLayer.ELYTRA);
-        glColor4f(light[0], light[1], light[2], 1f);
-        net.minecraft.client.renderer.ArmorLayer.renderElytra(elytraX, elytraY, elytraZ, pivotY);
-    }
-
     private void renderCape(float bodyYaw, float[] light) {
         PlayerAnimation a = playerAnimation;
         localCape.bind();
@@ -3308,7 +3059,6 @@ public final class Minecraft implements GuiContext {
             player.absorptionAmount, player.isPotionActive(net.minecraft.potion.Potion.POISON),
             player.isPotionActive(net.minecraft.potion.Potion.WITHER), player.isPotionActive(net.minecraft.potion.Potion.REGENERATION),
             player.isPotionActive(net.minecraft.potion.Potion.HUNGER));
-        ingameGui.attackStrength = player.attackStrength(0f);
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
@@ -3409,8 +3159,7 @@ public final class Minecraft implements GuiContext {
                 ItemStack using = player.itemInUse();
                 int used = 72000 - player.itemInUseCount();
                 player.clearItemInUse();
-                if (using != null && using.item().useAction() == Item.UseAction.BOW) withUsingHand(() -> releaseBow(using, used));
-                offhandInUse = false;
+                if (using != null && using.item().useAction() == Item.UseAction.BOW) releaseBow(using, used);
             }
             return;
         }
@@ -3418,8 +3167,6 @@ public final class Minecraft implements GuiContext {
         // The arm swings on every attack click, every tick a block is being mined, and on each placement.
         if (attackPressed) playerAnimation.swing();
         if (attackPressed && pointedEntity != null) attackEntity(pointedEntity);
-        // 1.9 Minecraft.clickMouse: swinging at nothing also restarts the attack cooldown (not in Creative).
-        if (attackPressed && pointedEntity == null && hit == null && !isCreative()) player.resetCooldown();
         if (pickPressed && hit != null) {
             BlockState pickedState = world.getState(hit.x(), hit.y(), hit.z());
             Item picked = itemForBlock(pickedState);
@@ -3461,54 +3208,21 @@ public final class Minecraft implements GuiContext {
         }
         if (usePressed || gameSettings.keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0) {
             rightClickDelayTimer = 4;
-            // 1.9 Minecraft.rightClickMouse: the main hand first, then the offhand when the main hand did nothing.
-            if (rightClick(hit) || inventory.getOffhandItem() == null) return;
-            inventory.swapHands();
-            try {
-                if (rightClick(hit) && player.isUsingItem()) offhandInUse = true;
-            } finally {
-                inventory.swapHands();
+            // Minecraft.rightClickMouse: an entity under the crosshair is interacted with first.
+            if (pointedEntity != null) {
+                if (interactWithEntity(pointedEntity)) playerAnimation.swing();
+                else useHeldItem();
+                return;
+            }
+            if (activateBlock(hit)) playerAnimation.swing();
+            else if (useFlintAndSteel(hit)) playerAnimation.swing();
+            else if (useSpawnEgg(hit)) playerAnimation.swing();
+            else if (useSkull(hit)) playerAnimation.swing();
+            else if (!useBucket()) {
+                if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
+                else useHeldItem();
             }
         }
-    }
-
-    /**
-     * Whether the item in use came from the offhand. The game's item code
-     * works on the selected hotbar slot, so offhand uses run with the hands
-     * swapped for the moment (see {@link #withOffhand}).
-     */
-    private boolean offhandInUse;
-
-    /** The stack the player is using an item from: the offhand's or the selected slot's. */
-    private ItemStack usingHandStack() { return offhandInUse ? inventory.getOffhandItem() : inventory.getCurrentItem(); }
-
-    /** Runs {@code action} with the offhand stack in the selected slot when the item in use is the offhand's. */
-    private void withUsingHand(Runnable action) {
-        if (!offhandInUse) { action.run(); return; }
-        inventory.swapHands();
-        try { action.run(); } finally { inventory.swapHands(); }
-    }
-
-    /** One right click with the selected stack; returns whether anything happened. */
-    private boolean rightClick(WorldRenderer.Hit hit) {
-        // Minecraft.rightClickMouse: an entity under the crosshair is interacted with first.
-        if (pointedEntity != null) {
-            if (interactWithEntity(pointedEntity)) {
-                playerAnimation.swing();
-                return true;
-            }
-            return useHeldItem();
-        }
-        if (activateBlock(hit) || useFlintAndSteel(hit) || makeGrassPath(hit) || useEnderEye(hit) || useSpawnEgg(hit) || useSkull(hit)) {
-            playerAnimation.swing();
-            return true;
-        }
-        if (useBucket()) return true;
-        if (hit != null && placeHeldBlock(hit)) {
-            playerAnimation.swing();
-            return true;
-        }
-        return useHeldItem();
     }
 
     /**
@@ -3730,55 +3444,6 @@ public final class Minecraft implements GuiContext {
     }
 
     /**
-     * An eye of ender into an empty end portal frame (ItemEnderEye.onItemUse):
-     * the eye sits in the frame (used up outside Creative), and a ring of
-     * twelve filled frames around a 3x3 hollow fills it with end portal.
-     */
-    private boolean useEnderEye(WorldRenderer.Hit hit) {
-        ItemStack held = inventory.getCurrentItem();
-        if (hit == null || held == null || !held.item().name().path().equals("ender_eye")) return false;
-        BlockState frame = world.getState(hit.x(), hit.y(), hit.z());
-        if (!frame.block().name().path().equals("end_portal_frame") || frame.get("eye").equals("true")) return false;
-        world.setStateAndUpdate(hit.x(), hit.y(), hit.z(), frame.with("eye", "true"));
-        if (!isCreative()) {
-            held.split(1);
-            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
-        }
-        int[] centre = net.minecraft.world.EndPodium.portalCentre(world, hit.x(), hit.y(), hit.z());
-        if (centre != null) {
-            BlockState portal = BlockState.of(blockRegistry.get("minecraft:end_portal"), 0);
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dz = -1; dz <= 1; dz++) world.setStateAndUpdate(centre[0] + dx, centre[1], centre[2] + dz, portal);
-        }
-        return true;
-    }
-
-    /** Frost Walker boots freeze water under a player standing on the ground (EntityLivingBase.onLivingUpdate, 1.9). */
-    private void freezeUnderFeet() {
-        if (player == null || !player.onGround || inventory == null) return;
-        int level = net.minecraft.enchantment.EnchantmentHelper.maxLevel(net.minecraft.enchantment.Enchantment.FROST_WALKER, inventory.armorInventory);
-        if (level > 0) net.minecraft.block.BlockFrostedIce.freezeAround(world, player.x, player.y, player.z, level, random);
-    }
-
-    /**
-     * A shovel on the top of a grass block with air above flattens it into a
-     * grass path (ItemSpade.onItemUse, 1.9), wearing the shovel by one.
-     */
-    private boolean makeGrassPath(WorldRenderer.Hit hit) {
-        ItemStack held = inventory.getCurrentItem();
-        if (hit == null || held == null || ToolValues.type(held.item()) != ToolValues.Type.SHOVEL) return false;
-        if (hit.face() == net.minecraft.util.Direction.DOWN || !world.get(hit.x(), hit.y(), hit.z()).name().path().equals("grass")) return false;
-        if (!world.inBounds(hit.x(), hit.y() + 1, hit.z()) || !world.get(hit.x(), hit.y() + 1, hit.z()).isAir()) return false;
-        playSound("item.shovel.flatten", hit.x() + 0.5, hit.y() + 0.5, hit.z() + 0.5, 1f, 1f);
-        world.setStateAndUpdate(hit.x(), hit.y(), hit.z(), BlockState.of(blockRegistry.get("minecraft:grass_path"), 0));
-        if (!isCreative() && net.minecraft.enchantment.EnchantmentHelper.damageItem(held, 1, random)) {
-            inventory.mainInventory[inventory.currentItem] = null;
-            playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
-        }
-        return true;
-    }
-
-    /**
      * Flint and steel on a block (ItemFlintAndSteel.onItemUse): fire in the
      * air beside the face clicked, with the ignite sound, and one use of
      * durability either way (none in Creative). Fire lit inside an obsidian
@@ -3840,15 +3505,9 @@ public final class Minecraft implements GuiContext {
         } else {
             player.timeInPortal = Math.max(0f, player.timeInPortal - 0.05f);
         }
-        if (travel && !player.dead && dimension != net.minecraft.world.Dimension.END)
+        if (travel && !player.dead)
             changeDimension(dimension == net.minecraft.world.Dimension.NETHER ? net.minecraft.world.Dimension.OVERWORLD
                 : net.minecraft.world.Dimension.NETHER, true);
-        if (player.inEndPortal && !player.dead && preparing == null) {
-            player.inEndPortal = false;
-            if (dimension == net.minecraft.world.Dimension.END) changeDimension(net.minecraft.world.Dimension.OVERWORLD, true);
-            else if (dimension == net.minecraft.world.Dimension.OVERWORLD) changeDimension(net.minecraft.world.Dimension.END, true);
-        }
-        player.inEndPortal = false;
     }
 
     /**
@@ -3912,7 +3571,7 @@ public final class Minecraft implements GuiContext {
             case EAT -> {
                 // ItemFood.onItemRightClick: only when hungry (golden apples always), never in Creative; 32 ticks.
                 if (!item.isFood()) return false;
-                if (player.canEat(item.vanillaId().path().equals("golden_apple") || item.vanillaId().path().equals("chorus_fruit"))) player.setItemInUse(held, 32);
+                if (player.canEat(item.vanillaId().path().equals("golden_apple"))) player.setItemInUse(held, 32);
             }
             // ItemBucketMilk / ItemPotion.onItemRightClick: drinking always starts, 32 ticks.
             case DRINK -> player.setItemInUse(held, 32);
@@ -4054,11 +3713,7 @@ public final class Minecraft implements GuiContext {
         if (server == null || world == null) return;
         for (World.CreatureSpawn spawn : world.takeCreatureSpawns()) {
             MovingEntity entity = net.minecraft.entity.EntityList.create(spawn.entity(), world, spawn.x(), spawn.y(), spawn.z());
-            if (entity == null) continue;
-            if (!(entity instanceof EntityLiving living)) {
-                spawnEntity(entity);
-                continue;
-            }
+            if (!(entity instanceof EntityLiving living)) continue;
             living.setPositionAndRotation(spawn.x(), spawn.y(), spawn.z(), spawn.yaw(), 0f);
             living.prevRotationYaw = spawn.yaw();
             living.rotationYawHead = living.prevRotationYawHead = living.renderYawOffset = living.prevRenderYawOffset = spawn.yaw();
@@ -4101,20 +3756,6 @@ public final class Minecraft implements GuiContext {
      * water stays.
      */
     private boolean fillBottle(ItemStack held) {
-        // ItemGlassBottle (1.9): a dragon's breath cloud within 2 blocks fills it first, shrinking by half a block.
-        AxisAlignedBB near = player.boundingBox().grow(2.0, 2.0, 2.0);
-        for (Entity entity : server == null ? List.<Entity>of() : server.entities().values()) {
-            if (!(entity instanceof net.minecraft.entity.EntityAreaEffectCloud cloud) || cloud.isRemoved() || !cloud.dragonBreath
-                || !cloud.boundingBox().intersects(near)) continue;
-            Item breath = itemByName("dragon_breath");
-            if (breath == null) break;
-            cloud.radius -= 0.5f;
-            playSound("item.bottle.fill_dragonbreath", player.x, player.y, player.z, 1f, 1f);
-            held.split(1);
-            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = new ItemStack(breath);
-            else if (!inventory.addItemStackToInventory(new ItemStack(breath))) dropPlayerItem(new ItemStack(breath));
-            return true;
-        }
         WorldRenderer.Hit hit = WorldRenderer.raycast(world, player.x, player.eyeY(), player.z,
             player.dirX(), player.dirY(), player.dirZ(), 5.0, true);
         if (hit == null || levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return false;
@@ -4206,7 +3847,7 @@ public final class Minecraft implements GuiContext {
             player.foodStats.addStats(item.food(), item.saturation());
             player.sounds.play("random.burp", 0.5f, random.nextFloat() * 0.1f + 0.9f);
             applyFoodEffects(name);
-            if (name.equals("mushroom_stew") || name.equals("rabbit_stew") || name.equals("beetroot_soup")) result = itemStack("bowl");
+            if (name.equals("mushroom_stew") || name.equals("rabbit_stew")) result = itemStack("bowl");
         } else if (name.equals("milk_bucket")) {
             if (!creative) stack.split(1);
             player.clearActivePotions();
@@ -4233,32 +3874,6 @@ public final class Minecraft implements GuiContext {
             inventory.mainInventory[inventory.currentItem] = result == null || result.isEmpty() ? null : result;
     }
 
-    /**
-     * ItemChorusFruit.onItemUseFinish (1.9): up to 16 tries at a random spot
-     * within 8 blocks; each drops to the first solid block below and is kept
-     * when the player fits there out of liquid (EntityLivingBase.attemptTeleport).
-     */
-    private void chorusTeleport() {
-        for (int i = 0; i < 16; i++) {
-            double tx = player.x + (random.nextDouble() - 0.5) * 16;
-            double ty = Math.max(0, Math.min(World.HEIGHT - 1, player.y + random.nextInt(16) - 8));
-            double tz = player.z + (random.nextDouble() - 0.5) * 16;
-            int bx = (int) Math.floor(tx), by = (int) Math.floor(ty), bz = (int) Math.floor(tz);
-            if (!world.inBounds(bx, by, bz)) continue;
-            while (by > 0 && !world.get(bx, by - 1, bz).isSolid()) by--;
-            if (by <= 0) continue;
-            AxisAlignedBB box = new AxisAlignedBB(tx - Player.WIDTH / 2, by, tz - Player.WIDTH / 2,
-                tx + Player.WIDTH / 2, by + Player.HEIGHT, tz + Player.WIDTH / 2);
-            if (!player.isEmpty(box) || net.minecraft.block.Liquids.liquid(world.get(bx, by, bz)) != null) continue;
-            double fromX = player.x, fromY = player.y, fromZ = player.z;
-            player.setPositionAndRotation(tx, by, tz, player.yaw, player.pitch);
-            player.fallDistance = 0;
-            playSound("item.chorus_fruit.teleport", fromX, fromY, fromZ, 1f, 1f);
-            playSound("item.chorus_fruit.teleport", tx, by, tz, 1f, 1f);
-            return;
-        }
-    }
-
     private ItemStack itemStack(String name) {
         Item item = itemByName(name);
         return item == null ? null : new ItemStack(item);
@@ -4283,7 +3898,6 @@ public final class Minecraft implements GuiContext {
                 player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.ABSORPTION, 2400, 0));
                 player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.REGENERATION, 100, 1));
             }
-            case "chorus_fruit" -> chorusTeleport();
             case "chicken" -> foodEffect(net.minecraft.potion.Potion.HUNGER, 600, 0, 0.3f);
             case "rotten_flesh" -> foodEffect(net.minecraft.potion.Potion.HUNGER, 600, 0, 0.8f);
             case "spider_eye" -> foodEffect(net.minecraft.potion.Potion.POISON, 100, 0, 1f);
@@ -4434,7 +4048,6 @@ public final class Minecraft implements GuiContext {
         if (inventory == null || Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("keepInventory", "false"))) return;
         for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) scatter(inventory.mainInventory, slot);
         for (int slot = 0; slot < InventoryPlayer.ARMOR_SIZE; slot++) scatter(inventory.armorInventory, slot);
-        scatter(inventory.offHandInventory, 0);
     }
 
     private void scatter(ItemStack[] slots, int slot) {
@@ -4686,7 +4299,6 @@ public final class Minecraft implements GuiContext {
             int removed = 0;
             for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) removed += count(inventory.getBySaveSlot(slot));
             for (int slot = 100; slot < 100 + InventoryPlayer.ARMOR_SIZE; slot++) removed += count(inventory.getBySaveSlot(slot));
-            removed += count(inventory.getOffhandItem());
             removed += count(inventory.getItemStack());
             inventory.clear();
             return removed;

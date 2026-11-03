@@ -29,7 +29,6 @@ public final class ArmorValues {
             if (path.endsWith("_" + PIECES[piece]) && MATERIALS.containsKey(path.substring(0, path.length() - PIECES[piece].length() - 1)))
                 return 3 - piece;
         if (path.equals("pumpkin") || path.startsWith("skull_")) return 3;
-        if (path.equals("elytra")) return 2;
         return -1;
     }
 
@@ -56,19 +55,5 @@ public final class ArmorValues {
         if (piece < 0 || piece > 3 || !path.endsWith("_" + PIECES[piece])) return 0;
         int[] values = MATERIALS.get(path.substring(0, path.length() - PIECES[piece].length() - 1));
         return values == null ? 0 : values[piece];
-    }
-
-    /** 1.9 armour toughness: 2 for diamond pieces, 0 otherwise. */
-    public static float toughness(Item item) { return "diamond".equals(material(item)) ? 2f : 0f; }
-
-    /**
-     * CombatRules.getDamageAfterAbsorb (1.9): armour takes off armour/25 of
-     * the damage, less against big hits (armour - damage / (2 + toughness / 4),
-     * at least a fifth of the armour), at most 80%.
-     */
-    public static float damageAfterArmor(float damage, float armor, float toughness) {
-        float strength = 2f + toughness / 4f;
-        float effective = Math.max(armor * 0.2f, Math.min(armor - damage / strength, 20f));
-        return damage * (1f - effective / 25f);
     }
 }

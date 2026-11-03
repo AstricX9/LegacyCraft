@@ -46,8 +46,7 @@ final class PlayerDamageTest {
         player.armor[3] = piece("diamond_helmet", 363);
         assertEquals(20, player.armorValue());
         player.attack(DamageSource.CACTUS, 5f);
-        // 1.9 CombatRules: 20 armour with 8 toughness count as 20 - 5 / 4 = 18.75 against a 5-damage hit.
-        assertEquals(20f - 5f * (1f - 18.75f / 25f), player.health, 1e-5);
+        assertEquals(20f - 5f * 5 / 25, player.health, 1e-5);
         for (ItemStack piece : player.armor) assertEquals(1, piece.damage(), "at least one point of wear each");
     }
 

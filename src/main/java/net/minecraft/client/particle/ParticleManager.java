@@ -37,11 +37,9 @@ public final class ParticleManager {
     private static final int MAX_PER_LAYER = 4000;
 
     public enum Kind { SMOKE, LARGE_SMOKE, FLAME, LAVA, DRIP_WATER, DRIP_LAVA, SUSPENDED, TOWN_AURA, REDDUST, BLOCK_CRACK, BUBBLE, SPLASH,
-        PORTAL, ENCHANTMENT_TABLE, EXPLODE, LARGE_EXPLODE, HUGE_EXPLOSION, CRIT, MAGIC_CRIT, HEART, HAPPY_VILLAGER,
-        SWEEP_ATTACK }
+        PORTAL, ENCHANTMENT_TABLE, EXPLODE, LARGE_EXPLODE, HUGE_EXPLOSION, CRIT, MAGIC_CRIT, HEART, HAPPY_VILLAGER }
 
     public static final ResourceLocation EXPLOSION = new ResourceLocation("minecraft:textures/entity/explosion.png");
-    public static final ResourceLocation SWEEP = new ResourceLocation("minecraft:textures/entity/sweep.png");
 
     private final World world;
     private final TextureAtlas atlas;
@@ -54,7 +52,7 @@ public final class ParticleManager {
     public interface Sounds { void play(String event, double x, double y, double z, float volume, float pitch); }
     public Sounds sounds = (event, x, y, z, volume, pitch) -> {};
     @SuppressWarnings("unchecked")
-    private final ArrayDeque<Particle>[] layers = new ArrayDeque[]{new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>()};
+    private final ArrayDeque<Particle>[] layers = new ArrayDeque[]{new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>(), new ArrayDeque<>()};
     private final List<Particle> added = new ArrayList<>();
     /** Particle option (0 all, 1 decreased, 2 minimal) and camera position, updated before each tick. */
     private int setting;
@@ -89,8 +87,7 @@ public final class ParticleManager {
         if (level == 1 && random.nextInt(3) == 0) level = 2;
         double dx = cameraX - x, dy = cameraY - y, dz = cameraZ - z;
         // Explosion particles ignore both the range and the Particles option (EnumParticleTypes.shouldIgnoreRange).
-        boolean ignoreRange = kind == Kind.EXPLODE || kind == Kind.LARGE_EXPLODE || kind == Kind.HUGE_EXPLOSION
-            || kind == Kind.SWEEP_ATTACK;
+        boolean ignoreRange = kind == Kind.EXPLODE || kind == Kind.LARGE_EXPLODE || kind == Kind.HUGE_EXPLOSION;
         if (!ignoreRange && (dx * dx + dy * dy + dz * dz > 256.0 || level > 1)) return;
         Particle particle = switch (kind) {
             case SMOKE -> new Particles.Smoke(world, random, x, y, z, vx, vy, vz, 1f);
@@ -114,7 +111,6 @@ public final class ParticleManager {
             case MAGIC_CRIT -> new Particles.Crit(world, random, x, y, z, vx, vy, vz, true);
             case HEART -> new Particles.Heart(world, random, x, y, z, vx, vy, vz);
             case HAPPY_VILLAGER -> new Particles.HappyVillager(world, random, x, y, z, vx, vy, vz);
-            case SWEEP_ATTACK -> new Particles.SweepAttack(world, random, x, y, z, vx);
         };
         if (particle != null) add(particle);
     }
@@ -461,13 +457,6 @@ public final class ParticleManager {
             textures.bind(EXPLOSION);
             glBegin(GL_QUADS);
             for (Particle particle : layers[3]) particle.render(partialTicks, left, up, null);
-            glEnd();
-        }
-        // Sweep attack arcs: sweep.png, likewise full bright.
-        if (!layers[4].isEmpty()) {
-            textures.bind(SWEEP);
-            glBegin(GL_QUADS);
-            for (Particle particle : layers[4]) particle.render(partialTicks, left, up, null);
             glEnd();
         }
         // Item crumbs: each item's sprite is its own texture here (vanilla has them in the block atlas).

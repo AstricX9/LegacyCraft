@@ -17,12 +17,11 @@ final class EnchantmentTest {
         assertSame(Enchantment.SHARPNESS, Enchantment.byId(16));
         assertSame(Enchantment.EFFICIENCY, Enchantment.byId(32));
         assertSame(Enchantment.LURE, Enchantment.byId(62));
-        assertSame(Enchantment.FROST_WALKER, Enchantment.byId(9));
-        assertSame(Enchantment.MENDING, Enchantment.byName("mending"));
+        assertNull(Enchantment.byId(9));
         assertSame(Enchantment.SILK_TOUCH, Enchantment.byName("silk_touch"));
         assertSame(Enchantment.FORTUNE, Enchantment.byName("35"));
         assertEquals("enchantment.protect.all", Enchantment.PROTECTION.translationKey());
-        assertEquals(27, Enchantment.ALL.size());
+        assertEquals(25, Enchantment.ALL.size());
     }
 
     @Test
@@ -75,11 +74,11 @@ final class EnchantmentTest {
 
     @Test
     void protectionModifiersScaleWithTheSource() {
-        // 1.9: the level, times 2 for fire, 3 for falls.
-        assertEquals(4, Enchantment.PROTECTION.protectionModifier(4, DamageSource.FALL), "the level against anything");
-        assertEquals(12, Enchantment.FEATHER_FALLING.protectionModifier(4, DamageSource.FALL), "x3 against falls");
+        // (6 + level^2) / 3 = 7.33 at level IV.
+        assertEquals(5, Enchantment.PROTECTION.protectionModifier(4, DamageSource.FALL), "x0.75 against anything");
+        assertEquals(18, Enchantment.FEATHER_FALLING.protectionModifier(4, DamageSource.FALL), "x2.5 against falls");
         assertEquals(0, Enchantment.FEATHER_FALLING.protectionModifier(4, DamageSource.LAVA));
-        assertEquals(8, Enchantment.FIRE_PROTECTION.protectionModifier(4, DamageSource.LAVA), "x2 against fire");
+        assertEquals(9, Enchantment.FIRE_PROTECTION.protectionModifier(4, DamageSource.LAVA), "x1.25 against fire");
         assertEquals(0, Enchantment.PROTECTION.protectionModifier(4, DamageSource.OUT_OF_WORLD), "the void ignores armour");
         assertEquals(0, Enchantment.SHARPNESS.protectionModifier(5, DamageSource.FALL));
     }

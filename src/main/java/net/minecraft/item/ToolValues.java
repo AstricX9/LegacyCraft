@@ -35,51 +35,24 @@ public final class ToolValues {
 
     private ToolValues() {}
 
-    /** Material order of the 1.9 tables below: wood, stone, iron, diamond, gold. */
-    private static final java.util.List<String> TIERS = java.util.List.of("wooden", "stone", "iron", "diamond", "golden");
-    private static final float[] AXE_DAMAGE = {7, 9, 9, 9, 7}, AXE_SPEED = {0.8f, 0.8f, 0.9f, 1f, 1f},
-        HOE_SPEED = {1, 2, 3, 4, 1};
-
     /**
-     * The attack damage attribute with this item held (1.9 ItemSword/ItemTool
-     * modifiers + the player's 1): swords 4/5/6/7, axes 7/9/9/9, pickaxes
-     * 2/3/4/5, shovels 2.5/3.5/4.5/5.5 for wood/stone/iron/diamond (gold as
-     * wood); hoes and anything else 1.
+     * The attack damage attribute with this item held (1 + ItemSword/ItemTool's
+     * modifier): swords 4, axes 3, pickaxes 2, shovels 1, plus the material's
+     * 0 (wood, gold), 1 (stone), 2 (iron) or 3 (diamond); anything else 1.
      */
     public static float attackDamage(Item item) {
         if (item == null) return 1f;
-        Type type = type(item);
-        if (type == Type.NONE || type == Type.SHEARS || type == Type.HOE) return 1f;
-        int tier = tier(item);
-        int level = tier == 4 ? 0 : tier;
-        return switch (type) {
-            case SWORD -> 4f + level;
-            case AXE -> AXE_DAMAGE[tier];
-            case PICKAXE -> 2f + level;
-            default -> 2.5f + level;
-        };
-    }
-
-    /**
-     * The attack speed attribute with this item held (attacks a second at full
-     * strength, 1.9): swords 1.6, axes 0.8/0.8/0.9/1/1, pickaxes 1.2, shovels 1,
-     * hoes 1/2/3/4/1 (wood/stone/iron/diamond/gold); anything else the player's 4.
-     */
-    public static float attackSpeed(Item item) {
-        if (item == null) return 4f;
-        return switch (type(item)) {
-            case SWORD -> 1.6f;
-            case AXE -> AXE_SPEED[tier(item)];
-            case PICKAXE -> 1.2f;
+        float base = switch (type(item)) {
+            case SWORD -> 4f;
+            case AXE -> 3f;
+            case PICKAXE -> 2f;
             case SHOVEL -> 1f;
-            case HOE -> HOE_SPEED[tier(item)];
-            default -> 4f;
+            default -> -1f;
         };
-    }
-
-    private static int tier(Item item) {
-        String path = item.name().path();
-        return TIERS.indexOf(path.substring(0, path.lastIndexOf('_')));
+        if (base < 0) return 1f;
+        String name = item.name().path();
+        float material = name.startsWith("stone_") ? 1f : name.startsWith("iron_") ? 2f : name.startsWith("diamond_") ? 3f : 0f;
+        return 1f + base + material;
     }
 
     public static Type type(Item item) {

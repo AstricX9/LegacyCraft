@@ -14,9 +14,9 @@ import static org.lwjgl.opengl.GL11.*;
  * depth buffer is cleared, with a fixed 70° field of view, the view bob,
  * lights fixed to the world, the light at the player's eyes, a slight
  * sway as the hand trails the view, the attack swing, and the lower-and-
- * raise animation when the held item changes. A raised shield comes up
- * toward the middle of the view. An empty hand shows the skin's right arm;
- * the 1.9 offhand item is drawn mirrored on the left.
+ * raise animation when the held item changes. A blocking sword is turned
+ * flat across the view instead of swinging (doBlockTransformations). An
+ * empty hand shows the skin's right arm.
  */
 public final class FirstPersonRenderer {
     public static final ResourceLocation STEVE = new ResourceLocation("minecraft:textures/entity/steve.png");
@@ -27,8 +27,6 @@ public final class FirstPersonRenderer {
     private ItemStack itemToRender;
     private int equippedSlot = -1;
     private float equippedProgress, prevEquippedProgress;
-    private ItemStack offhandToRender;
-    private float offhandProgress, prevOffhandProgress;
 
     public FirstPersonRenderer(GuiTextures textures, ItemRenderer items, LocalSkin skin) {
         this(textures, items, skin, false);
@@ -60,15 +58,6 @@ public final class FirstPersonRenderer {
             itemToRender = held;
             equippedSlot = slot;
         }
-    }
-
-    /** Once per tick for the offhand (1.9): lowers while the stack changes, swaps once nearly down, then rises. */
-    public void tickOffhand(ItemStack held) {
-        prevOffhandProgress = offhandProgress;
-        boolean same = held == offhandToRender || held != null && offhandToRender != null && held.item() == offhandToRender.item();
-        if (same) offhandToRender = held;
-        offhandProgress += Math.max(-0.4f, Math.min(0.4f, (same ? 1f : 0f) - offhandProgress));
-        if (offhandProgress < 0.1f) offhandToRender = held;
     }
 
     /** Drops the hand to the bottom at once, to rise again over the next ticks (resetEquippedProgress2: starting to use an item). */
@@ -107,29 +96,12 @@ public final class FirstPersonRenderer {
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
         glPushMatrix();
-        if (itemToRender != null) drawItem(player, itemToRender, equip, swing, partialTicks, light);
-        else if (!player.dead) renderArm(equip, swing, light);
-        glPopMatrix();
-        if (offhandToRender != null) {
-            // 1.9: the offhand item, mirrored to the left side; it neither swings nor shows an arm.
-            float offEquip = 1f - PlayerAnimation.lerp(prevOffhandProgress, offhandProgress, partialTicks);
-            glPushMatrix();
-            glScalef(-1f, 1f, 1f);
-            drawItem(player, offhandToRender, offEquip, 0f, partialTicks, light);
-            glPopMatrix();
-        }
-        StandardLighting.disable();
-        glColor4f(1, 1, 1, 1);
-    }
-
-    /** One hand's item: eating/drinking, a drawn bow, a raised shield, or held and swung. */
-    private void drawItem(Player player, ItemStack stack, float equip, float swing, float partialTicks, float[] light) {
-        net.minecraft.item.Item.UseAction using = player.isUsingItem() && player.itemInUse() == stack
-            ? stack.item().useAction() : null;
+        net.minecraft.item.Item.UseAction using = itemToRender != null && player.isUsingItem()
+            ? itemToRender.item().useAction() : null;
         if (using == net.minecraft.item.Item.UseAction.EAT || using == net.minecraft.item.Item.UseAction.DRINK) {
             performDrinking(player, partialTicks);
             transformFirstPersonItem(equip, 0f);
-            items.renderHeld(stack, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
         } else if (using == net.minecraft.item.Item.UseAction.BOW) {
             // ItemRenderer.doBowTransformations: the bow tilts in and is drawn back, trembling at full draw.
             transformFirstPersonItem(equip, 0f);
@@ -147,19 +119,26 @@ public final class FirstPersonRenderer {
             }
             glTranslatef(0f, 0f, power * 0.1f);
             glScalef(1f, 1f, 1f + power * 0.2f);
-            items.renderHeld(stack, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
-        } else if (using == net.minecraft.item.Item.UseAction.BLOCK) {
-            // 1.9 shield_blocking: the shield comes up toward the middle of the view.
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+        } else if (itemToRender != null && player.isBlocking()) {
             transformFirstPersonItem(equip, 0f);
-            glTranslatef(0.5f, 0.7f, 0f);
-            items.renderHeld(stack, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
-        } else {
+            glTranslatef(-0.5f, 0.2f, 0f);
+            glRotatef(30f, 0, 1, 0);
+            glRotatef(-80f, 1, 0, 0);
+            glRotatef(60f, 0, 1, 0);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+        } else if (itemToRender != null) {
             float root = (float) Math.sqrt(swing);
             glTranslatef(-0.4f * (float) Math.sin(root * Math.PI), 0.2f * (float) Math.sin(root * Math.PI * 2),
                 -0.2f * (float) Math.sin(swing * Math.PI));
             transformFirstPersonItem(equip, swing);
-            items.renderHeld(stack, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+            items.renderHeld(itemToRender, ItemRenderer.Held.FIRST_PERSON, light[0], light[1], light[2]);
+        } else if (!player.dead) {
+            renderArm(equip, swing, light);
         }
+        glPopMatrix();
+        StandardLighting.disable();
+        glColor4f(1, 1, 1, 1);
     }
 
     /**

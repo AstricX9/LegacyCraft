@@ -48,7 +48,6 @@ final class PlayerData {
         InventoryPlayer inventory = player.inventory;
         for (int i = 0; i < InventoryPlayer.MAIN_SIZE; i++) addStack(stacks, i, inventory.mainInventory[i]);
         for (int i = 0; i < InventoryPlayer.ARMOR_SIZE; i++) addStack(stacks, 100 + i, inventory.armorInventory[i]);
-        addStack(stacks, InventoryPlayer.OFFHAND_SAVE_SLOT, inventory.getOffhandItem());
         root.put("Inventory", new NbtTag.NbtList(stacks.isEmpty() ? NbtTag.END : NbtTag.COMPOUND, stacks));
         try {
             Files.createDirectories(directory);
@@ -103,7 +102,7 @@ final class PlayerData {
             if (root.get("Inventory") instanceof NbtTag.NbtList list)
                 for (NbtTag element : list.values()) {
                     if (!(element instanceof NbtTag.Compound tag) || !(tag.get("id") instanceof NbtTag.Str id)) continue;
-                    int slot = tag.get("Slot") instanceof NbtTag.Byte b ? b.value() : -1;
+                    int slot = tag.get("Slot") instanceof NbtTag.Byte b ? b.value() & 0xFF : -1;
                     int count = tag.get("Count") instanceof NbtTag.Byte c ? c.value() : 1;
                     int damage = tag.get("Damage") instanceof NbtTag.Short d ? d.value() : 0;
                     Item item = server.items.fromVanilla(new ResourceLocation(id.value()), damage);

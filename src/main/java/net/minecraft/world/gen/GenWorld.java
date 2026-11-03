@@ -30,6 +30,4 @@ public interface GenWorld {
     default void setSpawner(int x, int y, int z, String entity) {}
     /** An animal placed by population (SpawnerAnimals.performWorldGenSpawning); ignored where nothing listens. */
     default void spawnCreature(String entity, double x, double y, double z, float yaw) {}
-    /** A mob head's type and rotation (TileEntitySkull) for the skull block placed here; ignored where nothing listens. */
-    default void setSkull(int x, int y, int z, int type, int rotation) {}
 }

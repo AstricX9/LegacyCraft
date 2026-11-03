@@ -49,8 +49,6 @@ public class GuiIngame extends Gui {
     private final java.util.Random rand = new java.util.Random();
 
     private final GuiContext mc;
-    /** The player's attack charge (0..1) for the 1.9 attack indicator under the crosshair; set by the game. */
-    public float attackStrength = 1f;
     private int remainingHighlightTicks;
     private ItemStack highlightingItemStack;
     private final GuiNewChat chat;
@@ -138,14 +136,6 @@ public class GuiIngame extends Gui {
             drawTexturedModalRect(width / 2 - 7, height / 2 - 7, 0, 0, 16, 16);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
-        if (crosshair && !status.spectator() && attackStrength < 1f) {
-            // 1.9 GuiIngame.renderAttackIndicator: a bar under the crosshair fills as the attack recharges.
-            glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
-            int x = width / 2 - 8, y = height / 2 - 7 + 16;
-            drawTexturedModalRect(x, y, 36, 94, 16, 4);
-            drawTexturedModalRect(x, y, 52, 94, (int) (attackStrength * 17f), 4);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        }
         renderBossHealth(width);
         if (status.survivalHud()) {
             renderPlayerStats(width, height, status);
@@ -174,9 +164,6 @@ public class GuiIngame extends Gui {
         int center = width / 2;
         drawTexturedModalRect(center - 91, height - 22, 0, 0, 182, 22);
         drawTexturedModalRect(center - 91 - 1 + inventory.currentItem * 20, height - 22 - 1, 0, 22, 24, 22);
-        ItemStack offhand = inventory.getOffhandItem();
-        // 1.9: the offhand item sits in its own slot left of the hotbar.
-        if (offhand != null) drawTexturedModalRect(center - 91 - 29, height - 23, 24, 22, 29, 24);
         if (mc.itemRenderer() == null) return;
         glClear(GL_DEPTH_BUFFER_BIT);
         for (int slot = 0; slot < InventoryPlayer.HOTBAR_SIZE; slot++) {
@@ -185,11 +172,6 @@ public class GuiIngame extends Gui {
             int x = center - 90 + slot * 20 + 2, y = height - 16 - 3;
             mc.itemRenderer().renderItemAndEffectIntoGUI(stack, x, y);
             mc.itemRenderer().renderItemOverlays(mc.font(), stack, x, y);
-        }
-        if (offhand != null) {
-            int x = center - 91 - 26, y = height - 16 - 3;
-            mc.itemRenderer().renderItemAndEffectIntoGUI(offhand, x, y);
-            mc.itemRenderer().renderItemOverlays(mc.font(), offhand, x, y);
         }
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);

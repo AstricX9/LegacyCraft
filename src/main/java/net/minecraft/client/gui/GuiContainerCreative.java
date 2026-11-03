@@ -107,13 +107,11 @@ public class GuiContainerCreative extends GuiContainer {
     protected void buildSlots() {
         InventoryPlayer inventory = inventory();
         if (selectedTabIndex == CreativeTabs.INVENTORY) {
-            // 1.9: armor in two columns either side of the player, helmet (54,6), chestplate (54,33),
-            // leggings (108,6), boots (108,33); the offhand at (35,20).
+            // Armor in two columns: helmet (9,6), chestplate (9,33), leggings (63,6), boots (63,33).
             for (int i = 0; i < 4; i++) {
                 int armorSlot = 3 - i;
-                slots.add(new SlotPos(Slot.armor(inventory, armorSlot), 54 + (i / 2) * 54, 6 + (i % 2) * 27, Kind.ARMOR));
+                slots.add(new SlotPos(Slot.armor(inventory, armorSlot), 9 + (i / 2) * 54, 6 + (i % 2) * 27, Kind.ARMOR));
             }
-            slots.add(new SlotPos(Slot.of(inventory.offHandInventory, 0), 35, 20, Kind.MAIN));
             for (int k = 9; k < InventoryPlayer.MAIN_SIZE; k++)
                 slots.add(new SlotPos(Slot.of(inventory.mainInventory, k), 9 + (k % 9) * 18, 54 + (k / 9 - 1) * 18, Kind.MAIN));
             for (int k = 0; k < InventoryPlayer.HOTBAR_SIZE; k++)
@@ -276,7 +274,6 @@ public class GuiContainerCreative extends GuiContainer {
             if (shift) {
                 Arrays.fill(inventory.mainInventory, null);
                 Arrays.fill(inventory.armorInventory, null);
-                inventory.setOffhandItem(null);
             } else {
                 inventory.setItemStack(null);
             }
@@ -432,7 +429,7 @@ public class GuiContainerCreative extends GuiContainer {
         }
         drawTab(current);
         if (selectedTabIndex == CreativeTabs.INVENTORY)
-            mc.drawPlayerOnScreen(guiLeft + 88, guiTop + 45, 20, guiLeft + 88 - mouseX, guiTop + 45 - 30 - mouseY);
+            mc.drawPlayerOnScreen(guiLeft + 43, guiTop + 45, 20, guiLeft + 43 - mouseX, guiTop + 45 - 30 - mouseY);
     }
 
     @Override

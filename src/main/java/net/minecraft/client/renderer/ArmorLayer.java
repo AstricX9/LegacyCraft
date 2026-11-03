@@ -120,30 +120,4 @@ public final class ArmorLayer {
         glEnd();
         glPopMatrix();
     }
-
-    public static final ResourceLocation ELYTRA = new ResourceLocation("minecraft:textures/entity/elytra.png");
-
-    /**
-     * LayerElytra / ModelElytra (1.9): two 10x20x2 wings (grown 1) hung an
-     * eighth of a block behind the shoulders, the left at x 5 turned by
-     * (rx, ry, rz) radians, the right its mirror image. Called in the player
-     * model's space with the texture bound.
-     */
-    public static void renderElytra(float rx, float ry, float rz, float pivotY) {
-        glPushMatrix();
-        glTranslatef(0f, 0f, 0.125f);
-        for (int side = 0; side < 2; side++) {
-            glPushMatrix();
-            if (side == 1) glScalef(-1f, 1f, 1f);
-            glTranslatef(5f / 16f, pivotY / 16f, 0f);
-            glRotatef((float) Math.toDegrees(rz), 0f, 0f, 1f);
-            glRotatef((float) Math.toDegrees(ry), 0f, 1f, 0f);
-            glRotatef((float) Math.toDegrees(rx), 1f, 0f, 0f);
-            glBegin(GL_QUADS);
-            PlayerModel.box(-10, 0, 0, 10, 20, 2, 1f, 22, 0, 64f, 32f);
-            glEnd();
-            glPopMatrix();
-        }
-        glPopMatrix();
-    }
 }

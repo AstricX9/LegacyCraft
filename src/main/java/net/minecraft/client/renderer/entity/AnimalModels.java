@@ -26,8 +26,6 @@ public final class AnimalModels {
     static final class Part {
         float px, py, pz, rx, ry, rz;
         final Cube[] cubes;
-        /** ModelRenderer.childModels: drawn inside this part's pivot and rotation. */
-        final java.util.List<Part> children = new java.util.ArrayList<>();
         Part(float px, float py, float pz, Cube... cubes) {
             this.px = px; this.py = py; this.pz = pz;
             this.cubes = cubes;
@@ -44,7 +42,6 @@ public final class AnimalModels {
                 else PlayerModel.box(c.x, c.y, c.z, c.w, c.h, c.d, c.grow, c.u, c.v, textureWidth, textureHeight);
             }
             glEnd();
-            for (Part child : children) child.draw();
             glPopMatrix();
         }
     }

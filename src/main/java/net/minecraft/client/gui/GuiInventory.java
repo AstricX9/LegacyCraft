@@ -7,9 +7,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
 /**
- * 1.9's survival inventory: 176x166 from {@code container/inventory.png}
- * with the four armor slots, the offhand slot beside the player, the 2x2
- * crafting grid and its result slot, 27 main slots and the hotbar. In Creative mode the
+ * 1.8.9's survival inventory (master context §21): 176x166 from
+ * {@code container/inventory.png} with the four armor slots, the 2x2 crafting
+ * grid and its result slot, 27 main slots and the hotbar. In Creative mode the
  * inventory key opens {@link GuiContainerCreative} instead.
  *
  * <p>The 2x2 grid crafts every recipe that fits in it ({@link CraftingGrid});
@@ -39,10 +39,10 @@ public class GuiInventory extends GuiContainer {
             grid = new CraftingGrid(2, 2, mc.crafting(), mc::itemByName);
             grid.setOnCrafted(mc::onItemCrafted);
         }
-        slots.add(new SlotPos(grid.resultSlot(), 154, 28, Kind.OTHER));
+        slots.add(new SlotPos(grid.resultSlot(), 144, 36, Kind.OTHER));
         for (int row = 0; row < 2; row++)
             for (int column = 0; column < 2; column++)
-                slots.add(new SlotPos(grid.cell(column + row * 2), 98 + column * 18, 18 + row * 18, Kind.OTHER));
+                slots.add(new SlotPos(grid.cell(column + row * 2), 88 + column * 18, 26 + row * 18, Kind.OTHER));
         for (int i = 0; i < 4; i++)
             slots.add(new SlotPos(Slot.armor(inventory, 3 - i), 8, 8 + i * 18, Kind.ARMOR));
         for (int row = 0; row < 3; row++)
@@ -50,7 +50,6 @@ public class GuiInventory extends GuiContainer {
                 slots.add(new SlotPos(Slot.of(inventory.mainInventory, column + (row + 1) * 9), 8 + column * 18, 84 + row * 18, Kind.MAIN));
         for (int column = 0; column < 9; column++)
             slots.add(new SlotPos(Slot.of(inventory.mainInventory, column), 8 + column * 18, 142, Kind.HOTBAR));
-        slots.add(new SlotPos(Slot.of(inventory.offHandInventory, 0), 77, 62, Kind.OTHER));
     }
 
     @Override
@@ -87,7 +86,7 @@ public class GuiInventory extends GuiContainer {
 
     @Override
     protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
-        fontRendererObj.drawString(I18n.format("container.crafting"), 97, 8, 0x404040);
+        fontRendererObj.drawString(I18n.format("container.crafting"), 86, 16, 0x404040);
     }
 
     @Override

@@ -1,7 +1,5 @@
 package net.minecraft.client.renderer;
 
-import net.minecraft.world.Dimension;
-
 /**
  * Turns (sky, block) light levels into a colour multiplier, like 1.8's 16x16
  * lightmap texture (EntityRenderer.updateLightmap): a non-linear brightness
@@ -21,9 +19,9 @@ public final class LightMap {
         }
     }
 
-    private static volatile float[][][] table = build(1f, 0f, 0f, Dimension.OVERWORLD);
+    private static volatile float[][][] table = build(1f, 0f, 0f, false);
     private static float builtSun = 1f, builtGamma = 0f, builtNight = 0f;
-    private static Dimension builtDimension = Dimension.OVERWORLD;
+    private static boolean builtNether;
     private static int version;
 
     private LightMap() {}
@@ -36,30 +34,24 @@ public final class LightMap {
      * EntityRenderer.updateLightmap): each colour is scaled up towards its
      * brightest channel reaching full, by that much, before the gamma curve.
      */
-    public static void update(float sunBrightness, float gamma, float nightVision) { update(sunBrightness, gamma, nightVision, Dimension.OVERWORLD); }
+    public static void update(float sunBrightness, float gamma, float nightVision) { update(sunBrightness, gamma, nightVision, false); }
 
-    /**
-     * As above; in the Nether the brightness table has a floor of 0.1
-     * (WorldProviderHell.generateLightBrightnessTable), and the End ignores
-     * sky light for a dim purple-grey floor of (0.22, 0.28, 0.25) plus 3/4 of
-     * the torch light (EntityRenderer.updateLightmap, dimension 1).
-     */
-    public static void update(float sunBrightness, float gamma, float nightVision, Dimension dimension) {
+    /** As above; in the Nether the brightness table has a floor of 0.1 (WorldProviderHell.generateLightBrightnessTable). */
+    public static void update(float sunBrightness, float gamma, float nightVision, boolean nether) {
         if (Math.abs(sunBrightness - builtSun) < 1e-4f && Math.abs(gamma - builtGamma) < 1e-4f
-            && Math.abs(nightVision - builtNight) < 1e-4f && dimension == builtDimension) return;
+            && Math.abs(nightVision - builtNight) < 1e-4f && nether == builtNether) return;
         builtSun = sunBrightness;
         builtGamma = gamma;
         builtNight = nightVision;
-        builtDimension = dimension;
-        table = build(sunBrightness, gamma, nightVision, dimension);
+        builtNether = nether;
+        table = build(sunBrightness, gamma, nightVision, nether);
         version++;
     }
 
     /** Changes whenever {@link #update} rebuilt the table, so a lightmap texture knows to re-upload. */
     public static int version() { return version; }
 
-    private static float[][][] build(float sun, float gamma, float night, Dimension dimension) {
-        boolean nether = dimension == Dimension.NETHER;
+    private static float[][][] build(float sun, float gamma, float night, boolean nether) {
         float[][][] result = new float[16][16][];
         float skyScale = sun * 0.95f + 0.05f;
         for (int sky = 0; sky < 16; sky++) {
@@ -73,11 +65,6 @@ public final class LightMap {
                 float red = skyRed + torch;
                 float green = skyGreen + torch * ((torch * .6f + .4f) * .6f + .4f);
                 float blue = skyLight + torch * (torch * torch * .6f + .4f);
-                if (dimension == Dimension.END) {
-                    red = 0.22f + torch * 0.75f;
-                    green = 0.28f + torch * ((torch * .6f + .4f) * .6f + .4f) * 0.75f;
-                    blue = 0.25f + torch * (torch * torch * .6f + .4f) * 0.75f;
-                }
                 red = Math.min(1f, red * .96f + .03f);
                 green = Math.min(1f, green * .96f + .03f);
                 blue = Math.min(1f, blue * .96f + .03f);

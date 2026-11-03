@@ -137,37 +137,6 @@ public final class Particles {
         }
     }
 
-    /**
-     * The sword sweep arc (1.9 ParticleSweepAttack): 8 frames of sweep.png
-     * (4 x 2) over 4 ticks, grey, full bright, {@code 1 - scale / 2} blocks to each side.
-     */
-    public static final class SweepAttack extends Particle {
-        private static final int LIFETIME = 4;
-        private final float halfSize;
-
-        public SweepAttack(World world, Random random, double x, double y, double z, double scale) {
-            super(world, random, x, y, z);
-            red = green = blue = random.nextFloat() * 0.6f + 0.4f;
-            halfSize = 1f - (float) scale * 0.5f;
-        }
-
-        @Override public int layer() { return 4; }
-        @Override protected float size(float partialTicks) { return halfSize; }
-
-        @Override public void tick() {
-            prevX = x; prevY = y; prevZ = z;
-            if (++age == LIFETIME) dead = true;
-        }
-
-        @Override public void render(float partialTicks, float[] left, float[] up, float[] light) {
-            int frame = (int) ((age + partialTicks) * 3f / LIFETIME);
-            if (frame > 7) return;
-            float u0 = (frame % 4) / 4f, u1 = u0 + 0.24975f, v0 = (frame / 4) / 2f, v1 = v0 + 0.4995f;
-            float[] bright = net.minecraft.client.renderer.LightMap.color(0, 15);
-            quad(partialTicks, left, up, bright, u1, v1, u1, v0, u0, v0, u0, v1);
-        }
-    }
-
     /** EntityHugeExplodeFX: unseen, for 8 ticks it sets off 6 large flashes a tick up to 4 blocks around. */
     public static final class HugeExplosion extends Particle {
         private final ParticleManager manager;

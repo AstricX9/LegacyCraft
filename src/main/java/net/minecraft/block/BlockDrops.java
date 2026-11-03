@@ -221,21 +221,6 @@ public final class BlockDrops {
                 }
                 return result;
             }
-            case "beetroots" -> {
-                // 1.9 BlockBeetroot: a beetroot when ripe (age 3) plus 3 + fortune seed rolls, else one seed.
-                int age = metadata & 3;
-                add(result, items.byName(age >= 3 ? "beetroot" : "beetroot_seeds"), 1);
-                if (age >= 3) {
-                    int extra = 0;
-                    for (int i = 0; i < 3 + fortune; i++) if (random.nextInt(6) <= age) extra++;
-                    add(result, items.byName("beetroot_seeds"), extra);
-                }
-                return result;
-            }
-            case "chorus_plant" -> {
-                add(result, items.byName("chorus_fruit"), random.nextInt(2));
-                return result;
-            }
             case "pumpkin_stem", "melon_stem" -> {
                 int age = metadata & 7, seeds = 0;
                 for (int i = 0; i < 3; i++) if (random.nextInt(15) <= age) seeds++;

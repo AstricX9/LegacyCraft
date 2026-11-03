@@ -44,7 +44,7 @@ final class SectionMesher {
     static volatile net.minecraft.client.shaders.ShaderPack shaderPack;
     /** Vanilla's TRANSLUCENT block layer. */
     private static final Set<String> TRANSLUCENT = Set.of("water", "flowing_water", "ice", "stained_glass",
-        "stained_glass_pane", "slime", "portal", "frosted_ice");
+        "stained_glass_pane", "slime", "portal");
 
     /**
      * Vanilla's CUTOUT layer (Block.getBlockLayer, HYPOTHESIS: recalled per block). The world
@@ -58,7 +58,7 @@ final class SectionMesher {
         "trapdoor", "pumpkin_stem", "melon_stem", "vine", "waterlily", "nether_wart", "brewing_stand", "cocoa",
         "tripwire_hook", "beacon", "flower_pot", "carrots", "potatoes", "unpowered_comparator", "powered_comparator",
         "activator_rail", "iron_trapdoor", "double_plant", "spruce_door", "birch_door", "jungle_door", "acacia_door",
-        "dark_oak_door", "end_rod", "chorus_plant", "chorus_flower", "beetroots");
+        "dark_oak_door");
 
     /** Growable vertex store. */
     static final class Buffer {

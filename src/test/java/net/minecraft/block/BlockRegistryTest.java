@@ -12,7 +12,7 @@ import java.util.HashSet;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The block registry loader: exactly the legacy 0-212 block table (1.9), with
+ * The block registry loader: exactly the legacy 0-197 block table, with
  * properties from the block definitions.
  */
 final class BlockRegistryTest {
@@ -21,7 +21,7 @@ final class BlockRegistryTest {
         BlockRegistry registry = BlockRegistry.load(new ClasspathResourceManager());
         try (var reader = Files.newBufferedReader(Path.of("data/mc189/blocks.json"))) {
             var entries = JsonParser.parseReader(reader).getAsJsonObject().getAsJsonArray("entries");
-            assertEquals(213, entries.size());
+            assertEquals(198, entries.size());
             assertEquals(entries.size(), registry.size());
             for (var raw : entries) {
                 var entry = raw.getAsJsonObject();

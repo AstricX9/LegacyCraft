@@ -236,10 +236,10 @@ final class CreativeInventoryTest {
         GuiInventory inventory = new GuiInventory();
         mc.displayGuiScreen(inventory);
         mc.inventory.setItemStack(new ItemStack(stone, 3));
-        // Top-left crafting cell at (98, 18) (1.9) in a 176x166 window whose top-left is (125, 37).
-        inventory.mouseClicked(125 + 98 + 8, 37 + 18 + 8, 0);
+        // Top-left crafting cell at (88, 26) in a 176x166 window whose top-left is (125, 37).
+        inventory.mouseClicked(125 + 88 + 8, 37 + 26 + 8, 0);
         assertNull(inventory.craftMatrix()[0], "holding a stack, the click happens on release");
-        inventory.mouseReleased(125 + 98 + 8, 37 + 18 + 8, 0);
+        inventory.mouseReleased(125 + 88 + 8, 37 + 26 + 8, 0);
         assertEquals(3, inventory.craftMatrix()[0].count());
         mc.displayGuiScreen(null);
         assertNull(inventory.craftMatrix()[0]);

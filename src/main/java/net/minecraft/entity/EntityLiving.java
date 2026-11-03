@@ -581,10 +581,7 @@ public abstract class EntityLiving extends MovingEntity {
      * the held weapon (difficulty-scaled by the player).
      */
     public boolean attackEntityAsMob(Player target) {
-        boolean hurt = target.attackByMob(totalAttackDamage(), x, z, displayName());
-        // 1.9 EntityLivingBase.blockUsingShield: a hit stopped by a shield pushes the attacker back.
-        if (!hurt && target.lastHitBlocked) knockBack(target.x - x, target.z - z);
-        return hurt;
+        return target.attackByMob(totalAttackDamage(), x, z, displayName());
     }
 
     /** The attack damage attribute with the held weapon's modifier. */

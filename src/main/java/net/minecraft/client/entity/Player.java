@@ -72,10 +72,6 @@ public final class Player {
     public boolean inWater, enteredWater;
     /** Touched a portal block this tick (BlockPortal.onEntityCollidedWithBlock); the client clears it once used. */
     public boolean inPortal;
-    /** Touched an end portal this tick (BlockEndPortal.onEntityCollidedWithBlock: travel is immediate). */
-    public boolean inEndPortal;
-    /** The end gateway block the player is touching this tick, or null. */
-    public int[] inEndGateway;
     /** How far the portal's purple haze has built up, 0-1 (EntityPlayerSP.timeInPortal), and last tick's value. */
     public float timeInPortal, prevTimeInPortal;
     public float fallDistance;
@@ -166,8 +162,6 @@ public final class Player {
         default void died(DamageSource source) {}
         /** A worn piece in armour slot {@code slot} broke from the wear. */
         default void armorBroke(int slot) {}
-        /** The shield in use wore out blocking a hit. */
-        default void shieldBroke(ItemStack shield) {}
     }
     public DamageListener damageListener = new DamageListener() {};
 
@@ -176,13 +170,6 @@ public final class Player {
         int total = 0;
         for (int slot = 0; slot < armor.length; slot++)
             if (armor[slot] != null) total += net.minecraft.inventory.ArmorValues.points(armor[slot].item(), slot);
-        return total;
-    }
-
-    /** The armour toughness worn (1.9: 2 for each diamond piece). */
-    public float armorToughness() {
-        float total = 0;
-        for (ItemStack piece : armor) if (piece != null) total += net.minecraft.inventory.ArmorValues.toughness(piece.item());
         return total;
     }
 
@@ -229,17 +216,19 @@ public final class Player {
     }
 
     /**
-     * EntityPlayer.damageEntity (1.9; shields stop hits before this): armour (CombatRules, with toughness) takes its share off
-     * blockable damage and wears each piece by d/4 (at least 1); then, unless
+     * EntityPlayer.damageEntity: blocking with a sword halves blockable damage
+     * ((1 + d) / 2); armour points take {@code d x (25 - armour) / 25} off
+     * blockable damage and wear each piece by d/4 (at least 1); then, unless
      * the damage is absolute (starving), Resistance takes 20% per level off
      * anything but void damage and protection enchantments up to 20/25 more.
      * Absorption hearts soak up what is left first; a hit that still gets
      * through adds its exhaustion (0.3 unless it bypasses armour).
      */
     private void damageEntity(DamageSource source, float damage) {
+        if (!source.isUnblockable() && isBlocking() && damage > 0) damage = (1f + damage) * 0.5f;
         if (!source.isUnblockable()) {
             damageArmor(damage);
-            damage = net.minecraft.inventory.ArmorValues.damageAfterArmor(damage, armorValue(), armorToughness());
+            damage = damage * (25 - armorValue()) / 25f;
         }
         damage = applyPotionDamageCalculations(source, damage);
         float before = damage;
@@ -426,7 +415,6 @@ public final class Player {
 
     /** A hit from someone at (fromX, fromZ) with this source (an arrow, a fireball): knocked back away from them. */
     public boolean attackBy(DamageSource source, float amount, double fromX, double fromZ, String attacker) {
-        if (blockWithShield(source, amount, fromX, fromZ)) return false;
         int before = hurtResistantTime;
         lastAttacker = attacker;
         boolean hurt = attack(source, amount);
@@ -443,14 +431,6 @@ public final class Player {
 
     /** An explosion's damage: "blew up", or "was blown up by" when someone set it off. */
     public boolean attackByExplosion(float amount, String attacker) {
-        lastAttacker = attacker;
-        return attack(attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER, amount);
-    }
-
-    /** An explosion centred at (fromX, fromZ), which a raised shield facing it stops. */
-    public boolean attackByExplosion(float amount, String attacker, double fromX, double fromZ) {
-        DamageSource source = attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER;
-        if (blockWithShield(source, amount, fromX, fromZ)) return false;
         lastAttacker = attacker;
         return attack(attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER, amount);
     }
@@ -503,7 +483,6 @@ public final class Player {
      */
     private void livingUpdate() {
         ticksExisted++;
-        tickHeld(heldItem.get());
         if (!noClip && insideOpaqueBlock()) attack(DamageSource.IN_WALL, 1f);
         if (headInWater() && !noClip) {
             if (!disableDamage) {
@@ -595,38 +574,7 @@ public final class Player {
     public net.minecraft.item.ItemStack itemInUse() { return itemInUse; }
     public int itemInUseCount() { return itemInUseCount; }
 
-    /** Whether the last hit stopped by {@link #blockWithShield} was; read by the mob that swung (it gets pushed back). */
-    public boolean lastHitBlocked;
-
-    /** A raised shield counts once it has been up for 5 ticks (1.9 EntityLivingBase.isActiveItemStackBlocking). */
-    public boolean shieldRaised() { return isBlocking() && 72000 - itemInUseCount >= 5; }
-
-    /**
-     * 1.9 EntityLivingBase.canBlockDamageSource: a raised shield stops any
-     * blockable hit coming from in front (the direction to its source is
-     * less than 90° from where the player looks, ignoring height). Hits of
-     * 3 or more wear the shield by 1 + the damage, rounded down.
-     */
-    public boolean blockWithShield(DamageSource source, float amount, double fromX, double fromZ) {
-        lastHitBlocked = false;
-        if (source.isUnblockable() || !shieldRaised() || amount <= 0 || disableDamage && !source.canHarmInCreative()) return false;
-        double dx = fromX - x, dz = fromZ - z;
-        double yaw = Math.toRadians(this.yaw);
-        double lookX = Math.sin(yaw), lookZ = -Math.cos(yaw); // this model's yaw 0 looks north
-        if (dx * lookX + dz * lookZ <= 0) return false;
-        lastHitBlocked = true;
-        sounds.play("item.shield.block", 1f, 0.8f + random.nextFloat() * 0.4f);
-        ItemStack shield = itemInUse;
-        if (amount >= 3f && !disableDamage && shield != null
-            && (EnchantmentHelper.damageItem(shield, 1 + (int) Math.floor(amount), random) || shield.isEmpty())) {
-            clearItemInUse();
-            sounds.play("item.shield.break", 0.8f, 0.8f + random.nextFloat() * 0.4f);
-            damageListener.shieldBroke(shield);
-        }
-        return true;
-    }
-
-    /** Using an item whose use is BLOCK: a shield (1.9; swords no longer block). */
+    /** Holding a sword up (EntityPlayer.isBlocking): using an item whose use is BLOCK. */
     public boolean isBlocking() {
         return itemInUse != null && itemInUse.item().useAction() == net.minecraft.item.Item.UseAction.BLOCK;
     }
@@ -643,7 +591,7 @@ public final class Player {
     /** Moves the player into another dimension's world (Entity.travelToDimension; the caller places them). */
     public void setWorld(World world) { this.world = world; }
     public World world() { return world; }
-    public final double spawnX, spawnZ;
+    private final double spawnX, spawnZ;
     private int jumpTicks, flyToggleTimer, sprintToggleTimer;
     private boolean jumpWasDown, sneakWasDown, inWeb, firstUpdate = true;
     private float lastForward;
@@ -732,9 +680,6 @@ public final class Player {
             if (input.sneak()) motionY -= 0.15;
             if (input.jump()) motionY += 0.15;
         }
-        // EntityPlayerSP / NetHandlerPlayServer START_FALL_FLYING: jumping again while falling opens a worn elytra.
-        if (input.jump() && !wasJumping && !onGround && motionY < 0 && !elytraFlying && !isFlying && !inWater && elytraUsable())
-            elytraFlying = true;
         jumpWasDown = input.jump();
         sneakWasDown = input.sneak();
         lastForward = forward;
@@ -761,68 +706,8 @@ public final class Player {
         moveWithHeading(strafe, forward, airSpeed);
         addMovementExhaustion(x - beforeX, y - beforeY, z - beforeZ);
         if (onGround && isFlying && !noClip) isFlying = false;
-        updateElytra();
         livingUpdate();
         firstUpdate = false;
-    }
-
-    // ---- 1.9 elytra --------------------------------------------------------------------------
-
-    /** Gliding on an elytra (entity flag 7). */
-    public boolean elytraFlying;
-    public int ticksElytraFlying;
-
-    /** ItemElytra.isBroken: an elytra in the chest slot with more than one use left. */
-    public boolean elytraUsable() {
-        ItemStack chest = armor[2];
-        return chest != null && chest.item().name().path().equals("elytra") && chest.damage() < chest.item().maxDamage() - 1;
-    }
-
-    /** EntityLivingBase.updateElytra: gliding stops on the ground or without a usable elytra, which wears 1 a second. */
-    private void updateElytra() {
-        boolean gliding = elytraFlying && !onGround && !inWater && elytraUsable();
-        if (gliding && (ticksElytraFlying + 1) % 20 == 0 && !allowFlying) EnchantmentHelper.damageItem(armor[2], 1, random);
-        elytraFlying = gliding;
-        ticksElytraFlying = gliding ? ticksElytraFlying + 1 : 0;
-    }
-
-    /** EntityLivingBase.moveEntityWithHeading while gliding: pitch trades height for speed. */
-    private void glide() {
-        if (motionY > -0.5) fallDistance = 1f;
-        double lookX = dirX(), lookY = dirY(), lookZ = dirZ();
-        float pitchRad = (float) Math.toRadians(pitch);
-        double horizontalLook = Math.sqrt(lookX * lookX + lookZ * lookZ);
-        double horizontalSpeed = Math.sqrt(motionX * motionX + motionZ * motionZ);
-        double lookLength = Math.sqrt(lookX * lookX + lookY * lookY + lookZ * lookZ);
-        float lift = (float) Math.cos(pitchRad);
-        lift = (float) (lift * lift * Math.min(1.0, lookLength / 0.4));
-        motionY += -0.08 + lift * 0.06;
-        if (motionY < 0 && horizontalLook > 0) {
-            double d = motionY * -0.1 * lift;
-            motionY += d;
-            motionX += lookX * d / horizontalLook;
-            motionZ += lookZ * d / horizontalLook;
-        }
-        if (pitchRad < 0) {
-            double d = horizontalSpeed * -Math.sin(pitchRad) * 0.04;
-            motionY += d * 3.2;
-            motionX -= lookX * d / horizontalLook;
-            motionZ -= lookZ * d / horizontalLook;
-        }
-        if (horizontalLook > 0) {
-            motionX += (lookX / horizontalLook * horizontalSpeed - motionX) * 0.1;
-            motionZ += (lookZ / horizontalLook * horizontalSpeed - motionZ) * 0.1;
-        }
-        motionX *= 0.99f;
-        motionY *= 0.98f;
-        motionZ *= 0.99f;
-        move(motionX, motionY, motionZ);
-        if (collidedHorizontally) {
-            double after = Math.sqrt(motionX * motionX + motionZ * motionZ);
-            float damage = (float) ((horizontalSpeed - after) * 10.0 - 3.0);
-            if (damage > 0) attack(DamageSource.FLY_INTO_WALL, damage);
-        }
-        if (onGround) elytraFlying = false;
     }
 
     /** EntityLivingBase.jump plus EntityPlayer's cost: 0.8 exhaustion sprinting, 0.2 otherwise. */
@@ -865,8 +750,6 @@ public final class Player {
             motionX *= 0.5; motionY *= 0.5; motionZ *= 0.5;
             motionY -= 0.02;
             if (collidedHorizontally && offsetIsFree(motionX, motionY + 0.6 - y + startY, motionZ)) motionY = 0.3;
-        } else if (elytraFlying) {
-            glide();
         } else {
             float friction = onGround ? slipperinessBelow() * 0.91f : 0.91f;
             float push = onGround ? moveSpeed() * (0.16277136f / (friction * friction * friction)) : airSpeed;
@@ -909,50 +792,11 @@ public final class Player {
      * Strength multiplies by 1 + 1.3 per level.
      */
     public float attackDamage(float base) {
-        // 1.9: Strength adds 3 a level and Weakness takes 4 a level off the attack damage attribute.
-        PotionEffect strength = activeEffects.get(Potion.DAMAGE_BOOST.id);
-        if (strength != null) base += 3f * (strength.amplifier() + 1);
         PotionEffect weakness = activeEffects.get(Potion.WEAKNESS.id);
-        if (weakness != null) base -= 4f * (weakness.amplifier() + 1);
+        if (weakness != null) base -= 0.5f * (weakness.amplifier() + 1);
+        PotionEffect strength = activeEffects.get(Potion.DAMAGE_BOOST.id);
+        if (strength != null) base *= 1f + 1.3f * (strength.amplifier() + 1);
         return Math.max(0f, base);
-    }
-
-    // ---- 1.9 attack cooldown (EntityLivingBase.ticksSinceLastSwing) ---------------------------
-
-    /** Ticks since the last attack or held-item change. */
-    public int ticksSinceLastSwing;
-    /** The attack speed attribute (attacks a second) with the held item, Haste and Mining Fatigue. */
-    public float attackSpeed = 4f;
-    private net.minecraft.item.Item lastHeld;
-
-    /** Ticks a full-strength attack takes to recharge (EntityPlayer.getCooldownPeriod). */
-    public float cooldownPeriod() { return 20f / attackSpeed; }
-
-    /** How charged the next attack is, 0..1 (EntityPlayer.getCooledAttackStrength). */
-    public float attackStrength(float partialTicks) {
-        return Math.max(0f, Math.min(1f, (ticksSinceLastSwing + partialTicks) / cooldownPeriod()));
-    }
-
-    public void resetCooldown() { ticksSinceLastSwing = 0; }
-
-    /**
-     * Once a tick with the item in the main hand: switching to a different
-     * item restarts the cooldown; Haste adds 10% attack speed a level and
-     * Mining Fatigue takes 10% a level off.
-     */
-    public void tickHeld(net.minecraft.item.ItemStack held) {
-        net.minecraft.item.Item item = held == null ? null : held.item();
-        if (item != lastHeld) {
-            lastHeld = item;
-            resetCooldown();
-        }
-        float speed = net.minecraft.item.ToolValues.attackSpeed(item);
-        PotionEffect haste = activeEffects.get(Potion.DIG_SPEED.id);
-        if (haste != null) speed *= 1f + 0.1f * (haste.amplifier() + 1);
-        PotionEffect fatigue = activeEffects.get(Potion.DIG_SLOWDOWN.id);
-        if (fatigue != null) speed *= Math.max(0f, 1f - 0.1f * (fatigue.amplifier() + 1));
-        attackSpeed = Math.max(speed, 0.01f);
-        ticksSinceLastSwing++;
     }
 
     /** EntityRenderer.getNightVisionBrightness: 1, flickering in the last 10 seconds; 0 without the effect. */
@@ -1050,8 +894,7 @@ public final class Player {
     }
 
     public AxisAlignedBB boundingBox() {
-        double height = elytraFlying ? 0.6 : HEIGHT;
-        return new AxisAlignedBB(x - WIDTH / 2, y, z - WIDTH / 2, x + WIDTH / 2, y + height, z + WIDTH / 2);
+        return new AxisAlignedBB(x - WIDTH / 2, y, z - WIDTH / 2, x + WIDTH / 2, y + HEIGHT, z + WIDTH / 2);
     }
 
     /**
@@ -1187,8 +1030,6 @@ public final class Player {
                         case "soul_sand" -> { motionX *= 0.4; motionZ *= 0.4; }
                         case "web" -> inWeb = true;
                         case "portal" -> inPortal = true;
-                        case "end_portal" -> inEndPortal = true;
-                        case "end_gateway" -> inEndGateway = new int[]{bx, by, bz};
                         case "cactus" -> attack(DamageSource.CACTUS, 1f);
                         case "slime" -> {
                             if (Math.abs(motionY) < 0.1 && !sneaking) {
@@ -1207,8 +1048,7 @@ public final class Player {
         return value > 0 ? value - step : value + step;
     }
 
-    /** Whether nothing solid (block or boat) overlaps the area. */
-    public boolean isEmpty(AxisAlignedBB area) {
+    private boolean isEmpty(AxisAlignedBB area) {
         for (AxisAlignedBB block : collisionBoxes(area)) if (block.intersects(area)) return false;
         return true;
     }
@@ -1280,7 +1120,7 @@ public final class Player {
     }
 
     public double eyeY() { return y + eyeHeight(); }
-    public double eyeHeight() { return elytraFlying ? 0.4 : sneaking ? 1.54 : 1.62; }
+    public double eyeHeight() { return sneaking ? 1.54 : 1.62; }
     public double dirX() { return Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }
     public double dirY() { return -Math.sin(Math.toRadians(pitch)); }
     public double dirZ() { return -Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }

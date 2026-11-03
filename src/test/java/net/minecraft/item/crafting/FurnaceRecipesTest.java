@@ -33,8 +33,8 @@ final class FurnaceRecipesTest {
 
     @Test
     void everyListedInputHasARecipe() {
-        // 27 listed recipes (1.9 adds popped chorus fruit); groups add red sand, three more "log" logs and one more "log2" log.
-        assertEquals(27 + 1 + 3 + 1, RECIPES.size());
+        // 26 listed recipes; groups add red sand, three more "log" logs and one more "log2" log.
+        assertEquals(26 + 1 + 3 + 1, RECIPES.size());
     }
 
     @Test

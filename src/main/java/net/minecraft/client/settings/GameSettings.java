@@ -176,8 +176,6 @@ public final class GameSettings {
     public final KeyBinding keyBindInventory = new KeyBinding("key.inventory", 18, "key.categories.inventory");
     public final KeyBinding keyBindUseItem = new KeyBinding("key.use", -99, "key.categories.gameplay");
     public final KeyBinding keyBindDrop = new KeyBinding("key.drop", 16, "key.categories.gameplay");
-    /** 1.9: F swaps the selected hotbar item with the offhand. */
-    public final KeyBinding keyBindSwapHands = new KeyBinding("key.swapHands", 33, "key.categories.inventory");
     public final KeyBinding keyBindAttack = new KeyBinding("key.attack", -100, "key.categories.gameplay");
     public final KeyBinding keyBindPickBlock = new KeyBinding("key.pickItem", -98, "key.categories.gameplay");
     public final KeyBinding keyBindChat = new KeyBinding("key.chat", 20, "key.categories.multiplayer");
@@ -206,7 +204,7 @@ public final class GameSettings {
             keyBindJump, keyBindSneak, keyBindSprint, keyBindDrop, keyBindInventory, keyBindChat, keyBindPlayerList,
             keyBindPickBlock, keyBindCommand, keyBindScreenshot, keyBindTogglePerspective, keyBindSmoothCamera,
             keyBindStreamStartStop, keyBindStreamPauseUnpause, keyBindStreamCommercials, keyBindStreamToggleMic,
-            keyBindFullscreen, keyBindSpectatorOutlines, keyBindSwapHands));
+            keyBindFullscreen, keyBindSpectatorOutlines));
         keyBindings.addAll(List.of(keyBindsHotbar));
         // 1.8.9 raises the render distance cap to 32 on a 64-bit JVM with at least 1 GB of heap.
         if (is64Bit() && Runtime.getRuntime().maxMemory() >= 1_000_000_000L) Options.RENDER_DISTANCE.setMax(32);

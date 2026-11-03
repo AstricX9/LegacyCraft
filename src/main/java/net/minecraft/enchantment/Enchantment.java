@@ -51,8 +51,7 @@ public final class Enchantment {
 
     /** Which family an enchantment belongs to, for the compatibility rules and effects. */
     enum Kind { PROTECTION, RESPIRATION, AQUA_AFFINITY, THORNS, DEPTH_STRIDER, DAMAGE, KNOCKBACK, FIRE_ASPECT, LOOTING,
-        EFFICIENCY, SILK_TOUCH, UNBREAKING, FORTUNE, POWER, PUNCH, FLAME, INFINITY, LUCK_OF_THE_SEA, LURE,
-        FROST_WALKER, MENDING }
+        EFFICIENCY, SILK_TOUCH, UNBREAKING, FORTUNE, POWER, PUNCH, FLAME, INFINITY, LUCK_OF_THE_SEA, LURE }
 
     public final int id;
     /** The translation key without "enchantment." ("protect.all"). */
@@ -98,8 +97,6 @@ public final class Enchantment {
     public static final Enchantment AQUA_AFFINITY = add(6, "waterWorker", 2, 1, Type.ARMOR_HEAD, Kind.AQUA_AFFINITY, 0, 1, 0, 40);
     public static final Enchantment THORNS = add(7, "thorns", 1, 3, Type.ARMOR_TORSO, Kind.THORNS, 0, 10, 20, 50);
     public static final Enchantment DEPTH_STRIDER = add(8, "waterWalker", 2, 3, Type.ARMOR_FEET, Kind.DEPTH_STRIDER, 0, 0, 10, 15);
-    /** 1.9: walking freezes water around the boots into frosted ice (treasure). */
-    public static final Enchantment FROST_WALKER = add(9, "frostWalker", 2, 2, Type.ARMOR_FEET, Kind.FROST_WALKER, 0, 10, 10, 15);
     public static final Enchantment SHARPNESS = add(16, "damage.all", 10, 5, Type.WEAPON, Kind.DAMAGE, 0, 1, 11, 20);
     public static final Enchantment SMITE = add(17, "damage.undead", 5, 5, Type.WEAPON, Kind.DAMAGE, 1, 5, 8, 20);
     public static final Enchantment BANE_OF_ARTHROPODS = add(18, "damage.arthropods", 5, 5, Type.WEAPON, Kind.DAMAGE, 2, 5, 8, 20);
@@ -116,8 +113,6 @@ public final class Enchantment {
     public static final Enchantment INFINITY = add(51, "arrowInfinite", 1, 1, Type.BOW, Kind.INFINITY, 0, 20, 0, 30);
     public static final Enchantment LUCK_OF_THE_SEA = add(61, "lootBonusFishing", 2, 3, Type.FISHING_ROD, Kind.LUCK_OF_THE_SEA, 0, 15, 9, 50);
     public static final Enchantment LURE = add(62, "fishingSpeed", 2, 3, Type.FISHING_ROD, Kind.LURE, 0, 15, 9, 50);
-    /** 1.9: experience picked up repairs the item, 2 durability a point (treasure). */
-    public static final Enchantment MENDING = add(70, "mending", 2, 1, Type.BREAKABLE, Kind.MENDING, 0, 25, 25, 50);
 
     static {
         for (Enchantment enchantment : BY_ID) if (enchantment != null) LIST.add(enchantment);
@@ -147,7 +142,6 @@ public final class Enchantment {
             case 19 -> "knockback"; case 20 -> "fire_aspect"; case 21 -> "looting"; case 32 -> "efficiency";
             case 33 -> "silk_touch"; case 34 -> "unbreaking"; case 35 -> "fortune"; case 48 -> "power"; case 49 -> "punch";
             case 50 -> "flame"; case 51 -> "infinity"; case 61 -> "luck_of_the_sea"; case 62 -> "lure";
-            case 9 -> "frost_walker"; case 70 -> "mending";
             default -> name;
         };
     }
@@ -177,11 +171,8 @@ public final class Enchantment {
      * Unbreaking, Fortune, Luck of the Sea, Lure).
      */
     public int maxEnchantability(int level) {
-        return window == 50 && kind != Kind.MENDING ? 1 + level * 10 + 50 : minEnchantability(level) + window;
+        return window == 50 ? 1 + level * 10 + 50 : minEnchantability(level) + window;
     }
-
-    /** 1.9 treasure enchantments never come from the enchanting table (Enchantment.isTreasureEnchantment). */
-    public boolean isTreasure() { return kind == Kind.FROST_WALKER || kind == Kind.MENDING; }
 
     /**
      * Whether two enchantments can share an item (canApplyTogether): never the
@@ -199,9 +190,6 @@ public final class Enchantment {
         if (kind == Kind.SILK_TOUCH && other.kind == Kind.FORTUNE) return false;
         boolean lootBonus = kind == Kind.LOOTING || kind == Kind.FORTUNE || kind == Kind.LUCK_OF_THE_SEA || kind == Kind.LURE;
         if (lootBonus && other.kind == Kind.SILK_TOUCH) return false;
-        // 1.9: Frost Walker and Depth Strider exclude each other.
-        if (kind == Kind.FROST_WALKER && other.kind == Kind.DEPTH_STRIDER
-            || kind == Kind.DEPTH_STRIDER && other.kind == Kind.FROST_WALKER) return false;
         return true;
     }
 
@@ -219,19 +207,16 @@ public final class Enchantment {
         return type.canEnchantItem(item);
     }
 
-    /**
-     * Protection's damage reduction for one piece (1.9 EnchantmentProtection.calcModifierDamage):
-     * Protection its level, Fire, Blast and Projectile Protection twice it, Feather Falling
-     * three times, each only against its kind of damage; 0 for others.
-     */
+    /** Protection's damage reduction for one piece (EnchantmentProtection.calcModifierDamage), 0 for others. */
     int protectionModifier(int level, DamageSource source) {
         if (kind != Kind.PROTECTION || source.canHarmInCreative()) return 0;
+        float f = (6 + level * level) / 3f;
         return switch (variant) {
-            case 0 -> level;
-            case 1 -> source.isFire() ? level * 2 : 0;
-            case 2 -> source == DamageSource.FALL ? level * 3 : 0;
-            case 3 -> source.isExplosion() ? level * 2 : 0;
-            case 4 -> source.isProjectile() ? level * 2 : 0;
+            case 0 -> (int) Math.floor(f * 0.75f);
+            case 1 -> source.isFire() ? (int) Math.floor(f * 1.25f) : 0;
+            case 2 -> source == DamageSource.FALL ? (int) Math.floor(f * 2.5f) : 0;
+            case 3 -> source.isExplosion() ? (int) Math.floor(f * 1.5f) : 0;
+            case 4 -> source.isProjectile() ? (int) Math.floor(f * 1.5f) : 0;
             default -> 0;
         };
     }

@@ -128,8 +128,6 @@ public final class BlockRegistry {
             case "carpet" -> new BlockCarpet(properties);
             case "cauldron" -> new BlockCauldron(properties);
             case "chest" -> new BlockChest(properties);
-            case "chorus_flower" -> new BlockChorusFlower(properties);
-            case "chorus_plant" -> new BlockChorusPlant(properties);
             case "cocoa" -> new BlockCocoa(properties);
             case "crops" -> new BlockCrops(properties);
             case "dead_bush" -> new BlockDeadBush(properties);
@@ -138,16 +136,13 @@ public final class BlockRegistry {
             case "door" -> new BlockDoor(properties);
             case "double_plant" -> new BlockDoublePlant(properties);
             case "end_portal_frame" -> new BlockEndPortalFrame(properties);
-            case "end_rod" -> new BlockEndRod(properties);
             case "ender_chest" -> new BlockEnderChest(properties);
             case "fence" -> new BlockFence(properties);
             case "fence_gate" -> new BlockFenceGate(properties);
             case "fire" -> new BlockFire(properties);
             case "flower_pot" -> new BlockFlowerPot(properties);
-            case "frosted_ice" -> new BlockFrostedIce(properties);
             case "furnace" -> new BlockFurnace(properties);
             case "grass" -> new BlockGrass(properties);
-            case "grass_path" -> new BlockGrassPath(properties);
             case "hopper" -> new BlockHopper(properties);
             case "ladder" -> new BlockLadder(properties);
             case "lever" -> new BlockLever(properties);

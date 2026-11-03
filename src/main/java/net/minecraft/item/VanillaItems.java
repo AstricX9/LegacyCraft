@@ -19,7 +19,7 @@ import java.util.Map;
 public final class VanillaItems {
     private VanillaItems() {}
 
-    /** Numeric item IDs 256-448 and the records (Item.itemRegistry, 1.8.9 plus 1.9's). */
+    /** Numeric item IDs 256-430 and the records (Item.itemRegistry, 1.8.9). */
     private static final Map<Integer, String> ITEM_NAMES = new HashMap<>();
     private static final Map<String, Integer> ITEM_IDS = new HashMap<>();
 
@@ -47,11 +47,7 @@ public final class VanillaItems {
             "comparator", "netherbrick", "quartz", "tnt_minecart", "hopper_minecart", "prismarine_shard",
             "prismarine_crystals", "rabbit", "cooked_rabbit", "rabbit_stew", "rabbit_foot", "rabbit_hide", "armor_stand",
             "iron_horse_armor", "golden_horse_armor", "diamond_horse_armor", "lead", "name_tag", "command_block_minecart",
-            "mutton", "cooked_mutton", "banner", "end_crystal", "spruce_door", "birch_door", "jungle_door", "acacia_door", "dark_oak_door",
-            // 1.9 (432-448)
-            "chorus_fruit", "chorus_fruit_popped", "beetroot", "beetroot_seeds", "beetroot_soup", "dragon_breath",
-            "splash_potion", "spectral_arrow", "tipped_arrow", "lingering_potion", "shield", "elytra", "spruce_boat",
-            "birch_boat", "jungle_boat", "acacia_boat", "dark_oak_boat"};
+            "mutton", "cooked_mutton", "banner", "spruce_door", "birch_door", "jungle_door", "acacia_door", "dark_oak_door"};
         for (int i = 0; i < names.length; i++) {
             ITEM_NAMES.put(256 + i, names[i]);
             ITEM_IDS.put(names[i], 256 + i);
