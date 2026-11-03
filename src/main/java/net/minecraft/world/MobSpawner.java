@@ -95,6 +95,7 @@ public final class MobSpawner {
      * of 2-3), zombie pigmen (5), skeletons (10) and magma cubes (3).
      */
     public static List<SpawnEntry> monsters(World world, int x, int y, int z) {
+        if (world.isEnd()) return END;
         if (world.isNether()) {
             var generator = world.netherGenerator();
             boolean onBrick = y >= 1 && y < World.HEIGHT && world.generatedChunk(x >> 4, z >> 4) != null
@@ -109,6 +110,8 @@ public final class MobSpawner {
     private static final List<SpawnEntry> OVERWORLD_MONSTERS = List.of(new SpawnEntry("Spider", 100, 4, 4),
         new SpawnEntry("Zombie", 100, 4, 4), new SpawnEntry("Skeleton", 100, 4, 4), new SpawnEntry("Creeper", 100, 4, 4),
         new SpawnEntry("Slime", 100, 4, 4), new SpawnEntry("Enderman", 10, 1, 4), new SpawnEntry("Witch", 5, 1, 1));
+    /** BiomeGenEnd: only endermen (10, packs of 4). */
+    private static final List<SpawnEntry> END = List.of(new SpawnEntry("Enderman", 10, 4, 4));
     private static final List<SpawnEntry> HELL = List.of(new SpawnEntry("PigZombie", 100, 4, 4),
         new SpawnEntry("Ghast", 50, 4, 4), new SpawnEntry("LavaSlime", 1, 4, 4));
     private static final List<SpawnEntry> FORTRESS = List.of(new SpawnEntry("Blaze", 10, 2, 3),
@@ -125,6 +128,7 @@ public final class MobSpawner {
     /** The share of the dimension's usual monster weight that LegacyCraft can spawn (the cap is cut to it). */
     private static float implementedShare(World world) {
         if (world.isNether()) return 1f;
+        if (world.isEnd()) return 0f; // shortcut: no endermen yet, so nothing spawns in the End
         int total = 0, implemented = 0;
         for (SpawnEntry entry : OVERWORLD_MONSTERS) {
             total += entry.weight();

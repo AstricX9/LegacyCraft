@@ -47,8 +47,18 @@ public final class SkyRenderer {
      * brightness table that never drops below 0.1.
      */
     private boolean nether;
-    public void setNether(boolean nether) { this.nether = nether; }
+    /**
+     * The End (WorldProviderEnd): the clock stands at noon (angle 0), the
+     * sky is the end_sky texture on all six sides of a box, the fog a dark
+     * purple (0xA080A0 x 0.15), and there are no clouds, sun or stars.
+     */
+    private boolean end;
+    public void setDimension(net.minecraft.world.Dimension dimension) {
+        nether = dimension == net.minecraft.world.Dimension.NETHER;
+        end = dimension == net.minecraft.world.Dimension.END;
+    }
     public boolean isNether() { return nether; }
+    private static final ResourceLocation END_SKY = new ResourceLocation("minecraft:textures/environment/end_sky.png");
 
     /** WorldProviderHell.generateLightBrightnessTable: the overworld curve lifted to a 0.1 floor. */
     public static float netherBrightness(int level) { return brightness(level) * 0.9f + 0.1f; }
@@ -190,7 +200,7 @@ public final class SkyRenderer {
      */
     public void tick(long worldTime, int skyLight, int blockLight, int renderDistanceChunks) {
         cloudTicks++;
-        int light = nether ? blockLight : Math.max(skyLight - skylightSubtracted(celestialAngle(worldTime, 1f)), blockLight);
+        int light = nether || end ? blockLight : Math.max(skyLight - skylightSubtracted(celestialAngle(worldTime, 1f)), blockLight);
         float far = renderDistanceChunks / 32f;
         float lit = nether ? netherBrightness(Math.max(0, light)) : brightness(Math.max(0, light));
         float target = lit * (1f - far) + far;
@@ -201,12 +211,13 @@ public final class SkyRenderer {
     /** Computes this frame's sky and fog colours; returns the fog colour, which is also the clear colour. */
     public float[] prepare(long worldTime, float partialTicks, float temperature, double lookX, double lookY, double lookZ,
                            int renderDistanceChunks, double feetY, boolean flat, String liquid) {
-        angle = nether ? 0.5f : celestialAngle(worldTime, partialTicks);
-        sunrise = nether ? null : sunriseColor(angle);
+        angle = nether ? 0.5f : end ? 0f : celestialAngle(worldTime, partialTicks);
+        sunrise = nether || end ? null : sunriseColor(angle);
         float[] sky = skyColor(angle, temperature);
         skyR = sky[0]; skyG = sky[1]; skyB = sky[2];
         float light = previousFogLight + (fogLight - previousFogLight) * partialTicks;
-        float[] fog = nether ? netherFog(sky, renderDistanceChunks, light, feetY, liquid)
+        float[] fog = end && liquid == null ? new float[]{0xA0 / 255f * 0.15f * light, 0x80 / 255f * 0.15f * light, 0xA0 / 255f * 0.15f * light}
+            : nether ? netherFog(sky, renderDistanceChunks, light, feetY, liquid)
             : fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, light, feetY, flat, liquid);
         fogR = fog[0]; fogG = fog[1]; fogB = fog[2];
         return fog;
@@ -224,6 +235,10 @@ public final class SkyRenderer {
      */
     public void renderSky(long worldTime, double eyeY) {
         if (nether) return;
+        if (end) {
+            renderEndSky();
+            return;
+        }
         if (skyList < 0) buildLists();
         net.minecraft.client.shaders.Shaders.use("gbuffers_skybasic");
         glDisable(GL_TEXTURE_2D);
@@ -344,8 +359,40 @@ public final class SkyRenderer {
      * the caller sets the terrain fog and a far plane four times the render
      * distance.
      */
+    /** RenderGlobal.renderSkyEnd: the end sky texture repeated 16 times over each inside face of a 200-block box, at 40/255 grey. */
+    private void renderEndSky() {
+        glDisable(GL_FOG);
+        glDisable(GL_ALPHA_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(false);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_TEXTURE_2D);
+        textures.bind(END_SKY);
+        for (int i = 0; i < 6; i++) {
+            glPushMatrix();
+            if (i == 1) glRotatef(90f, 1f, 0f, 0f);
+            if (i == 2) glRotatef(-90f, 1f, 0f, 0f);
+            if (i == 3) glRotatef(180f, 1f, 0f, 0f);
+            if (i == 4) glRotatef(90f, 0f, 0f, 1f);
+            if (i == 5) glRotatef(-90f, 0f, 0f, 1f);
+            glBegin(GL_QUADS);
+            glColor4f(40 / 255f, 40 / 255f, 40 / 255f, 1f);
+            glTexCoord2f(0f, 0f); glVertex3f(-100f, -100f, -100f);
+            glTexCoord2f(0f, 16f); glVertex3f(-100f, -100f, 100f);
+            glTexCoord2f(16f, 16f); glVertex3f(100f, -100f, 100f);
+            glTexCoord2f(16f, 0f); glVertex3f(100f, -100f, -100f);
+            glEnd();
+            glPopMatrix();
+        }
+        glColor4f(1f, 1f, 1f, 1f);
+        glDepthMask(true);
+        glEnable(GL_ALPHA_TEST);
+        glEnable(GL_CULL_FACE);
+    }
+
     public void renderClouds(double eyeX, double eyeY, double eyeZ, float partialTicks, boolean fancy) {
-        if (nether) return;
+        if (nether || end) return;
         float[] color = cloudColor(angle);
         textures.bind(CLOUDS);
         glEnable(GL_TEXTURE_2D);
