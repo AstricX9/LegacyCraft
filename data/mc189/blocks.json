@@ -1,5 +1,5 @@
 {
-  "target": "minecraft-java-1.8.9",
+  "target": "minecraft-java-1.9",
   "protocol": 47,
   "format": 1,
   "tag": "COMMUNITY_CORROBORATED",
@@ -7,7 +7,7 @@
     "https://minecraft.wiki/w/Java_Edition_data_values/Pre-flattening/Block_IDs",
     "https://minecraft.fandom.com/wiki/Java_Edition_data_values/Pre-flattening/Block_IDs"
   ],
-  "note": "Cross-checked against two independent wiki mirrors; NOT yet black-box tested against a running vanilla 1.8.9 client/server (that would promote this to VERIFIED_VANILLA per docs/compat/source_policy.md). IDs 0-197 only: 198+ (end_rod, chorus_plant, purpur_*, observer, shulker_box x16, glazed_terracotta x16, concrete, concrete_powder, structure_block, etc.) were added in 1.9 through 1.12 and MUST NOT appear in a 1.8.9 catalog per the master context doc's post-1.8.9 forbidden-content list (search that doc for MUST-NOT-LEAK).",
+  "note": "Cross-checked against two independent wiki mirrors; NOT yet black-box tested against a running vanilla 1.8.9 client/server (that would promote this to VERIFIED_VANILLA per docs/compat/source_policy.md). IDs 0-197 are 1.8.9; this is the 1.9 branch, so 198-212 (end_rod ... frosted_ice) are 1.9's additions. Later blocks (observer, shulker boxes, structure_block at 255, ...) stay out.",
   "entries": [
     {"id": 0, "name": "minecraft:air"},
     {"id": 1, "name": "minecraft:stone"},
@@ -206,6 +206,21 @@
     {"id": 194, "name": "minecraft:birch_door"},
     {"id": 195, "name": "minecraft:jungle_door"},
     {"id": 196, "name": "minecraft:acacia_door"},
-    {"id": 197, "name": "minecraft:dark_oak_door"}
+    {"id": 197, "name": "minecraft:dark_oak_door"},
+    {"id": 198, "name": "minecraft:end_rod"},
+    {"id": 199, "name": "minecraft:chorus_plant"},
+    {"id": 200, "name": "minecraft:chorus_flower"},
+    {"id": 201, "name": "minecraft:purpur_block"},
+    {"id": 202, "name": "minecraft:purpur_pillar"},
+    {"id": 203, "name": "minecraft:purpur_stairs"},
+    {"id": 204, "name": "minecraft:purpur_double_slab"},
+    {"id": 205, "name": "minecraft:purpur_slab"},
+    {"id": 206, "name": "minecraft:end_bricks"},
+    {"id": 207, "name": "minecraft:beetroots"},
+    {"id": 208, "name": "minecraft:grass_path"},
+    {"id": 209, "name": "minecraft:end_gateway"},
+    {"id": 210, "name": "minecraft:repeating_command_block"},
+    {"id": 211, "name": "minecraft:chain_command_block"},
+    {"id": 212, "name": "minecraft:frosted_ice"}
   ]
 }

@@ -353,6 +353,7 @@ public final class World implements IBlockWorld {
             if (state.block() != tick.block() || state.block().isAir()) continue;
             if (liquids.isFlowing(state.block())) liquids.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
             else if (fire.isFire(state.block())) fire.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
+            else if (state.block() instanceof net.minecraft.block.BlockFrostedIce ice) ice.tick(this, tick.x(), tick.y(), tick.z(), state, tickRandom);
         }
         tickFurnaces();
     }

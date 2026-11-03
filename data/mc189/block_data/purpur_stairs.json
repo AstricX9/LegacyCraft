@@ -1,0 +1,7 @@
+{
+  "class": "stairs",
+  "hardness": 1.5,
+  "opaque": false,
+  "lightOpacity": 15,
+  "useNeighborBrightness": true
+}

@@ -1135,7 +1135,8 @@ public final class Player {
         return value > 0 ? value - step : value + step;
     }
 
-    private boolean isEmpty(AxisAlignedBB area) {
+    /** Whether nothing solid (block or boat) overlaps the area. */
+    public boolean isEmpty(AxisAlignedBB area) {
         for (AxisAlignedBB block : collisionBoxes(area)) if (block.intersects(area)) return false;
         return true;
     }

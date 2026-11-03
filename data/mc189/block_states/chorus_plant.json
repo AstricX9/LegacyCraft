@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "north": [
+      "false",
+      "true"
+    ],
+    "east": [
+      "false",
+      "true"
+    ],
+    "south": [
+      "false",
+      "true"
+    ],
+    "west": [
+      "false",
+      "true"
+    ],
+    "up": [
+      "false",
+      "true"
+    ],
+    "down": [
+      "false",
+      "true"
+    ]
+  }
+}

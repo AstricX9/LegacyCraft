@@ -2181,5 +2181,23 @@
       "random/break"
     ],
     "subtitle": "subtitles.entity.item.break"
+  },
+  "item.chorus_fruit.teleport": {
+    "category": "player",
+    "sounds": [
+      "mob/endermen/portal",
+      "mob/endermen/portal2"
+    ],
+    "subtitle": "subtitles.item.chorus_fruit.teleport"
+  },
+  "item.shovel.flatten": {
+    "category": "block",
+    "sounds": [
+      "item/shovel/flatten1",
+      "item/shovel/flatten2",
+      "item/shovel/flatten3",
+      "item/shovel/flatten4"
+    ],
+    "subtitle": "subtitles.item.shovel.flatten"
   }
 }

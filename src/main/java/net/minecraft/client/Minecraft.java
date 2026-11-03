@@ -245,7 +245,14 @@ public final class Minecraft implements GuiContext {
             return levelInfo == null || Boolean.parseBoolean(levelInfo.gameRules.getOrDefault(name, "true"));
         }
         @Override public long worldTime() { return levelInfo == null ? 6000 : levelInfo.worldTime; }
-        @Override public void giveExperience(int amount) { if (player != null) player.addExperience(amount); }
+        @Override public void giveExperience(int amount) {
+            if (player == null) return;
+            ItemStack[] equipment = java.util.Arrays.copyOf(inventory.armorInventory, inventory.armorInventory.length + 2);
+            equipment[equipment.length - 2] = inventory.getCurrentItem();
+            equipment[equipment.length - 1] = inventory.getOffhandItem();
+            int left = net.minecraft.enchantment.EnchantmentHelper.mend(amount, equipment, random);
+            if (left > 0) player.addExperience(left);
+        }
         @Override public void globalSound(String event, double x, double y, double z) {
             // RenderGlobal.broadcastSound: 2 blocks from the camera toward the source.
             if (player == null) return;
@@ -648,6 +655,7 @@ public final class Minecraft implements GuiContext {
             player.difficulty = levelInfo.difficulty;
             player.naturalRegeneration = Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("naturalRegeneration", "true"));
             if (preparing == null) tickPlayer();
+            freezeUnderFeet();
             updatePortalTime();
             rendererUpdateCount++;
             playerAnimation.tick(player);
@@ -3307,7 +3315,7 @@ public final class Minecraft implements GuiContext {
             }
             return useHeldItem();
         }
-        if (activateBlock(hit) || useFlintAndSteel(hit) || useSpawnEgg(hit) || useSkull(hit)) {
+        if (activateBlock(hit) || useFlintAndSteel(hit) || makeGrassPath(hit) || useSpawnEgg(hit) || useSkull(hit)) {
             playerAnimation.swing();
             return true;
         }
@@ -3537,6 +3545,31 @@ public final class Minecraft implements GuiContext {
         }
     }
 
+    /** Frost Walker boots freeze water under a player standing on the ground (EntityLivingBase.onLivingUpdate, 1.9). */
+    private void freezeUnderFeet() {
+        if (player == null || !player.onGround || inventory == null) return;
+        int level = net.minecraft.enchantment.EnchantmentHelper.maxLevel(net.minecraft.enchantment.Enchantment.FROST_WALKER, inventory.armorInventory);
+        if (level > 0) net.minecraft.block.BlockFrostedIce.freezeAround(world, player.x, player.y, player.z, level, random);
+    }
+
+    /**
+     * A shovel on the top of a grass block with air above flattens it into a
+     * grass path (ItemSpade.onItemUse, 1.9), wearing the shovel by one.
+     */
+    private boolean makeGrassPath(WorldRenderer.Hit hit) {
+        ItemStack held = inventory.getCurrentItem();
+        if (hit == null || held == null || ToolValues.type(held.item()) != ToolValues.Type.SHOVEL) return false;
+        if (hit.face() == net.minecraft.util.Direction.DOWN || !world.get(hit.x(), hit.y(), hit.z()).name().path().equals("grass")) return false;
+        if (!world.inBounds(hit.x(), hit.y() + 1, hit.z()) || !world.get(hit.x(), hit.y() + 1, hit.z()).isAir()) return false;
+        playSound("item.shovel.flatten", hit.x() + 0.5, hit.y() + 0.5, hit.z() + 0.5, 1f, 1f);
+        world.setStateAndUpdate(hit.x(), hit.y(), hit.z(), BlockState.of(blockRegistry.get("minecraft:grass_path"), 0));
+        if (!isCreative() && net.minecraft.enchantment.EnchantmentHelper.damageItem(held, 1, random)) {
+            inventory.mainInventory[inventory.currentItem] = null;
+            playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
+        }
+        return true;
+    }
+
     /**
      * Flint and steel on a block (ItemFlintAndSteel.onItemUse): fire in the
      * air beside the face clicked, with the ignite sound, and one use of
@@ -3665,7 +3698,7 @@ public final class Minecraft implements GuiContext {
             case EAT -> {
                 // ItemFood.onItemRightClick: only when hungry (golden apples always), never in Creative; 32 ticks.
                 if (!item.isFood()) return false;
-                if (player.canEat(item.vanillaId().path().equals("golden_apple"))) player.setItemInUse(held, 32);
+                if (player.canEat(item.vanillaId().path().equals("golden_apple") || item.vanillaId().path().equals("chorus_fruit"))) player.setItemInUse(held, 32);
             }
             // ItemBucketMilk / ItemPotion.onItemRightClick: drinking always starts, 32 ticks.
             case DRINK -> player.setItemInUse(held, 32);
@@ -3941,7 +3974,7 @@ public final class Minecraft implements GuiContext {
             player.foodStats.addStats(item.food(), item.saturation());
             player.sounds.play("random.burp", 0.5f, random.nextFloat() * 0.1f + 0.9f);
             applyFoodEffects(name);
-            if (name.equals("mushroom_stew") || name.equals("rabbit_stew")) result = itemStack("bowl");
+            if (name.equals("mushroom_stew") || name.equals("rabbit_stew") || name.equals("beetroot_soup")) result = itemStack("bowl");
         } else if (name.equals("milk_bucket")) {
             if (!creative) stack.split(1);
             player.clearActivePotions();
@@ -3968,6 +4001,32 @@ public final class Minecraft implements GuiContext {
             inventory.mainInventory[inventory.currentItem] = result == null || result.isEmpty() ? null : result;
     }
 
+    /**
+     * ItemChorusFruit.onItemUseFinish (1.9): up to 16 tries at a random spot
+     * within 8 blocks; each drops to the first solid block below and is kept
+     * when the player fits there out of liquid (EntityLivingBase.attemptTeleport).
+     */
+    private void chorusTeleport() {
+        for (int i = 0; i < 16; i++) {
+            double tx = player.x + (random.nextDouble() - 0.5) * 16;
+            double ty = Math.max(0, Math.min(World.HEIGHT - 1, player.y + random.nextInt(16) - 8));
+            double tz = player.z + (random.nextDouble() - 0.5) * 16;
+            int bx = (int) Math.floor(tx), by = (int) Math.floor(ty), bz = (int) Math.floor(tz);
+            if (!world.inBounds(bx, by, bz)) continue;
+            while (by > 0 && !world.get(bx, by - 1, bz).isSolid()) by--;
+            if (by <= 0) continue;
+            AxisAlignedBB box = new AxisAlignedBB(tx - Player.WIDTH / 2, by, tz - Player.WIDTH / 2,
+                tx + Player.WIDTH / 2, by + Player.HEIGHT, tz + Player.WIDTH / 2);
+            if (!player.isEmpty(box) || net.minecraft.block.Liquids.liquid(world.get(bx, by, bz)) != null) continue;
+            double fromX = player.x, fromY = player.y, fromZ = player.z;
+            player.setPositionAndRotation(tx, by, tz, player.yaw, player.pitch);
+            player.fallDistance = 0;
+            playSound("item.chorus_fruit.teleport", fromX, fromY, fromZ, 1f, 1f);
+            playSound("item.chorus_fruit.teleport", tx, by, tz, 1f, 1f);
+            return;
+        }
+    }
+
     private ItemStack itemStack(String name) {
         Item item = itemByName(name);
         return item == null ? null : new ItemStack(item);
@@ -3992,6 +4051,7 @@ public final class Minecraft implements GuiContext {
                 player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.ABSORPTION, 2400, 0));
                 player.addPotionEffect(new net.minecraft.potion.PotionEffect(net.minecraft.potion.Potion.REGENERATION, 100, 1));
             }
+            case "chorus_fruit" -> chorusTeleport();
             case "chicken" -> foodEffect(net.minecraft.potion.Potion.HUNGER, 600, 0, 0.3f);
             case "rotten_flesh" -> foodEffect(net.minecraft.potion.Potion.HUNGER, 600, 0, 0.8f);
             case "spider_eye" -> foodEffect(net.minecraft.potion.Potion.POISON, 100, 0, 1f);

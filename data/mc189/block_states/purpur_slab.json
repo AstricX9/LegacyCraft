@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "variant": [
+      "default"
+    ],
+    "half": [
+      "bottom",
+      "top"
+    ]
+  },
+  "meta": [
+    {
+      "property": "half",
+      "shift": 3,
+      "bits": 1
+    }
+  ]
+}
