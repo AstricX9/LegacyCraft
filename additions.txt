@@ -3,7 +3,7 @@ toggleSneak:false
 toggleSprint:false
 fullBright:false
 fullBright.brightness:100
-shaderPacks:false
+shaderPacks:true
 shaderPacks.pack:ComplementaryReimagined_r5.9.3.zip
 shaderPacks.loader:Iris
 coordinates:false
