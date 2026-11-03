@@ -2021,5 +2021,147 @@
         "stream": true
       }
     ]
+  },
+  "entity.player.attack.crit": {
+    "category": "player",
+    "sounds": [
+      {
+        "name": "entity/player/attack/crit1",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/crit2",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/crit3",
+        "volume": 0.7
+      }
+    ]
+  },
+  "entity.player.attack.knockback": {
+    "category": "player",
+    "sounds": [
+      {
+        "name": "entity/player/attack/knockback1",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/knockback2",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/knockback3",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/knockback4",
+        "volume": 0.7
+      }
+    ]
+  },
+  "entity.player.attack.nodamage": {
+    "category": "player",
+    "sounds": [
+      {
+        "name": "entity/player/attack/weak1",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/weak2",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/weak3",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/weak4",
+        "volume": 0.7
+      }
+    ]
+  },
+  "entity.player.attack.strong": {
+    "category": "player",
+    "sounds": [
+      {
+        "name": "entity/player/attack/strong1",
+        "volume": 0.6
+      },
+      {
+        "name": "entity/player/attack/strong2",
+        "volume": 0.6
+      },
+      {
+        "name": "entity/player/attack/strong3",
+        "volume": 0.6
+      },
+      {
+        "name": "entity/player/attack/strong4",
+        "volume": 0.6
+      },
+      {
+        "name": "entity/player/attack/strong5",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/strong6",
+        "volume": 0.7
+      }
+    ]
+  },
+  "entity.player.attack.sweep": {
+    "category": "player",
+    "sounds": [
+      {
+        "name": "entity/player/attack/sweep1",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/sweep2",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/sweep3",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/sweep4",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/sweep5",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/sweep6",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/sweep7",
+        "volume": 0.7
+      }
+    ]
+  },
+  "entity.player.attack.weak": {
+    "category": "player",
+    "sounds": [
+      {
+        "name": "entity/player/attack/weak1",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/weak2",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/weak3",
+        "volume": 0.7
+      },
+      {
+        "name": "entity/player/attack/weak4",
+        "volume": 0.7
+      }
+    ]
   }
 }

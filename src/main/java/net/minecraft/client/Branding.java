@@ -9,7 +9,7 @@ package net.minecraft.client;
  * brand, exactly like any non-vanilla 1.8.9 client reports itself.
  */
 public final class Branding {
-    public static final String VERSION = "1.8.9";
+    public static final String VERSION = "1.9";
     /** What ClientBrandRetriever would report ("vanilla" for Mojang's client). */
     public static final String CLIENT_BRAND = "legacycraft";
     public static final String TITLE_VERSION = "LegacyCraft " + VERSION;

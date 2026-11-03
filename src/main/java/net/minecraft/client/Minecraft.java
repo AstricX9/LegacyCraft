@@ -1567,11 +1567,15 @@ public final class Minecraft implements GuiContext {
     }
 
     /**
-     * EntityPlayer.attackTargetEntityWithCurrentItem: the held item's attack
-     * damage (x1.5 for a critical hit while falling), plus Sharpness 1.25 a
-     * level; Knockback (and sprinting) throw the mob further and stop the
-     * sprint; Fire Aspect sets it alight; a sword wears by 1 and a tool by 2;
-     * the swing costs 0.3 exhaustion.
+     * EntityPlayer.attackTargetEntityWithCurrentItem (1.9): the held item's
+     * attack damage scaled by how charged the attack is (0.2 + 0.8 x
+     * strength squared; enchantment bonus x strength), and the cooldown
+     * restarts. Only a charged hit (over 0.9) can crit (x1.5 while falling,
+     * not sprinting), knock back from a sprint, or sweep (a sword on the
+     * ground, not sprinting: 1 damage and a push to mobs within a block of
+     * the target). Sharpness adds 0.5 a level + 0.5; Knockback throws the
+     * mob further and stops the sprint; Fire Aspect sets it alight; a sword
+     * wears by 1 and a tool by 2; the swing costs 0.3 exhaustion.
      */
     private void attackEntity(MovingEntity target) {
         if (target instanceof net.minecraft.entity.EntityBoat boat) {
@@ -1585,14 +1589,27 @@ public final class Minecraft implements GuiContext {
         if (isSpectator() || !(target instanceof EntityLiving mob)) return;
         ItemStack held = inventory.getCurrentItem();
         float damage = player.attackDamage(ToolValues.attackDamage(held == null ? null : held.item()));
-        float bonus = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.SHARPNESS, held) * 1.25f;
-        int knockback = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.KNOCKBACK, held)
-            + (player.sprinting ? 1 : 0);
+        int sharpness = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.SHARPNESS, held);
+        float bonus = sharpness > 0 ? sharpness * 0.5f + 0.5f : 0f;
+        float strength = player.attackStrength(0.5f);
+        damage *= 0.2f + strength * strength * 0.8f;
+        bonus *= strength;
+        player.resetCooldown();
         if (damage <= 0 && bonus <= 0) return;
-        boolean crit = player.fallDistance > 0 && !player.onGround && !player.onLadder() && !player.inWater
-            && !player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS);
-        if (crit && damage > 0) damage *= 1.5f;
+        boolean charged = strength > 0.9f;
+        int knockback = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.KNOCKBACK, held);
+        boolean sprintHit = player.sprinting && charged;
+        if (sprintHit) {
+            knockback++;
+            playSound("entity.player.attack.knockback", player.x, player.y, player.z, 1f, 1f);
+        }
+        boolean crit = charged && player.fallDistance > 0 && !player.onGround && !player.onLadder() && !player.inWater
+            && !player.isPotionActive(net.minecraft.potion.Potion.BLINDNESS) && ridingBoat == null && !player.sprinting;
+        if (crit) damage *= 1.5f;
         damage += bonus;
+        boolean sweep = charged && !crit && !sprintHit && player.onGround
+            && player.motionX * player.motionX + player.motionZ * player.motionZ < 0.1 * 0.1
+            && held != null && ToolValues.type(held.item()) == ToolValues.Type.SWORD;
         int fireAspect = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.FIRE_ASPECT, held);
         boolean lit = false;
         if (fireAspect > 0 && !mob.isBurning()) {
@@ -1602,6 +1619,7 @@ public final class Minecraft implements GuiContext {
         int looting = net.minecraft.enchantment.EnchantmentHelper.level(net.minecraft.enchantment.Enchantment.LOOTING, held);
         if (!mob.attackFromPlayer(player, damage, looting)) {
             if (lit) mob.fire = 0;
+            playSound("entity.player.attack.nodamage", player.x, player.y, player.z, 1f, 1f);
             return;
         }
         if (knockback > 0) {
@@ -1611,6 +1629,24 @@ public final class Minecraft implements GuiContext {
             player.motionZ *= 0.6;
             player.sprinting = false;
         }
+        if (sweep) {
+            double yaw = Math.toRadians(player.yaw);
+            net.minecraft.util.AxisAlignedBB around = mob.boundingBox().grow(1.0, 0.25, 1.0);
+            for (Entity entity : new java.util.ArrayList<>(server.entities().values())) {
+                if (!(entity instanceof EntityLiving other) || other == mob || !other.isAlive()) continue;
+                if (!other.boundingBox().intersects(around)) continue;
+                double dx = other.x() - player.x, dy = other.y() - player.y, dz = other.z() - player.z;
+                if (dx * dx + dy * dy + dz * dz >= 9.0) continue;
+                other.knockBack(Math.sin(yaw), -Math.cos(yaw));
+                other.attackFromPlayer(player, 1f, looting);
+            }
+            playSound("entity.player.attack.sweep", player.x, player.y, player.z, 1f, 1f);
+            if (particles != null) particles.spawn(ParticleManager.Kind.SWEEP_ATTACK, player.x - Math.sin(yaw),
+                player.y + player.eyeHeight() * 0.5, player.z + Math.cos(yaw), 0, 0, 0, null);
+        }
+        if (crit) playSound("entity.player.attack.crit", player.x, player.y, player.z, 1f, 1f);
+        else if (!sweep) playSound(charged ? "entity.player.attack.strong" : "entity.player.attack.weak",
+            player.x, player.y, player.z, 1f, 1f);
         if (particles != null) {
             if (crit) particles.emitAtEntity(mob, ParticleManager.Kind.CRIT);
             if (bonus > 0) particles.emitAtEntity(mob, ParticleManager.Kind.MAGIC_CRIT);
@@ -3059,6 +3095,7 @@ public final class Minecraft implements GuiContext {
             player.absorptionAmount, player.isPotionActive(net.minecraft.potion.Potion.POISON),
             player.isPotionActive(net.minecraft.potion.Potion.WITHER), player.isPotionActive(net.minecraft.potion.Potion.REGENERATION),
             player.isPotionActive(net.minecraft.potion.Potion.HUNGER));
+        ingameGui.attackStrength = player.attackStrength(0f);
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
@@ -3167,6 +3204,8 @@ public final class Minecraft implements GuiContext {
         // The arm swings on every attack click, every tick a block is being mined, and on each placement.
         if (attackPressed) playerAnimation.swing();
         if (attackPressed && pointedEntity != null) attackEntity(pointedEntity);
+        // 1.9 Minecraft.clickMouse: swinging at nothing also restarts the attack cooldown (not in Creative).
+        if (attackPressed && pointedEntity == null && hit == null && !isCreative()) player.resetCooldown();
         if (pickPressed && hit != null) {
             BlockState pickedState = world.getState(hit.x(), hit.y(), hit.z());
             Item picked = itemForBlock(pickedState);

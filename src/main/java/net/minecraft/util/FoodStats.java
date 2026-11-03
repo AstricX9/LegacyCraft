@@ -1,15 +1,17 @@
 package net.minecraft.util;
 
 /**
- * The hunger bar (1.8.9 FoodStats, HYPOTHESIS: recalled constants).
+ * The hunger bar (1.9 FoodStats, HYPOTHESIS: recalled constants).
  * <ul>
  *   <li>Food starts at 20 with 5 saturation. Eating adds the food's points
  *       (up to 20) and its saturation (never above the food level).</li>
  *   <li>Exhaustion builds up from actions (capped at 40); every 4 points
  *       takes 1 saturation, or 1 food once saturation is gone (not in
  *       Peaceful).</li>
- *   <li>With food at 18 or more and the naturalRegeneration rule on, a hurt
- *       player heals 1 every 80 ticks, which costs 3 exhaustion.</li>
+ *   <li>With a full bar and saturation left (and the naturalRegeneration
+ *       rule on), a hurt player heals every 10 ticks: up to 6 saturation's
+ *       worth of exhaustion for a sixth of that in health. Otherwise, with
+ *       food at 18 or more, 1 every 80 ticks for 6 exhaustion.</li>
  *   <li>With food at 0, every 80 ticks starvation deals 1 damage while
  *       health is above 10 (Easy), above 1 (Normal) or always (Hard).</li>
  * </ul>
@@ -47,10 +49,18 @@ public final class FoodStats {
             if (saturationLevel > 0f) saturationLevel = Math.max(saturationLevel - 1f, 0f);
             else if (difficulty != 0) foodLevel = Math.max(foodLevel - 1, 0);
         }
-        if (owner.naturalRegeneration() && foodLevel >= 18 && owner.shouldHeal()) {
+        if (owner.naturalRegeneration() && saturationLevel > 0f && foodLevel >= 20 && owner.shouldHeal()) {
+            // 1.9: a full bar with saturation left heals fast, every half second, paid for from saturation.
+            if (++foodTimer >= 10) {
+                float spent = Math.min(saturationLevel, 6f);
+                owner.heal(spent / 6f);
+                addExhaustion(spent);
+                foodTimer = 0;
+            }
+        } else if (owner.naturalRegeneration() && foodLevel >= 18 && owner.shouldHeal()) {
             if (++foodTimer >= 80) {
                 owner.heal(1f);
-                addExhaustion(3f);
+                addExhaustion(6f);
                 foodTimer = 0;
             }
         } else if (foodLevel <= 0) {

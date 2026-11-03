@@ -49,6 +49,8 @@ public class GuiIngame extends Gui {
     private final java.util.Random rand = new java.util.Random();
 
     private final GuiContext mc;
+    /** The player's attack charge (0..1) for the 1.9 attack indicator under the crosshair; set by the game. */
+    public float attackStrength = 1f;
     private int remainingHighlightTicks;
     private ItemStack highlightingItemStack;
     private final GuiNewChat chat;
@@ -134,6 +136,14 @@ public class GuiIngame extends Gui {
         } else if (crosshair) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
             drawTexturedModalRect(width / 2 - 7, height / 2 - 7, 0, 0, 16, 16);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
+        if (crosshair && !status.spectator() && attackStrength < 1f) {
+            // 1.9 GuiIngame.renderAttackIndicator: a bar under the crosshair fills as the attack recharges.
+            glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
+            int x = width / 2 - 8, y = height / 2 - 7 + 16;
+            drawTexturedModalRect(x, y, 36, 94, 16, 4);
+            drawTexturedModalRect(x, y, 52, 94, (int) (attackStrength * 17f), 4);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
         renderBossHealth(width);

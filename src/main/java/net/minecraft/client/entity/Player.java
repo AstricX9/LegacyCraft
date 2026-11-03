@@ -173,6 +173,13 @@ public final class Player {
         return total;
     }
 
+    /** The armour toughness worn (1.9: 2 for each diamond piece). */
+    public float armorToughness() {
+        float total = 0;
+        for (ItemStack piece : armor) if (piece != null) total += net.minecraft.inventory.ArmorValues.toughness(piece.item());
+        return total;
+    }
+
     /**
      * Takes damage (EntityLivingBase.attackEntityFrom): nothing while
      * damage is disabled (Creative) unless it is out-of-world damage, or when
@@ -228,7 +235,7 @@ public final class Player {
         if (!source.isUnblockable() && isBlocking() && damage > 0) damage = (1f + damage) * 0.5f;
         if (!source.isUnblockable()) {
             damageArmor(damage);
-            damage = damage * (25 - armorValue()) / 25f;
+            damage = net.minecraft.inventory.ArmorValues.damageAfterArmor(damage, armorValue(), armorToughness());
         }
         damage = applyPotionDamageCalculations(source, damage);
         float before = damage;
@@ -483,6 +490,7 @@ public final class Player {
      */
     private void livingUpdate() {
         ticksExisted++;
+        tickHeld(heldItem.get());
         if (!noClip && insideOpaqueBlock()) attack(DamageSource.IN_WALL, 1f);
         if (headInWater() && !noClip) {
             if (!disableDamage) {
@@ -792,11 +800,50 @@ public final class Player {
      * Strength multiplies by 1 + 1.3 per level.
      */
     public float attackDamage(float base) {
-        PotionEffect weakness = activeEffects.get(Potion.WEAKNESS.id);
-        if (weakness != null) base -= 0.5f * (weakness.amplifier() + 1);
+        // 1.9: Strength adds 3 a level and Weakness takes 4 a level off the attack damage attribute.
         PotionEffect strength = activeEffects.get(Potion.DAMAGE_BOOST.id);
-        if (strength != null) base *= 1f + 1.3f * (strength.amplifier() + 1);
+        if (strength != null) base += 3f * (strength.amplifier() + 1);
+        PotionEffect weakness = activeEffects.get(Potion.WEAKNESS.id);
+        if (weakness != null) base -= 4f * (weakness.amplifier() + 1);
         return Math.max(0f, base);
+    }
+
+    // ---- 1.9 attack cooldown (EntityLivingBase.ticksSinceLastSwing) ---------------------------
+
+    /** Ticks since the last attack or held-item change. */
+    public int ticksSinceLastSwing;
+    /** The attack speed attribute (attacks a second) with the held item, Haste and Mining Fatigue. */
+    public float attackSpeed = 4f;
+    private net.minecraft.item.Item lastHeld;
+
+    /** Ticks a full-strength attack takes to recharge (EntityPlayer.getCooldownPeriod). */
+    public float cooldownPeriod() { return 20f / attackSpeed; }
+
+    /** How charged the next attack is, 0..1 (EntityPlayer.getCooledAttackStrength). */
+    public float attackStrength(float partialTicks) {
+        return Math.max(0f, Math.min(1f, (ticksSinceLastSwing + partialTicks) / cooldownPeriod()));
+    }
+
+    public void resetCooldown() { ticksSinceLastSwing = 0; }
+
+    /**
+     * Once a tick with the item in the main hand: switching to a different
+     * item restarts the cooldown; Haste adds 10% attack speed a level and
+     * Mining Fatigue takes 10% a level off.
+     */
+    public void tickHeld(net.minecraft.item.ItemStack held) {
+        net.minecraft.item.Item item = held == null ? null : held.item();
+        if (item != lastHeld) {
+            lastHeld = item;
+            resetCooldown();
+        }
+        float speed = net.minecraft.item.ToolValues.attackSpeed(item);
+        PotionEffect haste = activeEffects.get(Potion.DIG_SPEED.id);
+        if (haste != null) speed *= 1f + 0.1f * (haste.amplifier() + 1);
+        PotionEffect fatigue = activeEffects.get(Potion.DIG_SLOWDOWN.id);
+        if (fatigue != null) speed *= Math.max(0f, 1f - 0.1f * (fatigue.amplifier() + 1));
+        attackSpeed = Math.max(speed, 0.01f);
+        ticksSinceLastSwing++;
     }
 
     /** EntityRenderer.getNightVisionBrightness: 1, flickering in the last 10 seconds; 0 without the effect. */

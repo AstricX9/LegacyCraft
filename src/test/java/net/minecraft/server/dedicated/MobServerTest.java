@@ -77,10 +77,10 @@ class MobServerTest {
             float health = steve.expect(Clientbound.UpdateHealth.class, h -> h.health() < 20f).health();
             assertEquals(17f, health, "a zombie's hit on Normal");
 
-            // Three sword hits (8 each, less its 2 armour points) kill it; the client is told, then it's gone.
-            for (int hit = 0; hit < 3; hit++) {
+            // Four sword hits (7 each in 1.9, less its 2 armour points) kill it; the client is told, then it's gone.
+            for (int hit = 0; hit < 4; hit++) {
                 steve.send(new Serverbound.UseEntity(zombieId, Serverbound.UseEntity.ATTACK, 0, 0, 0));
-                if (hit < 2) steve.expect(Clientbound.EntityStatus.class, s -> s.entityId() == zombieId && s.status() == Clientbound.EntityStatus.HURT);
+                if (hit < 3) steve.expect(Clientbound.EntityStatus.class, s -> s.entityId() == zombieId && s.status() == Clientbound.EntityStatus.HURT);
                 Thread.sleep(600);
             }
             steve.expect(Clientbound.EntityStatus.class, s -> s.entityId() == zombieId && s.status() == Clientbound.EntityStatus.DEAD);
