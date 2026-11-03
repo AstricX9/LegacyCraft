@@ -67,6 +67,10 @@ public interface GuiContext {
     LevelInfo currentLevel();
     void saveAndQuitToTitle();
     void respawnPlayer();
+    /** Gets the player out of bed (GuiSleepMP's Leave Bed). */
+    default void leaveBed() {}
+    /** Ticks the player has been asleep, 0-100 (for the darkening screen). */
+    default int sleepTimer() { return 0; }
     /** Hardcore death: delete the world and return to the title screen. */
     void deleteWorldAndQuit();
     void shutdown();

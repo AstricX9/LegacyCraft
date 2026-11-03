@@ -2105,6 +2105,7 @@ public final class Minecraft implements GuiContext {
     @Override
     public void respawnPlayer() {
         if (player == null) return;
+        wakeUp(false);
         // EntityPlayerMP.clonePlayer: experience is lost on death unless keepInventory (no orbs are dropped yet, DEV-029).
         if (!Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("keepInventory", "false"))) {
             player.experienceLevel = 0;
@@ -2114,6 +2115,18 @@ public final class Minecraft implements GuiContext {
         // Dying in the Nether brings you back to the overworld spawn.
         if (dimension != net.minecraft.world.Dimension.OVERWORLD) changeDimension(net.minecraft.world.Dimension.OVERWORLD, false);
         player.respawn();
+        if (levelInfo.bedSpawn != null) {
+            // EntityPlayer.getBedSpawnLocation: beside the bed slept in last, if it's still there.
+            int[] bed = levelInfo.bedSpawn;
+            int[] exit = net.minecraft.block.BlockBed.exitLocation(world, bed[0], bed[1], bed[2]);
+            if (exit == null) {
+                levelInfo.bedSpawn = null;
+                printChatLine(net.minecraft.client.gui.I18n.translateChat("tile.bed.notValid"), 0);
+            } else {
+                player.setPositionAndRotation(exit[0] + 0.5, exit[1] + 0.1, exit[2] + 0.5, player.yaw, player.pitch);
+                player.prevX = player.x; player.prevY = player.y; player.prevZ = player.z;
+            }
+        }
         if (preparing != null)
             preparing = new SpawnPreparation((int) Math.floor(player.x) >> 4, (int) Math.floor(player.z) >> 4,
                 Math.min(MAX_SPAWN_RADIUS, gameSettings.renderDistanceChunks + 1), preparing.onDone);
@@ -3410,9 +3423,113 @@ public final class Minecraft implements GuiContext {
      * screen, unless the player sneaks with something in hand (then the item
      * is used or placed instead).
      */
+    /**
+     * BlockBed.onBlockActivated and EntityPlayer.trySleep: outside the
+     * overworld (or in a Hell biome) the bed is removed and explodes with
+     * strength 5, setting fires. Otherwise the player lies down if it is
+     * night (or thundering), they are within 3 blocks and no monster is within
+     * 8 across and 5 up or down.
+     */
+    private void useBed(int x, int y, int z) {
+        int[] head = net.minecraft.block.BlockBed.head(world, x, y, z);
+        if (head == null || isSpectator()) return;
+        int hx = head[0], hy = head[1], hz = head[2];
+        if (dimension != net.minecraft.world.Dimension.OVERWORLD || world.biomeAt(hx, hz).name().path().equals("hell")) {
+            BlockState air = BlockState.of(blockRegistry.air(), 0);
+            int[] foot = otherHalf(hx, hy, hz, world.getState(hx, hy, hz));
+            world.setStateAndUpdate(hx, hy, hz, air);
+            if (foot != null && world.getState(foot[0], foot[1], foot[2]).block() instanceof net.minecraft.block.BlockBed)
+                world.setStateAndUpdate(foot[0], foot[1], foot[2], air);
+            explode(null, hx + 0.5, hy + 0.5, hz + 0.5, 5f, true, true, null);
+            return;
+        }
+        if (player.sleeping || player.dead) return;
+        if (!net.minecraft.block.BlockBed.canSleepNow(levelInfo.worldTime, levelInfo.raining, levelInfo.thundering)) {
+            printChatLine(net.minecraft.client.gui.I18n.translateChat("tile.bed.noSleep"), 0);
+            return;
+        }
+        if (Math.abs(player.x - hx) > 3 || Math.abs(player.y - hy) > 2 || Math.abs(player.z - hz) > 3) return;
+        AxisAlignedBB area = new AxisAlignedBB(hx - 8, hy - 5, hz - 8, hx + 8, hy + 5, hz + 8);
+        for (Entity entity : server.entities().values())
+            if (entity instanceof net.minecraft.entity.monster.EntityMob mob && mob.isAlive() && mob.boundingBox().intersects(area)) {
+                printChatLine(net.minecraft.client.gui.I18n.translateChat("tile.bed.notSafe"), 0);
+                return;
+            }
+        double[] lie = net.minecraft.block.BlockBed.sleepPosition(world, hx, hy, hz);
+        net.minecraft.util.Direction look = net.minecraft.block.BlockBed.footward(world, hx, hy, hz);
+        // The player model's yaw: 0 looks north, 90 east.
+        player.setPositionAndRotation(lie[0], lie[1], lie[2], (float) Math.toDegrees(Math.atan2(look.xOffset, -look.zOffset)), 0f);
+        player.prevX = player.x; player.prevY = player.y; player.prevZ = player.z;
+        player.motionX = player.motionY = player.motionZ = 0;
+        player.sleeping = true;
+        player.sleepTimer = 0;
+        sleepingIn = head;
+        setBedOccupied(true);
+        displayGuiScreen(new net.minecraft.client.gui.GuiSleep());
+    }
+
+    /** The head of the bed the player is in, while {@link Player#sleeping}. */
+    private int[] sleepingIn;
+
+    private void setBedOccupied(boolean occupied) {
+        int[] foot = otherHalf(sleepingIn[0], sleepingIn[1], sleepingIn[2], world.getState(sleepingIn[0], sleepingIn[1], sleepingIn[2]));
+        for (int[] half : new int[][]{sleepingIn, foot}) {
+            BlockState state = world.getState(half[0], half[1], half[2]);
+            if (state.block() instanceof net.minecraft.block.BlockBed) world.setState(half[0], half[1], half[2], state.with("occupied", String.valueOf(occupied)));
+        }
+    }
+
+    /**
+     * EntityPlayer.onUpdate while sleeping, and WorldServer.wakeAllPlayers:
+     * the bed breaking or a hit wakes the player; once fully asleep (100
+     * ticks) the night is skipped to the next morning, the weather clears,
+     * and they get up with their spawn point set to the bed.
+     */
+    private void tickSleep() {
+        player.sleepTimer = Math.min(100, player.sleepTimer + 1);
+        if (!(world.getState(sleepingIn[0], sleepingIn[1], sleepingIn[2]).block() instanceof net.minecraft.block.BlockBed)
+            || player.dead || player.hurtTime > 0) {
+            wakeUp(false);
+            return;
+        }
+        if (player.sleepTimer >= 100) {
+            if (Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("doDaylightCycle", "true"))) {
+                long next = levelInfo.worldTime + 24000L;
+                levelInfo.worldTime = next - next % 24000L;
+            }
+            levelInfo.rainTime = levelInfo.thunderTime = 0;
+            levelInfo.raining = levelInfo.thundering = false;
+            wakeUp(true);
+        } else if (!net.minecraft.block.BlockBed.canSleepNow(levelInfo.worldTime, levelInfo.raining, levelInfo.thundering)) {
+            wakeUp(true);
+        }
+    }
+
+    /** EntityPlayer.wakeUpPlayer: out of bed beside it (BlockBed.getSafeExitLocation, else on top), spawn point set if asked. */
+    private void wakeUp(boolean setSpawn) {
+        if (player == null || !player.sleeping) return;
+        player.sleeping = false;
+        player.sleepTimer = 0;
+        setBedOccupied(false);
+        int[] exit = net.minecraft.block.BlockBed.exitLocation(world, sleepingIn[0], sleepingIn[1], sleepingIn[2]);
+        if (exit == null) exit = new int[]{sleepingIn[0], sleepingIn[1] + 1, sleepingIn[2]};
+        player.setPositionAndRotation(exit[0] + 0.5, exit[1] + 0.1, exit[2] + 0.5, player.yaw, player.pitch);
+        player.prevX = player.x; player.prevY = player.y; player.prevZ = player.z;
+        if (setSpawn) levelInfo.bedSpawn = sleepingIn.clone();
+        sleepingIn = null;
+        if (currentScreen instanceof net.minecraft.client.gui.GuiSleep) displayGuiScreen(null);
+    }
+
+    @Override public void leaveBed() { wakeUp(true); }
+    @Override public int sleepTimer() { return player == null ? 0 : player.sleepTimer; }
+
     private boolean activateBlock(WorldRenderer.Hit hit) {
         if (hit == null || player.sneaking && inventory.getCurrentItem() != null) return false;
         String name = world.get(hit.x(), hit.y(), hit.z()).name().path();
+        if (name.equals("bed")) {
+            useBed(hit.x(), hit.y(), hit.z());
+            return true;
+        }
         if (name.equals("crafting_table")) {
             displayGuiScreen(new net.minecraft.client.gui.GuiCrafting(hit.x(), hit.y(), hit.z()));
             return true;
@@ -4036,6 +4153,10 @@ public final class Minecraft implements GuiContext {
      * with forward/back and the way they look; sneak climbs out on top of it.
      */
     private void tickPlayer() {
+        if (player.sleeping) {
+            tickSleep();
+            return;
+        }
         Player.Input input = Player.Input.of(gameSettings);
         Player.Input toggled = toggleKeys.apply(input, gameSettings.keyBindSprint, gameSettings.keyBindSneak,
             additions.isOn(net.minecraft.client.additions.Additions.TOGGLE_SPRINT), additions.isOn(net.minecraft.client.additions.Additions.TOGGLE_SNEAK));

@@ -74,6 +74,9 @@ public final class Player {
     public boolean inPortal;
     /** Touched an end portal this tick (BlockEndPortal.onEntityCollidedWithBlock: travel is immediate). */
     public boolean inEndPortal;
+    /** In bed (EntityPlayer.sleeping), and ticks spent there, up to 100 (fully asleep). */
+    public boolean sleeping;
+    public int sleepTimer;
     /** How far the portal's purple haze has built up, 0-1 (EntityPlayerSP.timeInPortal), and last tick's value. */
     public float timeInPortal, prevTimeInPortal;
     public float fallDistance;
@@ -1123,7 +1126,7 @@ public final class Player {
     }
 
     public double eyeY() { return y + eyeHeight(); }
-    public double eyeHeight() { return sneaking ? 1.54 : 1.62; }
+    public double eyeHeight() { return sleeping ? 0.2 : sneaking ? 1.54 : 1.62; }
     public double dirX() { return Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }
     public double dirY() { return -Math.sin(Math.toRadians(pitch)); }
     public double dirZ() { return -Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }

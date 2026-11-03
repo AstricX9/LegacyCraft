@@ -48,6 +48,8 @@ public final class LevelInfo {
     public PlayerPosition player;
     /** The dimension the player is in (Player.Dimension: 0 overworld, -1 the Nether). */
     public int playerDimension;
+    /** The bed the player last slept in (Player.SpawnX/Y/Z), or null for the world spawn. */
+    public int[] bedSpawn;
     private NbtTag.Compound original = new NbtTag.Compound();
 
     public record PlayerPosition(double x, double y, double z, float yaw, float pitch, boolean onGround) {}
@@ -184,6 +186,12 @@ public final class LevelInfo {
             playerTag.put("Rotation", floats(player.yaw(), player.pitch()));
             playerTag.put("OnGround", bool(player.onGround()));
             playerTag.put("Dimension", new NbtTag.Int(playerDimension));
+            for (String key : new String[]{"SpawnX", "SpawnY", "SpawnZ"}) playerTag.entries().remove(key);
+            if (bedSpawn != null) {
+                playerTag.put("SpawnX", new NbtTag.Int(bedSpawn[0]));
+                playerTag.put("SpawnY", new NbtTag.Int(bedSpawn[1]));
+                playerTag.put("SpawnZ", new NbtTag.Int(bedSpawn[2]));
+            }
             playerTag.put("playerGameType", new NbtTag.Int(gameType.getID()));
             if (inventory != null) {
                 List<NbtTag> stacks = new ArrayList<>();
@@ -300,6 +308,9 @@ public final class LevelInfo {
             if (playerTag.get("Dimension") instanceof NbtTag.Int dimension) info.playerDimension = net.minecraft.world.Dimension.byId(dimension.value()).id;
         }
         if (data.get("Player") instanceof NbtTag.Compound playerTag) {
+            if (playerTag.get("SpawnX") instanceof NbtTag.Int bx && playerTag.get("SpawnY") instanceof NbtTag.Int by
+                && playerTag.get("SpawnZ") instanceof NbtTag.Int bz)
+                info.bedSpawn = new int[]{bx.value(), by.value(), bz.value()};
             if (playerTag.get("Inventory") instanceof NbtTag.NbtList list) {
                 info.inventory = new ArrayList<>();
                 for (NbtTag element : list.values()) {
