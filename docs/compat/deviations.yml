@@ -127,10 +127,10 @@
     IDs and metadata, vanilla's stored sky/block light, biomes and the
     populated flags. Opening a vanilla world from Singleplayer converts it
     in place (WorldStorage.convertAnvil, overworld and DIM-1): blocks,
-    metadata, light, population, mob spawners, mob heads, furnaces (with
-    their items) and entities (written to entities.dat in vanilla NBT form)
+    metadata, light, population, mob spawners, mob heads, furnaces and
+    chests (with their items) and entities (written to entities.dat in vanilla NBT form)
     carry over; unknown block IDs become air; block entities the game has no
-    storage for yet (chest contents, sign text, ...) are dropped.
+    storage for yet (sign text, ...) are dropped.
     The launcher's Worlds tab imports world folders and .zip files into
     saves/. Writing Anvil is still missing.
   reason: >
@@ -139,7 +139,7 @@
   compatibility_effect: >
     Close to "Import-only mode" per master context §102: LegacyCraft opens a
     vanilla 1.8.9 world by converting it (terrain, entities and the block
-    entities the game stores; not chest contents or sign text), and vanilla cannot open a LegacyCraft world. Should be
+    entities the game stores; not sign text), and vanilla cannot open a LegacyCraft world. Should be
     stated explicitly in the README once NBT/Anvil work begins, per §102's
     "the project must state which mode it supports."
   user_visible: true
@@ -202,8 +202,8 @@
   replica_behavior: >
     Tile-entity blocks are drawn by their 1.8.9 renderers (BlockEntityRenderer,
     HYPOTHESIS: recalled models and transforms): chests, trapped chests and
-    ender chests (single and double, lids always shut: chests can't be
-    opened yet), signs without text (sign text isn't stored yet), banners
+    ender chests (single and double; chest lids open while their screen
+    is open, ender chests stay shut as they don't open yet), signs without text (sign text isn't stored yet), banners
     in their base colour only (no patterns; placed banners have no stored
     colour, so they are black like vanilla's default), the end portal's star
     layers, and mob heads (DEV-037); fluids use FluidMesher
@@ -452,12 +452,11 @@
     set by the surface builder is what caves put back over dirt.
   replica_behavior: >
     Strongholds are the only overworld structure (Nether fortresses exist, DEV-036):
-    their chests are empty, they are rebuilt from the seed rather than saved
-    to data/Stronghold.dat, their blocks draw from their own Random instead of
-    the population one, and the credits pause the game where vanilla takes the
-    player out of the world; dungeon chests are empty and spawners have no mob (the
-    Random draws spent on the loot are skipped, so the rest of that chunk's
-    decoration diverges after a dungeon with a chest); animals are placed after decoration but only sheep, pigs,
+    they are rebuilt from the seed rather than saved to data/Stronghold.dat,
+    their blocks and loot draw from their own Random instead of the
+    population one (fortress chest loot too), and the credits pause the game
+    where vanilla takes the player out of the world; dungeon chests get the
+    1.8.9 loot from the population Random, and spawners have no mob; animals are placed after decoration but only sheep, pigs,
     chickens and cows appear (DEV-035); population writes without per-block relighting
     and the touched chunks are relit afterwards (mushroom shade, lake grass
     and freezing read a light estimate or the light from before population).

@@ -48,6 +48,8 @@ public final class WorldStorage {
     private static final int FURNACES_MAGIC = 0x4c434655; // LCFU
     /** Furnace contents and fire (vanilla keeps them per chunk as TileEntities); optional, so older saves load. */
     private static final String FURNACES_FILE = "furnaces.lcf";
+    /** Chest contents as gzipped NBT: {Chests: [{x, y, z, Items: [{Slot, id, Count, Damage, tag}]}]}; optional. */
+    private static final String CHESTS_FILE = "chests.dat";
 
     private WorldStorage() {}
     public static boolean exists(Path directory) { return Files.isRegularFile(directory.resolve(INDEX_FILE)); }
@@ -103,6 +105,7 @@ public final class WorldStorage {
         if (world.chunkSource() == null) world.setChunkSource(saved);
         writeTicks(directory, world);
         writeFurnaces(directory, world);
+        writeChests(directory, world);
         writeSpawners(directory, world);
         writeStructures(directory, world);
         writeSkulls(directory, world);
@@ -141,6 +144,7 @@ public final class WorldStorage {
         final DataOutputStream furnaces = new DataOutputStream(furnaceBytes);
         int furnaceCount;
         final List<net.minecraft.nbt.NbtTag> entities = new ArrayList<>();
+        final List<net.minecraft.nbt.NbtTag> chests = new ArrayList<>();
     }
 
     /**
@@ -208,6 +212,7 @@ public final class WorldStorage {
         writeSpawners(directory, extras.spawners);
         writeSkulls(directory, extras.skulls);
         writeConvertedFurnaces(directory, extras);
+        if (!extras.chests.isEmpty()) writeChestList(directory, extras.chests);
         writeConvertedEntities(directory, extras.entities);
         // Last: until the index exists the world still counts as unconverted.
         writeIndex(directory, seed, entries);
@@ -297,6 +302,27 @@ public final class WorldStorage {
                 case "Skull" -> {
                     extras.skulls.put(new World.BlockPos(x, y, z),
                         new World.Skull(tag.getByte("SkullType"), tag.has("Rot") ? tag.getByte("Rot") : 0));
+                    return true;
+                }
+                case "Chest" -> {
+                    if (items == null) return false;
+                    List<net.minecraft.nbt.NbtTag> converted = new ArrayList<>();
+                    for (net.minecraft.nbt.NbtTag element : tag.getList("Items").values()) {
+                        if (!(element instanceof net.minecraft.nbt.NbtTag.Compound item)
+                            || !(item.get("id") instanceof net.minecraft.nbt.NbtTag.Str itemId)) continue;
+                        int damage = item.has("Damage") ? item.getShort("Damage") : 0;
+                        String name = items.resolve(itemId.value(), damage);
+                        if (name == null) continue;
+                        var copy = new net.minecraft.nbt.NbtTag.Compound();
+                        copy.put("Slot", new net.minecraft.nbt.NbtTag.Byte(item.getByte("Slot")));
+                        copy.put("id", new net.minecraft.nbt.NbtTag.Str(name));
+                        copy.put("Count", new net.minecraft.nbt.NbtTag.Byte(item.getByte("Count")));
+                        copy.put("Damage", new net.minecraft.nbt.NbtTag.Short((short) damage));
+                        if (item.get("tag") instanceof net.minecraft.nbt.NbtTag.Compound extra) copy.put("tag", extra);
+                        converted.add(copy);
+                    }
+                    extras.chests.add(chestTag(x, y, z, new net.minecraft.nbt.NbtTag.NbtList(
+                        converted.isEmpty() ? net.minecraft.nbt.NbtTag.END : net.minecraft.nbt.NbtTag.COMPOUND, converted)));
                     return true;
                 }
                 case "Furnace" -> {
@@ -438,6 +464,42 @@ public final class WorldStorage {
         generator.fortresses().readNbt(net.minecraft.nbt.NbtIo.readCompressed(source));
     }
 
+    private static net.minecraft.nbt.NbtTag.Compound chestTag(int x, int y, int z, net.minecraft.nbt.NbtTag.NbtList items) {
+        var tag = new net.minecraft.nbt.NbtTag.Compound();
+        tag.put("x", new net.minecraft.nbt.NbtTag.Int(x));
+        tag.put("y", new net.minecraft.nbt.NbtTag.Int(y));
+        tag.put("z", new net.minecraft.nbt.NbtTag.Int(z));
+        tag.put("Items", items);
+        return tag;
+    }
+
+    private static void writeChests(Path directory, World world) throws IOException {
+        List<net.minecraft.nbt.NbtTag> list = new ArrayList<>();
+        for (var entry : world.chests().entrySet())
+            list.add(chestTag(entry.getKey().x(), entry.getKey().y(), entry.getKey().z(), entry.getValue().writeItems()));
+        writeChestList(directory, list);
+    }
+
+    private static void writeChestList(Path directory, List<net.minecraft.nbt.NbtTag> list) throws IOException {
+        var root = new net.minecraft.nbt.NbtTag.Compound();
+        root.put("Chests", new net.minecraft.nbt.NbtTag.NbtList(list.isEmpty() ? net.minecraft.nbt.NbtTag.END : net.minecraft.nbt.NbtTag.COMPOUND, list));
+        Path temporary = directory.resolve(CHESTS_FILE + ".tmp");
+        net.minecraft.nbt.NbtIo.writeCompressed(root, temporary);
+        moveAtomically(temporary, directory.resolve(CHESTS_FILE));
+    }
+
+    /** Reads the chests back, resolving item names with the world's item lookup (none: they load empty). */
+    private static void readChests(Path directory, World world) throws IOException {
+        Path source = directory.resolve(CHESTS_FILE);
+        if (!Files.isRegularFile(source)) return;
+        var root = net.minecraft.nbt.NbtIo.readCompressed(source);
+        for (net.minecraft.nbt.NbtTag element : root.getList("Chests").values()) {
+            if (!(element instanceof net.minecraft.nbt.NbtTag.Compound tag)) continue;
+            world.restoreChest(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"),
+                net.minecraft.inventory.Chest.read(tag.getList("Items"), world.itemLookup()));
+        }
+    }
+
     private static void writeFurnaces(Path directory, World world) throws IOException {
         Path target = directory.resolve(FURNACES_FILE);
         Path temporary = directory.resolve(FURNACES_FILE + ".tmp");
@@ -535,6 +597,7 @@ public final class WorldStorage {
             world.setChunkSource(saved);
             readTicks(directory, world, blocks);
             readFurnaces(directory, world);
+            readChests(directory, world);
             readSpawners(directory, world);
             readStructures(directory, world);
             readSkulls(directory, world);

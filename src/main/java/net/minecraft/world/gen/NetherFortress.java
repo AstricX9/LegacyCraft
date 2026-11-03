@@ -827,6 +827,9 @@ public final class NetherFortress {
                 if (clip.contains(X, Y, Z)) {
                     p.pending = false;
                     w.set(X, Y, Z, chestState);
+                    // Its own per-chunk Random, so the lava springs after it come out as before.
+                    Random loot = new Random((long) X * 341873128712L + (long) Z * 132897987541L ^ seed);
+                    ChestLoot.fill(w, X, Y, Z, loot, ChestLoot.FORTRESS, 2 + loot.nextInt(4));
                 }
             }
             fill(0, 6, 0, 4, 6, 4, brick);

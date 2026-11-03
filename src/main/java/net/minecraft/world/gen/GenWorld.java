@@ -28,6 +28,10 @@ public interface GenWorld {
     default void scheduleBlockTick(int x, int y, int z) {}
     /** Makes the spawner block here spawn this entity (TileEntityMobSpawner.setEntityName). */
     default void setSpawner(int x, int y, int z, String entity) {}
+    /** The slots of the chest just placed here (TileEntityChest), or null where nothing keeps them. */
+    default net.minecraft.item.ItemStack[] chestSlots(int x, int y, int z) { return null; }
+    /** An item by LegacyCraft name, for chest loot; null where items aren't loaded. */
+    default net.minecraft.item.Item item(String name) { return null; }
     /** An animal placed by population (SpawnerAnimals.performWorldGenSpawning); ignored where nothing listens. */
     default void spawnCreature(String entity, double x, double y, double z, float yaw) {}
 }

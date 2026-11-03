@@ -227,8 +227,8 @@ public final class Features {
                 for (int side = 0; side < 4; side++)
                     if (b.isSolid(w.get(cx + HORIZONTAL_X[side], y, cz + HORIZONTAL_Z[side]))) walls++;
                 if (walls == 1) {
-                    // The chest's loot is not generated, so the draws vanilla spends on it are not either.
                     w.set(cx, y, cz, GenBlocks.withMeta(b.CHEST, chestFacing(w, cx, y, cz)));
+                    ChestLoot.fill(w, cx, y, cz, rand, ChestLoot.withBook(ChestLoot.DUNGEON, rand), 8);
                     continue chests;
                 }
             }

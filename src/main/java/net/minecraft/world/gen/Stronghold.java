@@ -24,9 +24,9 @@ import java.util.function.IntPredicate;
  * y=53. Walls are random stone bricks (mossy, cracked, silverfish) and only
  * replace blocks that are there, so caves cut through.
  *
- * <p>shortcut: the chests are empty like dungeon chests, and strongholds are
- * not saved to data/Stronghold.dat (they are rebuilt from the seed, which
- * gives the same ones); upgrade with chest loot. Block randomness comes
+ * <p>Chests hold the 1.8.9 loot ({@link ChestLoot}). Strongholds are not
+ * saved to data/Stronghold.dat (they are rebuilt from the seed, which gives
+ * the same ones). Block randomness comes
  * from its own per-chunk Random, not the population one, so the other
  * features of a chunk come out the same with or without a stronghold.
  */
@@ -474,9 +474,12 @@ public final class Stronghold {
         int button(char dir) { return button | "?EWSN".indexOf(turn(dir)); }
         int frame(char dir, boolean eye) { return frame | "SWNE".indexOf(turn(dir)) | (eye ? 4 : 0); }
 
-        void chest(int x, int y, int z) {
+        /** generateChestContents: a chest (if it is in this area and not placed yet) filled from {@code table}. */
+        void chest(int x, int y, int z, List<ChestLoot.Entry> table, int draws) {
             int X = wx(x, z), Y = wy(y), Z = wz(x, z);
-            if (clip.contains(X, Y, Z)) w.set(X, Y, Z, GenBlocks.withMeta(b.CHEST, Features.chestFacing(w, X, Y, Z)));
+            if (!clip.contains(X, Y, Z) || (w.get(X, Y, Z) >>> 4) == b.chestId) return;
+            w.set(X, Y, Z, GenBlocks.withMeta(b.CHEST, Features.chestFacing(w, X, Y, Z)));
+            ChestLoot.fill(w, X, Y, Z, rand, table, draws);
         }
 
         /** Stronghold.placeDoor: a 3x3 doorway of the given kind. */
@@ -621,7 +624,7 @@ public final class Stronghold {
                         set(planks, 8, 3, z);
                     }
                     for (int y = 1; y <= 3; y++) set(ladder('W'), 9, y, 3);
-                    chest(3, 4, 8);
+                    chest(3, 4, 8, ChestLoot.withBook(ChestLoot.STRONGHOLD_CROSSING, rand), 1 + rand.nextInt(4));
                 }
                 default -> { }
             }
@@ -673,7 +676,7 @@ public final class Stronghold {
             set(brickSlab, 3, 2, 2);
             set(brickSlab, 3, 2, 4);
             for (int z = 2; z <= 4; z++) set(brickSlab, 2, 1, z);
-            chest(3, 2, 3);
+            chest(3, 2, 3, ChestLoot.withBook(ChestLoot.STRONGHOLD_CORRIDOR, rand), 2 + rand.nextInt(2));
         }
 
         void library() {
@@ -724,10 +727,10 @@ public final class Stronghold {
                     set(torch | 5, at[0], 8, at[1]);
                 }
             }
-            chest(3, 3, 5);
+            chest(3, 3, 5, ChestLoot.withBook(ChestLoot.STRONGHOLD_LIBRARY, rand, 1, 5, 2), 1 + rand.nextInt(4));
             if (large) {
                 set(b.AIR, 12, 9, 1);
-                chest(12, 8, 1);
+                chest(12, 8, 1, ChestLoot.withBook(ChestLoot.STRONGHOLD_LIBRARY, rand, 1, 5, 2), 1 + rand.nextInt(4));
             }
         }
 

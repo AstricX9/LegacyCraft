@@ -103,6 +103,8 @@ public final class World implements IBlockWorld {
     public Skull skull(int x, int y, int z) { return skulls.get(new BlockPos(x, y, z)); }
     /** The furnaces' contents and fire, by position (vanilla keeps them as tile entities in their chunk). */
     private final Map<BlockPos, Furnace> furnaces = new LinkedHashMap<>();
+    /** Chests (and trapped chests) by position (TileEntityChest). */
+    private final Map<BlockPos, net.minecraft.inventory.Chest> chests = new LinkedHashMap<>();
     private FurnaceRecipes smelting;
     private java.util.function.Function<String, Item> items;
 
@@ -284,6 +286,14 @@ public final class World implements IBlockWorld {
             if (now == enchantingTable) enchantingTables.add(new BlockPos(x, y, z));
             else if (old == enchantingTable) enchantingTables.remove(new BlockPos(x, y, z));
         }
+        // BlockChest.breakBlock (InventoryHelper.dropInventoryItems): the contents spill.
+        if (old instanceof net.minecraft.block.BlockChest && old != now) {
+            net.minecraft.inventory.Chest chest = chests.remove(new BlockPos(x, y, z));
+            if (chest != null) {
+                List<ItemStack> contents = chest.takeContents();
+                if (!contents.isEmpty()) events.containerBroken(x, y, z, contents);
+            }
+        }
         // BlockFurnace.breakBlock: the contents spill unless it only swapped between lit and unlit.
         if (old instanceof BlockFurnace && !(now instanceof BlockFurnace)) {
             Furnace furnace = furnaces.remove(new BlockPos(x, y, z));
@@ -389,6 +399,21 @@ public final class World implements IBlockWorld {
         if (!(get(x, y, z) instanceof BlockFurnace)) return null;
         return furnaces.computeIfAbsent(new BlockPos(x, y, z), key -> new Furnace(smelting, items));
     }
+
+    /**
+     * The chest at a position, made empty the first time it is asked for
+     * (BlockChest.createNewTileEntity), or null when no chest is there.
+     */
+    public net.minecraft.inventory.Chest chestAt(int x, int y, int z) {
+        if (!(get(x, y, z) instanceof net.minecraft.block.BlockChest)) return null;
+        return chests.computeIfAbsent(new BlockPos(x, y, z), key -> new net.minecraft.inventory.Chest());
+    }
+
+    /** Every chest with its position (saving, the lids). */
+    public Map<BlockPos, net.minecraft.inventory.Chest> chests() { return java.util.Collections.unmodifiableMap(chests); }
+
+    /** Installs a saved chest (loading). */
+    public void restoreChest(int x, int y, int z, net.minecraft.inventory.Chest chest) { chests.put(new BlockPos(x, y, z), chest); }
 
     /** Every furnace with its position, for saving. */
     public Map<BlockPos, Furnace> furnaces() { return java.util.Collections.unmodifiableMap(furnaces); }
@@ -753,6 +778,11 @@ public final class World implements IBlockWorld {
             if (!block.isAir()) scheduleUpdate(x, y, z, block, liquids.tickRate(block.material()));
         }
         @Override public void setSpawner(int x, int y, int z, String entity) { spawners.put(new BlockPos(x, y, z), entity); }
+        @Override public ItemStack[] chestSlots(int x, int y, int z) {
+            net.minecraft.inventory.Chest chest = chestAt(x, y, z);
+            return chest == null ? null : chest.slots;
+        }
+        @Override public Item item(String name) { return items == null ? null : items.apply(name); }
         @Override public void spawnCreature(String entity, double x, double y, double z, float yaw) {
             pendingCreatures.add(new CreatureSpawn(entity, x, y, z, yaw));
         }

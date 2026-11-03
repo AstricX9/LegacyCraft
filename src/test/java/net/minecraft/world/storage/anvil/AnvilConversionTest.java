@@ -28,8 +28,8 @@ final class AnvilConversionTest {
     void convertsRegionChunksSoTheWorldOpens() throws Exception {
         BlockRegistry blocks = GameData.blocks();
         int brick = blocks.get("minecraft:brick_block").registryId();
-        // Chunk (-1, 2): a brick at local (3, 70, 5) with light 9/4, an unknown block ID next to it, a chest
-        // (dropped), a spawner, a mob head, a lit furnace and a zombie.
+        // Chunk (-1, 2): a brick at local (3, 70, 5) with light 9/4, an unknown block ID next to it, a sign
+        // (dropped), a chest with diamonds, a spawner, a mob head, a lit furnace and a zombie.
         NbtTag.Compound section = section(4);
         set(section, 3, 6, 5, brick, 0);
         set(section, 4, 6, 5, 300, 0);
@@ -39,7 +39,8 @@ final class AnvilConversionTest {
         NbtTag.Compound zombie = new NbtTag.Compound();
         zombie.put("id", new NbtTag.Str("Zombie"));
         NbtTag.Compound overworldChunk = chunk(-1, 2, section, true, List.of(
-            blockEntity("Chest", -10, 70, 37),
+            blockEntity("Sign", -10, 70, 37),
+            with(blockEntity("Chest", -9, 70, 37), "Items", new NbtTag.NbtList(NbtTag.COMPOUND, List.of(item(13, "minecraft:diamond", 2, 0)))),
             with(blockEntity("MobSpawner", -11, 40, 38), "EntityId", new NbtTag.Str("Skeleton")),
             with(with(blockEntity("Skull", -12, 71, 39), "SkullType", new NbtTag.Byte((byte) 4)), "Rot", new NbtTag.Byte((byte) 6)),
             with(with(with(blockEntity("Furnace", -13, 64, 40), "BurnTime", new NbtTag.Short((short) 900)),
@@ -60,8 +61,8 @@ final class AnvilConversionTest {
         WorldStorage.Conversion result = WorldStorage.convertAnvil(world, 1234L, blocks.size(), names, progress -> {});
         assertEquals(2, result.chunks());
         assertEquals(1, result.unknownBlocks());
-        assertEquals(3, result.blockEntities());
-        assertEquals(1, result.droppedBlockEntities(), "the chest");
+        assertEquals(4, result.blockEntities());
+        assertEquals(1, result.droppedBlockEntities(), "the sign");
         assertEquals(1, result.entities());
         assertEquals(0, result.damagedChunks());
         assertTrue(WorldStorage.exists(world));
@@ -86,6 +87,9 @@ final class AnvilConversionTest {
         assertEquals(15, chunk.skyLight(3, 200, 5), "sky above the top section is open");
         assertEquals("Skeleton", loaded.spawners().get(new World.BlockPos(-11, 40, 38)));
         assertEquals(new World.Skull(4, 6), loaded.skull(-12, 71, 39));
+        var chest = loaded.chests().get(new World.BlockPos(-9, 70, 37));
+        assertEquals(byName.apply("diamond"), chest.slots[13].item());
+        assertEquals(2, chest.slots[13].count());
         var furnace = loaded.furnaceAt(-13, 64, 40);
         assertNotNull(furnace);
         assertEquals(byName.apply("iron_ore"), furnace.get(net.minecraft.inventory.Furnace.INPUT).item());

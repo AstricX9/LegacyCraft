@@ -20,7 +20,7 @@ import static org.lwjgl.opengl.GL11.*;
  * TileEntityBannerRenderer and TileEntityEndPortalRenderer):
  * <ul>
  *   <li>chests, trapped chests and ender chests (ModelChest, and
- *       ModelLargeChest for two chests side by side), lids closed;</li>
+ *       ModelLargeChest for two chests side by side), lids opening as they are used;</li>
  *   <li>standing and wall signs (ModelSign), without text: LegacyCraft does
  *       not store sign text yet;</li>
  *   <li>standing and wall banners (ModelBanner) swaying in the wind, their
@@ -62,6 +62,11 @@ public final class BlockEntityRenderer {
         };
     }
 
+    /** How open a chest's lid is this frame, 0 shut to 1 open (TileEntityChest.lidAngle); shut when unset. */
+    public interface Lids { float lid(int x, int y, int z, float partialTicks); }
+    public Lids lids = (x, y, z, partialTicks) -> 0f;
+    private float partialTicks;
+
     /** What the renderer needs to know about the world around a block. */
     public interface Neighbours {
         BlockState state(int x, int y, int z);
@@ -75,6 +80,7 @@ public final class BlockEntityRenderer {
     public void render(BlockState state, int x, int y, int z, Neighbours world, float[] light, long ticks,
                        float partialTicks, double[] camera) {
         String name = state.block().name().path();
+        this.partialTicks = partialTicks;
         switch (name) {
             case "chest", "trapped_chest" -> chest(state, x, y, z, world, light);
             case "ender_chest" -> drawChest(ENDER, false, x, y, z, facing(state), 0, light);
@@ -122,17 +128,26 @@ public final class BlockEntityRenderer {
         ResourceLocation texture = partner == 0
             ? christmas ? CHRISTMAS : trapped ? TRAPPED : CHEST
             : christmas ? CHRISTMAS_DOUBLE : trapped ? TRAPPED_DOUBLE : CHEST_DOUBLE;
-        drawChest(texture, partner != 0, x, y, z, facing(state), partner, light);
+        float lid = lids.lid(x, y, z, partialTicks);
+        if (partner == 1) lid = Math.max(lid, lids.lid(x + 1, y, z, partialTicks));
+        if (partner == 2) lid = Math.max(lid, lids.lid(x, y, z + 1, partialTicks));
+        drawChest(texture, partner != 0, x, y, z, facing(state), partner, light, lid);
+    }
+
+    private void drawChest(ResourceLocation texture, boolean large, double x, double y, double z, int facing, int partner,
+                           float[] light) {
+        drawChest(texture, large, x, y, z, facing, partner, light, 0f);
     }
 
     /**
-     * TileEntityChestRenderer.renderTileEntityAt with the lid shut: the model
+     * TileEntityChestRenderer.renderTileEntityAt: the lid swings up on an
+     * ease-out curve (1 - (1 - f)^3, to a quarter turn), the model
      * is flipped upright, turned to face 2-5 (north, south, west, east; 0 for
      * an item), shifted onto the pair when the partner lies along the
      * turned model's width.
      */
     private void drawChest(ResourceLocation texture, boolean large, double x, double y, double z, int facing, int partner,
-                           float[] light) {
+                           float[] light, float lid) {
         textures.bind(texture);
         glPushMatrix();
         glEnable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
@@ -154,8 +169,13 @@ public final class BlockEntityRenderer {
         AnimalModels.textureHeight = 64f;
         int width = large ? 30 : 14, knobX = large ? 16 : 8;
         // ModelChest/ModelLargeChest: lid, knob and base, each about its own pivot.
-        new Part(1, 7, 15, new Cube(0, -5, -14, width, 5, 14, 0, 0, 0)).draw();
-        new Part(knobX, 7, 15, new Cube(-1, -2, -15, 2, 4, 1, 0, 0, 0)).draw();
+        float open = 1f - lid;
+        float swing = -(1f - open * open * open) * (float) Math.PI / 2f;
+        Part lidPart = new Part(1, 7, 15, new Cube(0, -5, -14, width, 5, 14, 0, 0, 0));
+        Part knob = new Part(knobX, 7, 15, new Cube(-1, -2, -15, 2, 4, 1, 0, 0, 0));
+        lidPart.rx = knob.rx = swing;
+        lidPart.draw();
+        knob.draw();
         new Part(1, 6, 1, new Cube(0, 0, 0, width, 10, 14, 0, 0, 19)).draw();
         AnimalModels.textureWidth = previousWidth;
         AnimalModels.textureHeight = previousHeight;

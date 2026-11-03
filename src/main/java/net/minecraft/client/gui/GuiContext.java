@@ -108,6 +108,8 @@ public interface GuiContext {
     default net.minecraft.item.crafting.FurnaceRecipes smelting() { return null; }
     /** The furnace at a block position in the loaded world, or null. */
     default net.minecraft.inventory.Furnace furnaceAt(int x, int y, int z) { return null; }
+    /** The chest at a position, or null (no world, or no chest there). */
+    default net.minecraft.inventory.Chest chestAt(int x, int y, int z) { return null; }
     /** {@code count} smelted items were taken out of a furnace (SlotFurnaceOutput.onCrafting: experience, achievements). */
     default void onItemSmelted(Item item, int count) {}
     /** Draws a block texture ("stone" for textures/blocks/stone.png) from the block atlas, {@code size} GUI pixels square. */

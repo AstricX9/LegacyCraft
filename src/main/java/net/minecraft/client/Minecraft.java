@@ -418,6 +418,10 @@ public final class Minecraft implements GuiContext {
         itemRenderer.builtin = builtinItems;
         mobRenderer = new net.minecraft.client.renderer.entity.MobRenderer(guiTextures, itemRenderer);
         blockEntityRenderer = new net.minecraft.client.renderer.entity.BlockEntityRenderer(guiTextures);
+        blockEntityRenderer.lids = (x, y, z, partialTicks) -> {
+            net.minecraft.inventory.Chest chest = world == null ? null : world.chests().get(new World.BlockPos(x, y, z));
+            return chest == null ? 0f : chest.prevLidAngle + (chest.lidAngle - chest.prevLidAngle) * partialTicks;
+        };
         localSkin = new LocalSkin(launcherSkin);
         localSkin.load();
         localCape = new LocalCape(launcherCape);
@@ -671,6 +675,7 @@ public final class Minecraft implements GuiContext {
             return;
         }
         ingameGui.updateTick(inventory);
+        tickChestLids();
         // EntityPlayer.onUpdate: using stops when the held stack is no longer the one in use.
         if (player.isUsingItem() && (inventory.getCurrentItem() != player.itemInUse() || isSpectator()))
             player.clearItemInUse();
@@ -964,7 +969,7 @@ public final class Minecraft implements GuiContext {
             + (result.unknownBlocks() > 0 ? ", " + result.unknownBlocks() + " unknown blocks became air" : "")
             + ", " + result.blockEntities() + " spawners/heads/furnaces and " + result.entities() + " entities carried over"
             + (result.droppedBlockEntities() > 0 ? ", " + result.droppedBlockEntities()
-                + " other block entities (chest contents, signs...) not carried over" : ""));
+                + " other block entities (signs, banners...) not carried over" : ""));
         launchIntegratedServer(conversion.folder, conversion.name, null);
     }
 
@@ -3533,6 +3538,15 @@ public final class Minecraft implements GuiContext {
             useBed(hit.x(), hit.y(), hit.z());
             return true;
         }
+        Block clicked = world.get(hit.x(), hit.y(), hit.z());
+        if (clicked instanceof net.minecraft.block.BlockChest) {
+            openChest(hit.x(), hit.y(), hit.z(), clicked);
+            return true;
+        }
+        if (clicked instanceof net.minecraft.block.BlockDoor || clicked instanceof net.minecraft.block.BlockTrapDoor
+            || clicked instanceof net.minecraft.block.BlockFenceGate) {
+            return toggleOpenable(hit.x(), hit.y(), hit.z(), clicked);
+        }
         if (name.equals("crafting_table")) {
             displayGuiScreen(new net.minecraft.client.gui.GuiCrafting(hit.x(), hit.y(), hit.z()));
             return true;
@@ -3565,6 +3579,72 @@ public final class Minecraft implements GuiContext {
             return true;
         }
         return false;
+    }
+
+    /**
+     * BlockChest.onBlockActivated / getLockableContainer: a chest opens unless
+     * a normal cube sits on it (or on its partner); a chest of the same kind
+     * beside it makes a large chest, the one further west or north on top.
+     */
+    private void openChest(int x, int y, int z, Block block) {
+        if (world.get(x, y + 1, z).isNormalCube()) return;
+        int[] here = {x, y, z};
+        int[][] halves = {here};
+        int[][] sides = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}; // north, east, south, west
+        for (int[] side : sides) {
+            int nx = x + side[0], nz = z + side[1];
+            if (world.get(nx, y, nz) != block) continue;
+            if (world.get(nx, y + 1, nz).isNormalCube()) return;
+            int[] other = {nx, y, nz};
+            halves = side[0] < 0 || side[1] < 0 ? new int[][] {other, here} : new int[][] {here, other};
+            break;
+        }
+        displayGuiScreen(new net.minecraft.client.gui.GuiChest(block.name().path(), halves));
+    }
+
+    /**
+     * TileEntityChest.update's lid for every chest: it swings while open,
+     * and the chest that draws a pair (the one with no partner to the west
+     * or north) plays the open and close sounds from the pair's middle
+     * (0.5, pitch 0.9-1.0).
+     */
+    private void tickChestLids() {
+        for (var entry : world.chests().entrySet()) {
+            net.minecraft.inventory.Chest.LidSound sound = entry.getValue().tickLid();
+            if (sound == net.minecraft.inventory.Chest.LidSound.NONE) continue;
+            World.BlockPos pos = entry.getKey();
+            Block block = world.get(pos.x(), pos.y(), pos.z());
+            if (world.get(pos.x() - 1, pos.y(), pos.z()) == block || world.get(pos.x(), pos.y(), pos.z() - 1) == block) continue;
+            double cx = pos.x() + 0.5, cz = pos.z() + 0.5;
+            if (world.get(pos.x() + 1, pos.y(), pos.z()) == block) cx += 0.5;
+            if (world.get(pos.x(), pos.y(), pos.z() + 1) == block) cz += 0.5;
+            playSound(sound == net.minecraft.inventory.Chest.LidSound.OPEN ? "random.chestopen" : "random.chestclosed",
+                cx, pos.y() + 0.5, cz, 0.5f, random.nextFloat() * 0.1f + 0.9f);
+        }
+    }
+
+    /**
+     * BlockDoor / BlockTrapDoor / BlockFenceGate.onBlockActivated: a wooden
+     * door (both halves, through the lower one), trapdoor or fence gate
+     * opens or shuts with the door sound (aux 1003/1006, pitch 0.9-1.0); a
+     * gate opening away from the player first turns to face the way they
+     * look. Iron doors and trapdoors only answer redstone, but still take the click.
+     */
+    private boolean toggleOpenable(int x, int y, int z, Block block) {
+        if (block.name().path().startsWith("iron_")) return true;
+        int ty = y;
+        if (block instanceof net.minecraft.block.BlockDoor && world.getState(x, y, z).get("half").equals("upper")) ty = y - 1;
+        BlockState state = world.getState(x, ty, z);
+        if (state.block() != block) return false;
+        boolean open = !state.get("open").equals("true");
+        BlockState next = state.with("open", Boolean.toString(open));
+        if (block instanceof net.minecraft.block.BlockFenceGate && open) {
+            Direction looking = playerFacing();
+            if (state.get("facing").equals(looking.opposite().getName())) next = next.with("facing", looking.getName());
+        }
+        world.setStateAndUpdate(x, ty, z, next);
+        playSound(open ? "random.door_open" : "random.door_close", x + 0.5, y + 0.5, z + 0.5, 1f, random.nextFloat() * 0.1f + 0.9f);
+        return true;
     }
 
     /**
@@ -4541,6 +4621,7 @@ public final class Minecraft implements GuiContext {
     @Override public net.minecraft.item.crafting.CraftingManager crafting() { return crafting; }
     @Override public net.minecraft.item.crafting.FurnaceRecipes smelting() { return smelting; }
     @Override public net.minecraft.inventory.Furnace furnaceAt(int x, int y, int z) { return world == null ? null : world.furnaceAt(x, y, z); }
+    @Override public net.minecraft.inventory.Chest chestAt(int x, int y, int z) { return world == null ? null : world.chestAt(x, y, z); }
 
     /**
      * Smelted items were taken out (SlotFurnaceOutput.onCrafting): the

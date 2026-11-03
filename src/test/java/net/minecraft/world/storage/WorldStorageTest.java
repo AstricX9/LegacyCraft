@@ -66,6 +66,34 @@ final class WorldStorageTest {
     }
 
     @Test
+    void persistsChestContentsWithEnchantments() throws Exception {
+        BlockRegistry blocks = GameData.blocks();
+        BiomeRegistry biomes = GameData.biomes();
+        java.util.function.Function<String, net.minecraft.item.Item> items =
+            name -> GameData.items().get(new net.minecraft.util.ResourceLocation("minecraft", name));
+        World original = GameData.newWorld(42L);
+        original.setSmelting(null, items);
+        original.setState(3, 100, 4, BlockState.of(blocks.get("minecraft:chest"), 2));
+        var chest = original.chestAt(3, 100, 4);
+        chest.slots[5] = new net.minecraft.item.ItemStack(items.apply("diamond"), 3);
+        var book = new net.minecraft.item.ItemStack(items.apply("enchanted_book"));
+        book.addStoredEnchantment(16, 4);
+        chest.slots[26] = book;
+        WorldStorage.save(directory, original);
+
+        World restored = WorldStorage.load(directory, blocks, seed -> {
+            World world = new World(blocks, biomes, seed);
+            world.setSmelting(null, items);
+            return world;
+        });
+        var loaded = restored.chestAt(3, 100, 4);
+        assertEquals(3, loaded.slots[5].count());
+        assertEquals(items.apply("diamond"), loaded.slots[5].item());
+        assertEquals(java.util.Map.of(16, 4), loaded.slots[26].storedEnchantments());
+        assertNull(loaded.slots[0]);
+    }
+
+    @Test
     void rejectsPackedStatesWithUnknownBlockIds() throws Exception {
         BlockRegistry blocks = GameData.blocks();
         BiomeRegistry biomes = GameData.biomes();
