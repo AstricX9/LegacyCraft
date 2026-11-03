@@ -2163,5 +2163,23 @@
         "volume": 0.7
       }
     ]
+  },
+  "item.shield.block": {
+    "category": "player",
+    "sounds": [
+      "item/shield/block1",
+      "item/shield/block2",
+      "item/shield/block3",
+      "item/shield/block4",
+      "item/shield/block5"
+    ],
+    "subtitle": "subtitles.item.shield.block"
+  },
+  "item.shield.break": {
+    "category": "player",
+    "sounds": [
+      "random/break"
+    ],
+    "subtitle": "subtitles.entity.item.break"
   }
 }

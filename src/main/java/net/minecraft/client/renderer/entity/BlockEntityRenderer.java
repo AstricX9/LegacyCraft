@@ -89,7 +89,8 @@ public final class BlockEntityRenderer {
 
     /** Items drawn by these models (TileEntityItemStackRenderer): chests and banners. */
     public static boolean drawsItem(String item) {
-        return item.equals("chest") || item.equals("trapped_chest") || item.equals("ender_chest") || item.startsWith("banner");
+        return item.equals("chest") || item.equals("trapped_chest") || item.equals("ender_chest") || item.startsWith("banner")
+            || item.equals("shield");
     }
 
     /**
@@ -103,8 +104,33 @@ public final class BlockEntityRenderer {
             case "chest" -> drawChest(christmas ? CHRISTMAS : CHEST, false, 0, 0, 0, 0, 0, light);
             case "trapped_chest" -> drawChest(christmas ? CHRISTMAS : TRAPPED, false, 0, 0, 0, 0, 0, light);
             case "ender_chest" -> drawChest(ENDER, false, 0, 0, 0, 0, 0, light);
+            case "shield" -> shield(light);
             default -> banner(true, 0, 0, 0, 0, data, 0, 0f, light);
         }
+    }
+
+    // ---- shields (1.9) ---------------------------------------------------------------------------
+
+    private static final ResourceLocation SHIELD = new ResourceLocation("minecraft:textures/entity/shield_base_nopattern.png");
+
+    /** TileEntityItemStackRenderer for the shield: ModelShield (a 12x22x1 plate and its handle) flipped upright. */
+    private void shield(float[] light) {
+        textures.bind(SHIELD);
+        glPushMatrix();
+        glEnable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glColor4f(light[0], light[1], light[2], 1f);
+        glTranslatef(0.5f, 0.5f, 0.5f); // centred in the unit block, like the other built-in items
+        glScalef(1f, -1f, -1f);
+        float previousWidth = AnimalModels.textureWidth, previousHeight = AnimalModels.textureHeight;
+        AnimalModels.textureWidth = 64f;
+        AnimalModels.textureHeight = 64f;
+        new Part(0, 0, 0, new Cube(-6, -11, -2, 12, 22, 1, 0, 0, 0)).draw();
+        new Part(0, 0, 0, new Cube(-1, -3, -1, 2, 6, 6, 0, 26, 0)).draw();
+        AnimalModels.textureWidth = previousWidth;
+        AnimalModels.textureHeight = previousHeight;
+        glDisable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glPopMatrix();
+        glColor4f(1f, 1f, 1f, 1f);
     }
 
     // ---- chests ----------------------------------------------------------------------------------

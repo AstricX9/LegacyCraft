@@ -174,6 +174,9 @@ public class GuiIngame extends Gui {
         int center = width / 2;
         drawTexturedModalRect(center - 91, height - 22, 0, 0, 182, 22);
         drawTexturedModalRect(center - 91 - 1 + inventory.currentItem * 20, height - 22 - 1, 0, 22, 24, 22);
+        ItemStack offhand = inventory.getOffhandItem();
+        // 1.9: the offhand item sits in its own slot left of the hotbar.
+        if (offhand != null) drawTexturedModalRect(center - 91 - 29, height - 23, 24, 22, 29, 24);
         if (mc.itemRenderer() == null) return;
         glClear(GL_DEPTH_BUFFER_BIT);
         for (int slot = 0; slot < InventoryPlayer.HOTBAR_SIZE; slot++) {
@@ -182,6 +185,11 @@ public class GuiIngame extends Gui {
             int x = center - 90 + slot * 20 + 2, y = height - 16 - 3;
             mc.itemRenderer().renderItemAndEffectIntoGUI(stack, x, y);
             mc.itemRenderer().renderItemOverlays(mc.font(), stack, x, y);
+        }
+        if (offhand != null) {
+            int x = center - 91 - 26, y = height - 16 - 3;
+            mc.itemRenderer().renderItemAndEffectIntoGUI(offhand, x, y);
+            mc.itemRenderer().renderItemOverlays(mc.font(), offhand, x, y);
         }
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);

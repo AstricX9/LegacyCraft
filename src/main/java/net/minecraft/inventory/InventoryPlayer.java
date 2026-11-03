@@ -7,18 +7,30 @@ import net.minecraft.item.ItemStack;
 /**
  * The player's inventory with 1.8.9's layout (master context §21): 36 main
  * slots where 0-8 are the hotbar, 4 armor slots (0 boots, 1 leggings,
- * 2 chestplate, 3 helmet) and the stack held on the cursor while a container
- * screen is open.
+ * 2 chestplate, 3 helmet), the 1.9 offhand slot and the stack held on the
+ * cursor while a container screen is open.
  */
 public final class InventoryPlayer {
     public static final int MAIN_SIZE = 36, HOTBAR_SIZE = 9, ARMOR_SIZE = 4;
 
     public final ItemStack[] mainInventory = new ItemStack[MAIN_SIZE];
     public final ItemStack[] armorInventory = new ItemStack[ARMOR_SIZE];
+    /** The 1.9 offhand: one slot, saved as slot -106. */
+    public final ItemStack[] offHandInventory = new ItemStack[1];
+    public static final int OFFHAND_SAVE_SLOT = -106;
     public int currentItem;
     private ItemStack itemStack;
 
     public ItemStack getCurrentItem() { return mainInventory[currentItem]; }
+    public ItemStack getOffhandItem() { return offHandInventory[0]; }
+    public void setOffhandItem(ItemStack stack) { offHandInventory[0] = stack == null || stack.isEmpty() ? null : stack; }
+
+    /** The swap-hands key (F, 1.9): the selected hotbar stack and the offhand stack trade places. */
+    public void swapHands() {
+        ItemStack main = mainInventory[currentItem];
+        mainInventory[currentItem] = offHandInventory[0];
+        offHandInventory[0] = main;
+    }
     public ItemStack getItemStack() { return itemStack; }
     public void setItemStack(ItemStack stack) { itemStack = stack == null || stack.isEmpty() ? null : stack; }
 
@@ -77,12 +89,14 @@ public final class InventoryPlayer {
     public ItemStack getBySaveSlot(int slot) {
         if (slot >= 0 && slot < MAIN_SIZE) return mainInventory[slot];
         if (slot >= 100 && slot < 100 + ARMOR_SIZE) return armorInventory[slot - 100];
+        if (slot == OFFHAND_SAVE_SLOT) return offHandInventory[0];
         return null;
     }
 
     public void setBySaveSlot(int slot, ItemStack stack) {
         if (slot >= 0 && slot < MAIN_SIZE) mainInventory[slot] = stack;
         else if (slot >= 100 && slot < 100 + ARMOR_SIZE) armorInventory[slot - 100] = stack;
+        else if (slot == OFFHAND_SAVE_SLOT) offHandInventory[0] = stack;
     }
 
     /** Merges into matching stacks first, then empty slots (hotbar first, as vanilla). */
@@ -111,6 +125,7 @@ public final class InventoryPlayer {
     public void clear() {
         java.util.Arrays.fill(mainInventory, null);
         java.util.Arrays.fill(armorInventory, null);
+        offHandInventory[0] = null;
         itemStack = null;
     }
 

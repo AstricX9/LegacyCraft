@@ -2699,6 +2699,12 @@
      "id": 317,
      "meta": 0,
      "key": "item.bootsGold.name"
+    },
+    {
+     "item": "shield",
+     "id": 442,
+     "meta": 0,
+     "key": "item.shield.name"
     }
    ]
   },

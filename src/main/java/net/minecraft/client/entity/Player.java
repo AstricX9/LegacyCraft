@@ -162,6 +162,8 @@ public final class Player {
         default void died(DamageSource source) {}
         /** A worn piece in armour slot {@code slot} broke from the wear. */
         default void armorBroke(int slot) {}
+        /** The shield in use wore out blocking a hit. */
+        default void shieldBroke(ItemStack shield) {}
     }
     public DamageListener damageListener = new DamageListener() {};
 
@@ -223,16 +225,14 @@ public final class Player {
     }
 
     /**
-     * EntityPlayer.damageEntity: blocking with a sword halves blockable damage
-     * ((1 + d) / 2); armour points take {@code d x (25 - armour) / 25} off
-     * blockable damage and wear each piece by d/4 (at least 1); then, unless
+     * EntityPlayer.damageEntity (1.9; shields stop hits before this): armour (CombatRules, with toughness) takes its share off
+     * blockable damage and wears each piece by d/4 (at least 1); then, unless
      * the damage is absolute (starving), Resistance takes 20% per level off
      * anything but void damage and protection enchantments up to 20/25 more.
      * Absorption hearts soak up what is left first; a hit that still gets
      * through adds its exhaustion (0.3 unless it bypasses armour).
      */
     private void damageEntity(DamageSource source, float damage) {
-        if (!source.isUnblockable() && isBlocking() && damage > 0) damage = (1f + damage) * 0.5f;
         if (!source.isUnblockable()) {
             damageArmor(damage);
             damage = net.minecraft.inventory.ArmorValues.damageAfterArmor(damage, armorValue(), armorToughness());
@@ -422,6 +422,7 @@ public final class Player {
 
     /** A hit from someone at (fromX, fromZ) with this source (an arrow, a fireball): knocked back away from them. */
     public boolean attackBy(DamageSource source, float amount, double fromX, double fromZ, String attacker) {
+        if (blockWithShield(source, amount, fromX, fromZ)) return false;
         int before = hurtResistantTime;
         lastAttacker = attacker;
         boolean hurt = attack(source, amount);
@@ -438,6 +439,14 @@ public final class Player {
 
     /** An explosion's damage: "blew up", or "was blown up by" when someone set it off. */
     public boolean attackByExplosion(float amount, String attacker) {
+        lastAttacker = attacker;
+        return attack(attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER, amount);
+    }
+
+    /** An explosion centred at (fromX, fromZ), which a raised shield facing it stops. */
+    public boolean attackByExplosion(float amount, String attacker, double fromX, double fromZ) {
+        DamageSource source = attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER;
+        if (blockWithShield(source, amount, fromX, fromZ)) return false;
         lastAttacker = attacker;
         return attack(attacker == null ? DamageSource.EXPLOSION : DamageSource.EXPLOSION_PLAYER, amount);
     }
@@ -582,7 +591,38 @@ public final class Player {
     public net.minecraft.item.ItemStack itemInUse() { return itemInUse; }
     public int itemInUseCount() { return itemInUseCount; }
 
-    /** Holding a sword up (EntityPlayer.isBlocking): using an item whose use is BLOCK. */
+    /** Whether the last hit stopped by {@link #blockWithShield} was; read by the mob that swung (it gets pushed back). */
+    public boolean lastHitBlocked;
+
+    /** A raised shield counts once it has been up for 5 ticks (1.9 EntityLivingBase.isActiveItemStackBlocking). */
+    public boolean shieldRaised() { return isBlocking() && 72000 - itemInUseCount >= 5; }
+
+    /**
+     * 1.9 EntityLivingBase.canBlockDamageSource: a raised shield stops any
+     * blockable hit coming from in front (the direction to its source is
+     * less than 90° from where the player looks, ignoring height). Hits of
+     * 3 or more wear the shield by 1 + the damage, rounded down.
+     */
+    public boolean blockWithShield(DamageSource source, float amount, double fromX, double fromZ) {
+        lastHitBlocked = false;
+        if (source.isUnblockable() || !shieldRaised() || amount <= 0 || disableDamage && !source.canHarmInCreative()) return false;
+        double dx = fromX - x, dz = fromZ - z;
+        double yaw = Math.toRadians(this.yaw);
+        double lookX = Math.sin(yaw), lookZ = -Math.cos(yaw); // this model's yaw 0 looks north
+        if (dx * lookX + dz * lookZ <= 0) return false;
+        lastHitBlocked = true;
+        sounds.play("item.shield.block", 1f, 0.8f + random.nextFloat() * 0.4f);
+        ItemStack shield = itemInUse;
+        if (amount >= 3f && !disableDamage && shield != null
+            && (EnchantmentHelper.damageItem(shield, 1 + (int) Math.floor(amount), random) || shield.isEmpty())) {
+            clearItemInUse();
+            sounds.play("item.shield.break", 0.8f, 0.8f + random.nextFloat() * 0.4f);
+            damageListener.shieldBroke(shield);
+        }
+        return true;
+    }
+
+    /** Using an item whose use is BLOCK: a shield (1.9; swords no longer block). */
     public boolean isBlocking() {
         return itemInUse != null && itemInUse.item().useAction() == net.minecraft.item.Item.UseAction.BLOCK;
     }

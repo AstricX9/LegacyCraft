@@ -305,7 +305,7 @@ public final class LevelInfo {
                 for (NbtTag element : list.values()) {
                     if (!(element instanceof NbtTag.Compound tag) || !(tag.get("id") instanceof NbtTag.Str id)) continue;
                     int damage = tag.get("Damage") instanceof NbtTag.Short value ? value.value() : 0;
-                    info.inventory.add(new SavedStack(byteOr(tag, "Slot", 0) & 0xFF, id.value(), byteOr(tag, "Count", 1), damage,
+                    info.inventory.add(new SavedStack(byteOr(tag, "Slot", 0), id.value(), byteOr(tag, "Count", 1), damage,
                         tag.get("tag") instanceof NbtTag.Compound extra ? extra : null));
                 }
                 info.selectedItemSlot = intOr(playerTag, "SelectedItemSlot", 0);

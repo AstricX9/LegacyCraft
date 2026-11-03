@@ -655,7 +655,10 @@ public final class Minecraft implements GuiContext {
             tickParticles();
             tickCaveAmbience();
             updateBiomesExplored();
-            if (inventory != null) firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
+            if (inventory != null) {
+                firstPersonRenderer.tick(inventory.getCurrentItem(), inventory.currentItem);
+                firstPersonRenderer.tickOffhand(inventory.getOffhandItem());
+            }
             if (Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("doDaylightCycle", "true"))) levelInfo.worldTime++;
             tickSky();
         }
@@ -669,8 +672,9 @@ public final class Minecraft implements GuiContext {
         }
         ingameGui.updateTick(inventory);
         // EntityPlayer.onUpdate: using stops when the held stack is no longer the one in use.
-        if (player.isUsingItem() && (inventory.getCurrentItem() != player.itemInUse() || isSpectator()))
+        if (player.isUsingItem() && (usingHandStack() != player.itemInUse() || isSpectator()))
             player.clearItemInUse();
+        if (!player.isUsingItem()) offhandInUse = false;
         if (rightClickDelayTimer > 0) rightClickDelayTimer--;
         if (currentScreen != null) {
             playerController.resetBlockRemoving();
@@ -684,6 +688,7 @@ public final class Minecraft implements GuiContext {
             triggerAchievement("openInventory");
             displayGuiScreen(isCreative() ? new GuiContainerCreative() : new GuiInventory());
         } else {
+            while (gameSettings.keyBindSwapHands.isPressed()) if (!isSpectator()) inventory.swapHands();
             while (gameSettings.keyBindDrop.isPressed()) if (!isSpectator()) dropHeldItem(isKeyDown(GLFW_KEY_LEFT_CONTROL) || isKeyDown(GLFW_KEY_RIGHT_CONTROL));
             // Opened from the tick, after the key's own character event has gone by, so "t" or "/" is not typed into the field.
             if (gameSettings.keyBindChat.isPressed()) displayGuiScreen(new GuiChat());
@@ -1076,6 +1081,10 @@ public final class Minecraft implements GuiContext {
             @Override public void armorBroke(int slot) {
                 playSound("random.break", player.x, player.y, player.z, 0.8f, 0.8f + random.nextFloat() * 0.4f);
             }
+            @Override public void shieldBroke(ItemStack shield) {
+                if (inventory.getOffhandItem() == shield) inventory.setOffhandItem(null);
+                if (inventory.getCurrentItem() == shield) inventory.mainInventory[inventory.currentItem] = null;
+            }
         };
         loadStats();
         applyGameMode();
@@ -1089,7 +1098,7 @@ public final class Minecraft implements GuiContext {
         player.sounds = (event, volume, pitch) -> playSound(event, player.x, player.y, player.z, volume, pitch);
         player.itemUseListener = new Player.ItemUseListener() {
             @Override public void update(ItemStack stack, int particles) { itemUseEffects(stack, particles); }
-            @Override public void finish(ItemStack stack) { finishItemUse(stack); }
+            @Override public void finish(ItemStack stack) { withUsingHand(() -> finishItemUse(stack)); }
         };
         server = dimensionServer(dimension);
         spawnGeneratedCreatures();
@@ -1479,6 +1488,7 @@ public final class Minecraft implements GuiContext {
         List<LevelInfo.SavedStack> saved = new ArrayList<>();
         for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) addSaved(saved, slot);
         for (int slot = 100; slot < 100 + InventoryPlayer.ARMOR_SIZE; slot++) addSaved(saved, slot);
+        addSaved(saved, InventoryPlayer.OFFHAND_SAVE_SLOT);
         levelInfo.inventory = saved;
         levelInfo.selectedItemSlot = inventory.currentItem;
         levelInfo.experience = new LevelInfo.Experience(player.experienceLevel, player.experience, player.experienceTotal);
@@ -1637,12 +1647,12 @@ public final class Minecraft implements GuiContext {
                 if (!other.boundingBox().intersects(around)) continue;
                 double dx = other.x() - player.x, dy = other.y() - player.y, dz = other.z() - player.z;
                 if (dx * dx + dy * dy + dz * dz >= 9.0) continue;
-                other.knockBack(Math.sin(yaw), -Math.cos(yaw));
+                other.knockBack(-Math.sin(yaw), Math.cos(yaw)); // pushed the way the player faces
                 other.attackFromPlayer(player, 1f, looting);
             }
             playSound("entity.player.attack.sweep", player.x, player.y, player.z, 1f, 1f);
-            if (particles != null) particles.spawn(ParticleManager.Kind.SWEEP_ATTACK, player.x - Math.sin(yaw),
-                player.y + player.eyeHeight() * 0.5, player.z + Math.cos(yaw), 0, 0, 0, null);
+            if (particles != null) particles.spawn(ParticleManager.Kind.SWEEP_ATTACK, player.x + Math.sin(yaw),
+                player.y + player.eyeHeight() * 0.5, player.z - Math.cos(yaw), 0, 0, 0, null);
         }
         if (crit) playSound("entity.player.attack.crit", player.x, player.y, player.z, 1f, 1f);
         else if (!sweep) playSound(charged ? "entity.player.attack.strong" : "entity.player.attack.weak",
@@ -1795,7 +1805,7 @@ public final class Minecraft implements GuiContext {
                 px /= length; py /= length; pz /= length;
                 double impact = (1.0 - closeness) * net.minecraft.world.Explosion.exposure(world, x, y, z, player.boundingBox());
                 float damage = (int) ((impact * impact + impact) / 2.0 * 7.0 * reachDistance + 1.0);
-                player.attackByExplosion(damage, attacker);
+                player.attackByExplosion(damage, attacker, x, z);
                 // The client takes the push straight from the explosion packet (no Blast Protection), unless flying in Creative.
                 if (!isSpectator() && !(isCreative() && player.isFlying)) {
                     player.motionX += px * impact;
@@ -2780,6 +2790,17 @@ public final class Minecraft implements GuiContext {
             itemRenderer.renderHeld(held, ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
             glPopMatrix();
         }
+        ItemStack offhand = inventory == null ? null : inventory.getOffhandItem();
+        if (offhand != null) {
+            // 1.9 LayerHeldItem's left hand: the right hand's placement mirrored onto the left arm.
+            glPushMatrix();
+            playerModel.leftArm.transform();
+            glTranslatef(0.0625f, 0.4375f, 0.0625f);
+            if (player.sneaking) glTranslatef(0f, 0.203125f, 0f);
+            glScalef(-1f, 1f, 1f);
+            itemRenderer.renderHeld(offhand, ItemRenderer.Held.THIRD_PERSON, light[0], light[1], light[2]);
+            glPopMatrix();
+        }
         glPopMatrix();
     }
 
@@ -3196,7 +3217,8 @@ public final class Minecraft implements GuiContext {
                 ItemStack using = player.itemInUse();
                 int used = 72000 - player.itemInUseCount();
                 player.clearItemInUse();
-                if (using != null && using.item().useAction() == Item.UseAction.BOW) releaseBow(using, used);
+                if (using != null && using.item().useAction() == Item.UseAction.BOW) withUsingHand(() -> releaseBow(using, used));
+                offhandInUse = false;
             }
             return;
         }
@@ -3247,21 +3269,54 @@ public final class Minecraft implements GuiContext {
         }
         if (usePressed || gameSettings.keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0) {
             rightClickDelayTimer = 4;
-            // Minecraft.rightClickMouse: an entity under the crosshair is interacted with first.
-            if (pointedEntity != null) {
-                if (interactWithEntity(pointedEntity)) playerAnimation.swing();
-                else useHeldItem();
-                return;
-            }
-            if (activateBlock(hit)) playerAnimation.swing();
-            else if (useFlintAndSteel(hit)) playerAnimation.swing();
-            else if (useSpawnEgg(hit)) playerAnimation.swing();
-            else if (useSkull(hit)) playerAnimation.swing();
-            else if (!useBucket()) {
-                if (hit != null && placeHeldBlock(hit)) playerAnimation.swing();
-                else useHeldItem();
+            // 1.9 Minecraft.rightClickMouse: the main hand first, then the offhand when the main hand did nothing.
+            if (rightClick(hit) || inventory.getOffhandItem() == null) return;
+            inventory.swapHands();
+            try {
+                if (rightClick(hit) && player.isUsingItem()) offhandInUse = true;
+            } finally {
+                inventory.swapHands();
             }
         }
+    }
+
+    /**
+     * Whether the item in use came from the offhand. The game's item code
+     * works on the selected hotbar slot, so offhand uses run with the hands
+     * swapped for the moment (see {@link #withOffhand}).
+     */
+    private boolean offhandInUse;
+
+    /** The stack the player is using an item from: the offhand's or the selected slot's. */
+    private ItemStack usingHandStack() { return offhandInUse ? inventory.getOffhandItem() : inventory.getCurrentItem(); }
+
+    /** Runs {@code action} with the offhand stack in the selected slot when the item in use is the offhand's. */
+    private void withUsingHand(Runnable action) {
+        if (!offhandInUse) { action.run(); return; }
+        inventory.swapHands();
+        try { action.run(); } finally { inventory.swapHands(); }
+    }
+
+    /** One right click with the selected stack; returns whether anything happened. */
+    private boolean rightClick(WorldRenderer.Hit hit) {
+        // Minecraft.rightClickMouse: an entity under the crosshair is interacted with first.
+        if (pointedEntity != null) {
+            if (interactWithEntity(pointedEntity)) {
+                playerAnimation.swing();
+                return true;
+            }
+            return useHeldItem();
+        }
+        if (activateBlock(hit) || useFlintAndSteel(hit) || useSpawnEgg(hit) || useSkull(hit)) {
+            playerAnimation.swing();
+            return true;
+        }
+        if (useBucket()) return true;
+        if (hit != null && placeHeldBlock(hit)) {
+            playerAnimation.swing();
+            return true;
+        }
+        return useHeldItem();
     }
 
     /**
@@ -4087,6 +4142,7 @@ public final class Minecraft implements GuiContext {
         if (inventory == null || Boolean.parseBoolean(levelInfo.gameRules.getOrDefault("keepInventory", "false"))) return;
         for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) scatter(inventory.mainInventory, slot);
         for (int slot = 0; slot < InventoryPlayer.ARMOR_SIZE; slot++) scatter(inventory.armorInventory, slot);
+        scatter(inventory.offHandInventory, 0);
     }
 
     private void scatter(ItemStack[] slots, int slot) {
@@ -4338,6 +4394,7 @@ public final class Minecraft implements GuiContext {
             int removed = 0;
             for (int slot = 0; slot < InventoryPlayer.MAIN_SIZE; slot++) removed += count(inventory.getBySaveSlot(slot));
             for (int slot = 100; slot < 100 + InventoryPlayer.ARMOR_SIZE; slot++) removed += count(inventory.getBySaveSlot(slot));
+            removed += count(inventory.getOffhandItem());
             removed += count(inventory.getItemStack());
             inventory.clear();
             return removed;

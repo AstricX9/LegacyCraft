@@ -4257,6 +4257,20 @@
    ],
    "result": "dye_pink",
    "count": 2
+  },
+  {
+   "type": "shaped",
+   "pattern": [
+    "WoW",
+    "WWW",
+    " W "
+   ],
+   "key": {
+    "W": "#planks",
+    "o": "iron_ingot"
+   },
+   "result": "shield",
+   "count": 1
   }
  ]
 }
