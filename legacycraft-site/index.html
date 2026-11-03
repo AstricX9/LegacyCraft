@@ -1,87 +1,75 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LegacyCraft</title>
-<link rel="icon" type="image/png" href="assets/icon.png">
-<link rel="stylesheet" href="css/global.css">
-<link rel="stylesheet" href="css/elements.css">
-<link rel="stylesheet" href="css/home.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A familiar world, rebuilt from the ground up. Explore LegacyCraft, an independent Java sandbox inspired by the Minecraft 1.8.9 era.">
+  <meta name="theme-color" content="#141814">
+  <title>LegacyCraft — A world worth getting lost in.</title>
+  <link rel="icon" type="image/png" href="assets/icon.png">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/elements.css">
+  <link rel="stylesheet" href="css/home.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="bar"><div class="bar-in">
+    <a class="logo" href="index.html" aria-label="LegacyCraft home"><img src="assets/logo.png" alt="LegacyCraft" width="520" height="72"></a>
+    <nav class="nav" aria-label="Main navigation"><a href="#game">The game</a><a href="#showcase">Screenshots</a><a href="#development">Development</a></nav>
+    <a class="btn btn-small" href="download.html">Get started <span aria-hidden="true">↗</span></a>
+  </div></header>
 
-<header class="bar">
-  <div class="bar-in">
-    <a class="logo" href="index.html"><img src="assets/logo.png" alt="LegacyCraft" width="230" height="32"></a>
-    <nav class="nav" aria-label="Main">
-      <a href="index.html" aria-current="page">Home</a><a href="#game">Game</a><a href="#community">Community</a><a href="download.html">Download</a><a href="download.html#help">Help</a>
-    </nav>
-    <div class="acct">Offline mode | <b>No login</b></div>
-  </div>
-</header>
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-heading">
+      <img class="hero-image" src="assets/showcase/02-world-overview-clean.png" alt="Grassy hills, wildflowers and forest in a LegacyCraft world" width="854" height="480" fetchpriority="high">
+      <div class="hero-shade"></div>
+      <div class="hero-top"><span class="eyebrow"><span class="status-dot"></span> An independent sandbox. A familiar feeling.</span><span class="capture-label">Captured in LegacyCraft</span></div>
+      <div class="hero-copy">
+        <h1 id="hero-heading">A world worth<br>getting lost in.</h1>
+        <p>The open horizon. The first block. The next big idea.<br class="desktop-break"> Rediscover the spirit of the 1.8.9 era, rebuilt from the ground up.</p>
+        <div class="actions"><a class="btn" href="download.html">Start your next world <span aria-hidden="true">↗</span></a><a class="text-link" href="#showcase">Take a look around <span aria-hidden="true">↓</span></a></div>
+      </div>
+      <div class="hero-bottom"><span>Explore. Build. Make it yours.</span><span>Java / Open source / In development</span></div>
+    </section>
 
-<main class="wrap" id="home">
-  <section class="top">
-    <button class="video" id="video" aria-label="Play the world flyover">
-      <canvas id="world" width="255" height="141"></canvas>
-      <div class="wm"><img src="assets/logo.png" alt=""></div>
-      <div class="play"><i></i></div>
-    </button>
+    <section class="section wrap" id="game" aria-labelledby="game-heading">
+      <div class="section-heading"><p class="eyebrow">01 / Back to the blocks</p><div><h2 id="game-heading">It starts with one block.</h2><p class="section-intro">A quiet place to explore. A blank canvas to build on. LegacyCraft is an independent Java sandbox working toward the feel and behaviour of Minecraft 1.8.9.</p></div></div>
+      <div class="features">
+        <article><span class="feature-number">01</span><h3>Follow your curiosity.</h3><p>Head into forests, cross rolling hills, and find out what lies beneath. World generation brings the landscape to life, one chunk at a time.</p></article>
+        <article><span class="feature-number">02</span><h3>Leave your mark.</h3><p>Place your first block, plan something bigger, and make a corner of the world your own. Local worlds and saves let you pick up where you left off.</p></article>
+        <article><span class="feature-number">03</span><h3>That familiar feeling.</h3><p>From the title screen to the options menu, the details matter. Familiar menus and resource pack support are already part of the client.</p></article>
+      </div>
+    </section>
 
-    <div class="side" id="download">
-      <img id="mascots" src="assets/animals.png" alt="" onerror="this.hidden=true">
-      <a class="btn" href="download.html">Get LegacyCraft</a>
-      <p class="price">Free download</p>
-      <p class="alt">Windows, macOS and Linux<br><a href="download.html#windows">Windows</a> · <a href="download.html#mac">Mac</a> · <a href="download.html#linux">Linux</a></p>
-      <p class="alt muted small">Version <span class="lc-version">a1.0.1</span> · needs <a href="download.html#java">Java 17</a></p>
-    </div>
-  </section>
+    <section class="section wrap showcase" id="showcase" aria-labelledby="showcase-heading">
+      <div class="section-heading"><p class="eyebrow">02 / Inside the game</p><div><h2 id="showcase-heading">Less talk. More world.</h2><p class="section-intro">Real captures from the development build. A little of what’s waiting on the other side of the menu.</p></div></div>
+      <figure class="gallery">
+        <div class="gallery-stage"><img id="gallery-image" src="assets/showcase/01-world-overview.png" alt="A forested LegacyCraft landscape with the in-game hotbar and HUD" width="854" height="480" loading="lazy"><button class="expand-button" id="expand-image" type="button" hidden aria-label="Enlarge current screenshot"><span aria-hidden="true">↗</span> Full view</button></div>
+        <figcaption><span id="gallery-caption">A world of your own.</span><span>Development build · In-game captures</span></figcaption>
+      </figure>
+      <div class="gallery-choices" aria-label="Choose a screenshot">
+        <a href="assets/showcase/01-world-overview.png" data-caption="A world of your own." data-alt="A forested LegacyCraft landscape with the in-game hotbar and HUD" aria-current="true"><span>01</span> The overworld <span class="choice-arrow" aria-hidden="true">↗</span></a>
+        <a href="assets/showcase/04-title-screen.png" data-caption="Your next world starts here." data-alt="LegacyCraft title screen with its panoramic background and familiar menu"><span>02</span> A familiar welcome <span class="choice-arrow" aria-hidden="true">↗</span></a>
+        <a href="assets/showcase/05-options-screen.png" data-caption="Set things up your way." data-alt="LegacyCraft options menu with controls, audio and video settings"><span>03</span> Make it your own <span class="choice-arrow" aria-hidden="true">↗</span></a>
+        <a href="assets/showcase/06-resource-packs.png" data-caption="A different look. The same world." data-alt="The LegacyCraft resource pack selection screen"><span>04</span> Change the look <span class="choice-arrow" aria-hidden="true">↗</span></a>
+      </div>
+      <p class="gallery-announcement sr-only" role="status" aria-live="polite"></p>
+    </section>
 
-  <section class="blurb" id="game">
-    <p>LegacyCraft is a block-building sandbox rebuilt from scratch to play exactly like the 1.8.9 era. Same movement, same tick timing, same redstone quirks, the way you remember them.</p>
-    <p>Dig a cave, light it with torches, and listen for the water dripping somewhere below. Mine for diamonds, craft in a 3×3 grid, smelt your ore, and hide from whatever comes out at night. Build a portal when you're ready for the Nether.</p>
-    <p><a href="download.html">You can download LegacyCraft</a> for Windows, macOS and Linux. The launcher works fully offline: no login, just manage your worlds, pick a skin and cape, and play. LegacyCraft ships with its own textures; if you own 1.8.9, drop your own resource pack in and play with the look you're used to. Every place we knowingly differ from 1.8.9 is written down in the <a href="https://github.com/AstricX9/LegacyCraft">deviations list</a>.</p>
-  </section>
+    <section class="development" id="development" aria-labelledby="development-heading"><div class="wrap development-inner">
+      <div><p class="eyebrow"><span class="status-dot"></span> 03 / A work in progress</p><h2 id="development-heading">Old-school spirit.<br>Still taking shape.</h2><p>The client is playable, with world generation, menus, local saves and resource pack support. We’re still building and checking the details against the 1.8.9 behaviour we’re aiming for.</p><a class="text-link" href="https://github.com/AstricX9/LegacyCraft">Follow the project on GitHub <span aria-hidden="true">↗</span></a></div>
+      <div class="development-notes">
+        <article><span>Available today</span><h3>A world you can step into.</h3><p>A playable client and local worlds, available to run from source.</p></article>
+        <article><span>Still in progress</span><h3>The details that make it feel right.</h3><p>Some mechanics and compatibility features are incomplete. <a href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/docs/compat/deviations.yml">Read the known differences <span aria-hidden="true">↗</span></a></p></article>
+        <article><span>Built in the open</span><h3>Room to make a difference.</h3><p>Browse the source, report a bug, or contribute to the next piece of the game.</p></article>
+      </div>
+    </div></section>
 
-  <section class="cols" id="community">
-    <div class="news">
-      <h2>LegacyCraft Dev News</h2>
-      <p>We post updates here as each system gets matched against the real 1.8.9 client, side by side.</p>
-      <a href="#render">Render overhaul: vanilla-style chunks</a><time>this week</time>
-      <a href="#sound">Sound is in: footsteps, music, caves</a><time>recently</time>
-      <a href="#craft">Crafting tables and the 2×2 grid</a><time>recently</time>
-      <a href="#fluids">Water and lava flow</a><time>earlier</time>
-      <a href="#launcher">An offline launcher, 1:1</a><time>earlier</time>
-    </div>
-    <div class="log">
-      <h2>Dev Log / #changes</h2>
-      <p>Short notes straight from the build. The full list lives in the repo.</p>
-      <p><span class="at">#sound</span> Ogg playback with 28 channels plus 2 for music. Linear fade over 16 blocks.<time>DEV-023</time></p>
-      <p><span class="at">#crafting</span> Shaped, mirrored and shapeless recipes. Shift-click crafts repeatedly.<time>DEV-024</time></p>
-      <p><span class="at">#fluids</span> Water and lava flow and look right. Lava can't start fires yet.<time>DEV-022</time></p>
-      <p><span class="at">#fire</span> Fire spreads and burns out. Random block ticks still to come.<time>DEV-026</time></p>
-      <p><span class="at">#launcher</span> No login screen. Skin changing and capes work offline.<time>launcher/</time></p>
-    </div>
-  </section>
+    <section class="wrap closing" aria-labelledby="closing-heading"><p class="eyebrow">Your next idea needs a world.</p><h2 id="closing-heading">Make yourself at home.</h2><p>Take a look at the current build and how to run it.</p><a class="btn" href="download.html">Get started with LegacyCraft <span aria-hidden="true">↗</span></a></section>
+  </main>
 
-  <section class="tiles" aria-label="Site textures">
-    <h2>Site textures</h2>
-    <p>The header and background tile any square image (16×16 recommended), scaled up with sharp pixels. On your own host, put <code>assets/dirt.png</code> and <code>assets/stone.png</code> next to index.html. To try one here, pick a file:</p>
-    <div class="tile-row">
-      <label for="tileHeader">Header tile <input type="file" id="tileHeader" accept="image/png,image/gif,image/webp"></label>
-      <label for="tileBg">Background tile <input type="file" id="tileBg" accept="image/png,image/gif,image/webp"></label>
-      <button type="button" class="btn-plain" id="tileReset">Reset</button>
-    </div>
-  </section>
-
-</main>
-
-<footer class="foot">
-  LegacyCraft is an independent fan project, not affiliated with or endorsed by Mojang or Microsoft. — <a href="https://github.com/AstricX9/LegacyCraft">Source</a> — <a href="download.html#help">Help</a>
-</footer>
-
-<script src="js/home.js"></script>
-<script src="js/downloads.js"></script>
+  <footer class="foot wrap"><div class="footer-top"><a class="footer-name" href="index.html">LegacyCraft</a><div><a href="https://github.com/AstricX9/LegacyCraft">GitHub ↗</a><a href="download.html#help">Help</a><a href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/LICENSE">GPL-3.0</a></div></div><p>An independent project. Not affiliated with or endorsed by Mojang or Microsoft.</p></footer>
+  <dialog id="screenshot-dialog" aria-label="Screenshot full view"><button class="dialog-close" type="button" autofocus>Close <span aria-hidden="true">×</span></button><img id="dialog-image" alt="" width="854" height="480"></dialog>
+  <script src="js/home.js"></script>
 </body>
 </html>

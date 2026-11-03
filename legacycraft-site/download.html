@@ -1,108 +1,58 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Download | LegacyCraft</title>
-<link rel="icon" type="image/png" href="assets/icon.png">
-<link rel="stylesheet" href="css/global.css">
-<link rel="stylesheet" href="css/elements.css">
-<link rel="stylesheet" href="css/download.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Get started with the LegacyCraft development build. Find source setup instructions, platform packages and Java requirements.">
+  <meta name="theme-color" content="#141814">
+  <title>Get started — LegacyCraft</title>
+  <link rel="icon" type="image/png" href="assets/icon.png">
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/elements.css">
+  <link rel="stylesheet" href="css/download.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="bar"><div class="bar-in">
+    <a class="logo" href="index.html" aria-label="LegacyCraft home"><img src="assets/logo.png" alt="LegacyCraft" width="520" height="72"></a>
+    <nav class="nav" aria-label="Main navigation"><a href="index.html#game">The game</a><a href="index.html#showcase">Screenshots</a><a href="index.html#development">Development</a></nav>
+    <a class="btn btn-small" href="download.html" aria-current="page">Get started <span aria-hidden="true">↗</span></a>
+  </div></header>
 
-<header class="bar">
-  <div class="bar-in">
-    <a class="logo" href="index.html"><img src="assets/logo.png" alt="LegacyCraft" width="230" height="32"></a>
-    <nav class="nav" aria-label="Main">
-      <a href="index.html">Home</a><a href="index.html#game">Game</a><a href="index.html#community">Community</a><a href="download.html" aria-current="page">Download</a><a href="download.html#help">Help</a>
-    </nav>
-    <div class="acct">Offline mode | <b>No login</b></div>
-  </div>
-</header>
+  <main class="wrap download-main" id="main">
+    <section class="download-intro" aria-labelledby="download-heading"><p class="eyebrow"><span class="status-dot"></span> Open source. Still growing.</p><h1 id="download-heading">Your next world<br>starts here.</h1><p>Try what we’re building. LegacyCraft is in active development, and running the client from source is the current way to get started.</p><div class="build-meta"><span>Project version <b class="lc-version">a1.0.2</b></span><span>Targeting <b class="mc-version">1.8.9</b></span><span>Java 17+</span></div></section>
 
-<main class="wrap">
-  <div class="prose">
-    <h1>Download</h1>
-    <p>LegacyCraft is free. Each download is a zip with the launcher and the game already built, so there's nothing to compile and no account to make. Unzip it anywhere and start the launcher. You'll be able to play without an Internet connection.</p>
-    <p class="muted small">Current version: <b class="lc-version">a1.0.1</b> (Minecraft <span class="mc-version">1.8.9</span> behaviour).</p>
-
-    <section id="java">
-      <h2>You need Java 17</h2>
-      <div class="note">
-        <p>LegacyCraft runs on <strong>Java 17 or newer</strong>. If you already have it installed, you're done. If not, you don't have to install anything: put a copy of Java in the LegacyCraft folder and the launcher finds it there.</p>
-        <ol class="steps">
-          <li>Go to <a href="https://adoptium.net/temurin/releases/?version=17">Temurin 17 at adoptium.net</a> and pick your system, the same architecture as the zip you downloaded (x64, x86 or aarch64), and the <b>JRE</b> archive (.zip on Windows, .tar.gz on Mac and Linux).</li>
-          <li>Unpack it into the LegacyCraft folder and rename the folder it makes to <code>runtime</code>.</li>
-        </ol>
-        <p class="small muted">That gives <code>runtime\bin\javaw.exe</code> on Windows, <code>runtime/bin/java</code> on Linux or <code>runtime/Contents/Home/bin/java</code> on a Mac.</p>
+    <section class="source-setup" id="source" aria-labelledby="source-heading">
+      <div class="setup-summary"><p class="eyebrow">01 / Run the current client</p><h2 id="source-heading">A few steps<br> to a new world.</h2><p>You’ll need Git, JDK 17 or newer, and a graphics driver with OpenGL support.</p><a class="text-link" href="https://github.com/AstricX9/LegacyCraft#run-from-source">Full setup guide <span aria-hidden="true">↗</span></a></div>
+      <div class="setup-steps">
+        <article><span class="step-number">01</span><h3>Get the source.</h3><p>Clone the project and open its folder.</p><code class="cmd">git clone https://github.com/AstricX9/LegacyCraft.git
+cd LegacyCraft</code></article>
+        <article><span class="step-number">02</span><h3>Add your resource files.</h3><p>The repository does not include Minecraft’s textures, sounds or other assets. Follow the <a href="https://github.com/AstricX9/LegacyCraft#minecraft-resource-files">resource setup guide</a> to add a local copy you’re entitled to use.</p><p class="small">On Windows, the included <code>fetch-mc-assets.bat</code> helper can set up the resource folder.</p></article>
+        <article><span class="step-number">03</span><h3>Step into the game.</h3><p>Run the Gradle Wrapper for your system.</p><div class="run-commands"><div><span>Windows PowerShell</span><code class="cmd">.\gradlew.bat run</code></div><div><span>macOS / Linux</span><code class="cmd">./gradlew run</code></div></div><p class="small">Gradle downloads the build dependencies on the first run.</p></article>
       </div>
     </section>
 
-    <section id="windows">
-      <h2>LegacyCraft for Windows</h2>
-      <p>Download and unzip <a class="file" data-pkg="windows" href="https://github.com/AstricX9/LegacyCraft/releases">LegacyCraft-windows.zip</a> <span class="file-meta">64- and 32-bit, Windows 7 SP1 or later</span>. Then double-click <code>LegacyCraft Launcher.bat</code> and press Play. <code>Play LegacyCraft.bat</code> starts the game straight away without the launcher.</p>
-      <p>This one zip works on every Windows PC, old or new, and picks the right files for your system. On 32-bit Windows the game is limited to 1 GB of memory.</p>
+    <section class="packages" id="packages" aria-labelledby="packages-heading">
+      <div class="section-heading"><p class="eyebrow">02 / Packaged builds</p><div><h2 id="packages-heading">Pick your platform.</h2><p class="section-intro">The launcher and packaged builds are early prototypes. Check GitHub Releases for published packages, or use the source setup above for development.</p></div></div>
+      <div class="platforms">
+        <article id="windows"><span class="platform-symbol" aria-hidden="true">⊞</span><h3>Windows</h3><p>x64, x86 and ARM64</p><a class="package-link" data-pkg="windows" href="https://github.com/AstricX9/LegacyCraft/releases">Check GitHub releases <span aria-hidden="true">↗</span></a><a class="platform-details" href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/packaging/windows/README.txt">Windows package guide ↗</a></article>
+        <article id="mac"><span class="platform-symbol" aria-hidden="true">⌘</span><h3>macOS</h3><p>Apple silicon and Intel</p><a class="package-link" data-pkg="macosArm64" href="https://github.com/AstricX9/LegacyCraft/releases">Check GitHub releases <span aria-hidden="true">↗</span></a><a class="platform-details" data-pkg="macosX64" href="https://github.com/AstricX9/LegacyCraft/releases">Intel builds on GitHub ↗</a></article>
+        <article id="linux"><span class="platform-symbol" aria-hidden="true">&gt;_</span><h3>Linux</h3><p>x64 and ARM64</p><a class="package-link" data-pkg="linuxX64" href="https://github.com/AstricX9/LegacyCraft/releases">Check GitHub releases <span aria-hidden="true">↗</span></a><a class="platform-details" data-pkg="linuxArm64" href="https://github.com/AstricX9/LegacyCraft/releases">ARM64 builds on GitHub ↗</a></article>
+      </div>
+      <p class="package-status" role="status">Package links open GitHub Releases unless a matching download is hosted here.</p>
     </section>
 
-    <section id="windows-alt">
-      <h2>LegacyCraft for Windows (alternative)</h2>
-      <p>If you'd rather have a smaller download for just your system, there's <a class="file" data-pkg="windowsX64" href="https://github.com/AstricX9/LegacyCraft/releases">64-bit</a>, <a class="file" data-pkg="windowsX86" href="https://github.com/AstricX9/LegacyCraft/releases">32-bit</a> and <a class="file" data-pkg="windowsArm64" href="https://github.com/AstricX9/LegacyCraft/releases">ARM64</a> (Surface and other Snapdragon PCs). To see which Windows you have: Start, right-click Computer, Properties, "System type". They run the same way as the one above.</p>
+    <section class="help-section" id="help" aria-labelledby="help-heading">
+      <div><p class="eyebrow">03 / A little help</p><h2 id="help-heading">Before you head out.</h2><p class="muted">A few things to know about the current build.</p></div>
+      <div class="faq">
+        <details id="java"><summary>Which Java version do I need?</summary><div><p>Use JDK 17 or newer to run from source. Packaged builds need Java 17 or newer. <a href="https://adoptium.net/temurin/releases/?version=17">Get Temurin 17 ↗</a></p><p>A package can also use a Java runtime placed in its <code>runtime/</code> folder. See the <a href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/packaging/windows/README.txt">Windows</a> or <a href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/packaging/unix/README.txt">macOS and Linux</a> package guide for the folder layout.</p></div></details>
+        <details><summary>Is everything from 1.8.9 implemented?</summary><div><p>Not yet. LegacyCraft targets the observable behaviour of Minecraft 1.8.9, but some mechanics and compatibility features are incomplete. The <a href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/docs/compat/deviations.yml">known differences</a> are tracked in the repository.</p></div></details>
+        <details><summary>The game won’t open. Where do I start?</summary><div><p>Check that Java 17 or newer is installed and the resource files are in place. For OpenGL errors, install a current graphics driver from your hardware manufacturer.</p><p>When running from source, the terminal contains the game’s output. Include the error and your platform when <a href="https://github.com/AstricX9/LegacyCraft/issues">reporting an issue</a>.</p></div></details>
+        <details><summary>Can I build a package myself?</summary><div><p>With JDK 17 installed, run <code>build.bat</code> on Windows or <code>./build.sh</code> on macOS or Linux. Packages are written to <code>build/distributions/</code>. See the <a href="https://github.com/AstricX9/LegacyCraft#build-distributable-packages">build guide</a> for platform tasks and requirements.</p></div></details>
+      </div>
     </section>
-
-    <section id="mac">
-      <h2>LegacyCraft for macOS</h2>
-      <p>Download <a class="file" data-pkg="macosArm64" href="https://github.com/AstricX9/LegacyCraft/releases">LegacyCraft-macosArm64.zip</a> for Apple silicon (M1 and newer) or <a class="file" data-pkg="macosX64" href="https://github.com/AstricX9/LegacyCraft/releases">LegacyCraft-macosX64.zip</a> for Intel Macs. Unzip it, open Terminal in that folder and run:</p>
-      <code class="cmd">./launcher.sh</code>
-      <p>If macOS refuses to open a downloaded file, run <code>xattr -dr com.apple.quarantine .</code> in the folder once.</p>
-    </section>
-
-    <section id="linux">
-      <h2>LegacyCraft for Linux</h2>
-      <p>Download <a class="file" data-pkg="linuxX64" href="https://github.com/AstricX9/LegacyCraft/releases">LegacyCraft-linuxX64.zip</a> (most PCs) or <a class="file" data-pkg="linuxArm64" href="https://github.com/AstricX9/LegacyCraft/releases">LegacyCraft-linuxArm64.zip</a> (ARM, like a Raspberry Pi 4 or 5). Unzip it and run <code>./launcher.sh</code>, or <code>./play.sh</code> to skip the launcher. Any Java 17 on your PATH or in <code>JAVA_HOME</code> works.</p>
-
-      <details class="more">
-        <summary>Show all platforms</summary>
-        <table class="pkg-table">
-          <thead><tr><th>Platform</th><th>File</th><th>Start with</th></tr></thead>
-          <tbody>
-            <tr><td>Windows (64- and 32-bit)</td><td><a class="file" data-pkg="windows" data-name href="https://github.com/AstricX9/LegacyCraft/releases">windows</a></td><td><code>LegacyCraft Launcher.bat</code></td></tr>
-            <tr><td>Windows 64-bit</td><td><a class="file" data-pkg="windowsX64" data-name href="https://github.com/AstricX9/LegacyCraft/releases">windowsX64</a></td><td><code>LegacyCraft Launcher.bat</code></td></tr>
-            <tr><td>Windows 32-bit</td><td><a class="file" data-pkg="windowsX86" data-name href="https://github.com/AstricX9/LegacyCraft/releases">windowsX86</a></td><td><code>LegacyCraft Launcher.bat</code></td></tr>
-            <tr><td>Windows ARM64</td><td><a class="file" data-pkg="windowsArm64" data-name href="https://github.com/AstricX9/LegacyCraft/releases">windowsArm64</a></td><td><code>LegacyCraft Launcher.bat</code></td></tr>
-            <tr><td>macOS Apple silicon</td><td><a class="file" data-pkg="macosArm64" data-name href="https://github.com/AstricX9/LegacyCraft/releases">macosArm64</a></td><td><code>./launcher.sh</code></td></tr>
-            <tr><td>macOS Intel</td><td><a class="file" data-pkg="macosX64" data-name href="https://github.com/AstricX9/LegacyCraft/releases">macosX64</a></td><td><code>./launcher.sh</code></td></tr>
-            <tr><td>Linux x64</td><td><a class="file" data-pkg="linuxX64" data-name href="https://github.com/AstricX9/LegacyCraft/releases">linuxX64</a></td><td><code>./launcher.sh</code></td></tr>
-            <tr><td>Linux ARM64</td><td><a class="file" data-pkg="linuxArm64" data-name href="https://github.com/AstricX9/LegacyCraft/releases">linuxArm64</a></td><td><code>./launcher.sh</code></td></tr>
-          </tbody>
-        </table>
-      </details>
-    </section>
-
-    <section id="source">
-      <h2>Build it yourself</h2>
-      <p>Every package above is made from the <a href="https://github.com/AstricX9/LegacyCraft">source on GitHub</a>. With a JDK 17 installed, run <code>build.bat</code> (Windows) or <code>./build.sh</code> (Linux and macOS) for a menu, or call a Gradle task directly:</p>
-      <code class="cmd">gradlew packageWindows      # or packageLinuxX64, packageMacosArm64, packageAll ...</code>
-      <p>The zips land in <code>build/distributions/</code>, named <code>LegacyCraft-&lt;version&gt;-&lt;platform&gt;.zip</code>. The version comes from <code>version.txt</code>.</p>
-    </section>
-
-    <section id="help">
-      <h2>If the game won't start</h2>
-      <ul class="steps">
-        <li><b>"Needs Java 17":</b> see <a href="#java">You need Java 17</a> above.</li>
-        <li><b>The window doesn't open, or there's an OpenGL error:</b> update your graphics driver from NVIDIA, AMD or Intel. The drivers Windows installs by itself often don't include proper OpenGL.</li>
-        <li><b>Out of memory on 32-bit Windows:</b> keep the instance's memory at 1024 MB or less in the launcher.</li>
-        <li>The launcher's <b>Launcher Log</b> tab shows everything the game printed.</li>
-      </ul>
-      <p>Your settings and instances are kept in <code>.legacycraft-launcher</code> in your home folder, so a new download keeps your worlds.</p>
-    </section>
-  </div>
-</main>
-
-<footer class="foot">
-  LegacyCraft is an independent fan project, not affiliated with or endorsed by Mojang or Microsoft. — <a href="https://github.com/AstricX9/LegacyCraft">Source</a> — <a href="download.html#help">Help</a>
-</footer>
-
-<script src="js/downloads.js"></script>
+  </main>
+  <footer class="foot wrap"><div class="footer-top"><a class="footer-name" href="index.html">LegacyCraft</a><div><a href="https://github.com/AstricX9/LegacyCraft">GitHub ↗</a><a href="#help">Help</a><a href="https://github.com/AstricX9/LegacyCraft/blob/1.8.9/LICENSE">GPL-3.0</a></div></div><p>An independent project. Not affiliated with or endorsed by Mojang or Microsoft.</p></footer>
+  <script src="js/downloads.js"></script>
 </body>
 </html>

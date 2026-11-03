@@ -100,7 +100,7 @@ The dedicated server uses offline mode and listens on port `25565` by default. I
 
 ## Website and launcher status
 
-The website in [`legacycraft-site/`](legacycraft-site/) and the launcher in [`launcher/`](launcher/) are embarrassing early WIP/concept prototypes. They are rough, incomplete, and not ready to be used as a public download or gameplay path. Do not rely on them; use the Gradle commands above when working with LegacyCraft.
+The website in [`legacycraft-site/`](legacycraft-site/) showcases current client captures and provides setup instructions. It is a standalone static site with no build step. The launcher in [`launcher/`](launcher/) and packaged builds are early prototypes; use the Gradle commands above when working with LegacyCraft.
 
 ## Build distributable packages
 
@@ -124,7 +124,7 @@ Packaged builds need Java 17 on the target computer. A Java runtime can be place
 - [`docs/compat/`](docs/compat/) — compatibility notes, deviations, verified facts, and source policy
 - [`data/mc189/README.md`](data/mc189/README.md) — game-data authoring and generation
 - [`launcher/`](launcher/) — the unfinished offline launcher prototype
-- [`legacycraft-site/`](legacycraft-site/) — the unfinished website prototype
+- [`legacycraft-site/`](legacycraft-site/) — game showcase and getting-started website
 - [`packaging/`](packaging/) — platform packaging scripts and launch instructions
 
 ## License

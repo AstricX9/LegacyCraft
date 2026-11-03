@@ -8,5 +8,6 @@ Put the launcher packages here to host them on this site. They're the zips that
   LegacyCraft-<version>-linuxX64.zip       LegacyCraft-<version>-linuxArm64.zip
 
 <version> is the "lc:" line of version.txt (set VERSION in js/downloads.js to match).
-Any zip that isn't here is linked from the GitHub release tagged <version> instead,
-so attaching the zips to that release works too.
+The main platform links use local packages when present. Otherwise they keep a
+working link to the GitHub Releases page; the site does not guess release asset
+URLs. Run from source for the current development workflow.
