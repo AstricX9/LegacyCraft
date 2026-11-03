@@ -15,13 +15,14 @@ final class DragonModels {
     private DragonModels() {}
 
     private static final float F = -16f;
+    // The -16 shifts only the head's depth (z), as in ModelDragon.
     private static final Part HEAD = new Part(0, 0, 0,
-        new Cube(-6, -1 + F, -8 + F, 12, 5, 16, 0, 176, 44),
-        new Cube(-8, -8 + F, 6 + F, 16, 16, 16, 0, 112, 30),
-        new Cube(-1 - 4, -12 + F, 12 + F, 2, 4, 6, 0, 0, 0, true),
-        new Cube(-1 - 4, -3 + F, -6 + F, 2, 2, 4, 0, 112, 0, true),
-        new Cube(-1 + 4, -12 + F, 12 + F, 2, 4, 6, 0, 0, 0),
-        new Cube(-1 + 4, -3 + F, -6 + F, 2, 2, 4, 0, 112, 0));
+        new Cube(-6, -1, -8 + F, 12, 5, 16, 0, 176, 44),
+        new Cube(-8, -8, 6 + F, 16, 16, 16, 0, 112, 30),
+        new Cube(-1 - 4, -12, 12 + F, 2, 4, 6, 0, 0, 0, true),
+        new Cube(-1 - 4, -3, -6 + F, 2, 2, 4, 0, 112, 0, true),
+        new Cube(-1 + 4, -12, 12 + F, 2, 4, 6, 0, 0, 0),
+        new Cube(-1 + 4, -3, -6 + F, 2, 2, 4, 0, 112, 0));
     private static final Part JAW = new Part(0, 4, 8 + F, new Cube(-6, 0, -16, 12, 4, 16, 0, 176, 65));
     private static final Part NECK = new Part(0, 0, 0,
         new Cube(-5, -5, -5, 10, 10, 10, 0, 192, 104),
