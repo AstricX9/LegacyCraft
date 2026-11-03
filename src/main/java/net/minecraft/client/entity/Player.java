@@ -732,6 +732,9 @@ public final class Player {
             if (input.sneak()) motionY -= 0.15;
             if (input.jump()) motionY += 0.15;
         }
+        // EntityPlayerSP / NetHandlerPlayServer START_FALL_FLYING: jumping again while falling opens a worn elytra.
+        if (input.jump() && !wasJumping && !onGround && motionY < 0 && !elytraFlying && !isFlying && !inWater && elytraUsable())
+            elytraFlying = true;
         jumpWasDown = input.jump();
         sneakWasDown = input.sneak();
         lastForward = forward;
@@ -758,8 +761,68 @@ public final class Player {
         moveWithHeading(strafe, forward, airSpeed);
         addMovementExhaustion(x - beforeX, y - beforeY, z - beforeZ);
         if (onGround && isFlying && !noClip) isFlying = false;
+        updateElytra();
         livingUpdate();
         firstUpdate = false;
+    }
+
+    // ---- 1.9 elytra --------------------------------------------------------------------------
+
+    /** Gliding on an elytra (entity flag 7). */
+    public boolean elytraFlying;
+    public int ticksElytraFlying;
+
+    /** ItemElytra.isBroken: an elytra in the chest slot with more than one use left. */
+    public boolean elytraUsable() {
+        ItemStack chest = armor[2];
+        return chest != null && chest.item().name().path().equals("elytra") && chest.damage() < chest.item().maxDamage() - 1;
+    }
+
+    /** EntityLivingBase.updateElytra: gliding stops on the ground or without a usable elytra, which wears 1 a second. */
+    private void updateElytra() {
+        boolean gliding = elytraFlying && !onGround && !inWater && elytraUsable();
+        if (gliding && (ticksElytraFlying + 1) % 20 == 0 && !allowFlying) EnchantmentHelper.damageItem(armor[2], 1, random);
+        elytraFlying = gliding;
+        ticksElytraFlying = gliding ? ticksElytraFlying + 1 : 0;
+    }
+
+    /** EntityLivingBase.moveEntityWithHeading while gliding: pitch trades height for speed. */
+    private void glide() {
+        if (motionY > -0.5) fallDistance = 1f;
+        double lookX = dirX(), lookY = dirY(), lookZ = dirZ();
+        float pitchRad = (float) Math.toRadians(pitch);
+        double horizontalLook = Math.sqrt(lookX * lookX + lookZ * lookZ);
+        double horizontalSpeed = Math.sqrt(motionX * motionX + motionZ * motionZ);
+        double lookLength = Math.sqrt(lookX * lookX + lookY * lookY + lookZ * lookZ);
+        float lift = (float) Math.cos(pitchRad);
+        lift = (float) (lift * lift * Math.min(1.0, lookLength / 0.4));
+        motionY += -0.08 + lift * 0.06;
+        if (motionY < 0 && horizontalLook > 0) {
+            double d = motionY * -0.1 * lift;
+            motionY += d;
+            motionX += lookX * d / horizontalLook;
+            motionZ += lookZ * d / horizontalLook;
+        }
+        if (pitchRad < 0) {
+            double d = horizontalSpeed * -Math.sin(pitchRad) * 0.04;
+            motionY += d * 3.2;
+            motionX -= lookX * d / horizontalLook;
+            motionZ -= lookZ * d / horizontalLook;
+        }
+        if (horizontalLook > 0) {
+            motionX += (lookX / horizontalLook * horizontalSpeed - motionX) * 0.1;
+            motionZ += (lookZ / horizontalLook * horizontalSpeed - motionZ) * 0.1;
+        }
+        motionX *= 0.99f;
+        motionY *= 0.98f;
+        motionZ *= 0.99f;
+        move(motionX, motionY, motionZ);
+        if (collidedHorizontally) {
+            double after = Math.sqrt(motionX * motionX + motionZ * motionZ);
+            float damage = (float) ((horizontalSpeed - after) * 10.0 - 3.0);
+            if (damage > 0) attack(DamageSource.FLY_INTO_WALL, damage);
+        }
+        if (onGround) elytraFlying = false;
     }
 
     /** EntityLivingBase.jump plus EntityPlayer's cost: 0.8 exhaustion sprinting, 0.2 otherwise. */
@@ -802,6 +865,8 @@ public final class Player {
             motionX *= 0.5; motionY *= 0.5; motionZ *= 0.5;
             motionY -= 0.02;
             if (collidedHorizontally && offsetIsFree(motionX, motionY + 0.6 - y + startY, motionZ)) motionY = 0.3;
+        } else if (elytraFlying) {
+            glide();
         } else {
             float friction = onGround ? slipperinessBelow() * 0.91f : 0.91f;
             float push = onGround ? moveSpeed() * (0.16277136f / (friction * friction * friction)) : airSpeed;
@@ -985,7 +1050,8 @@ public final class Player {
     }
 
     public AxisAlignedBB boundingBox() {
-        return new AxisAlignedBB(x - WIDTH / 2, y, z - WIDTH / 2, x + WIDTH / 2, y + HEIGHT, z + WIDTH / 2);
+        double height = elytraFlying ? 0.6 : HEIGHT;
+        return new AxisAlignedBB(x - WIDTH / 2, y, z - WIDTH / 2, x + WIDTH / 2, y + height, z + WIDTH / 2);
     }
 
     /**
@@ -1214,7 +1280,7 @@ public final class Player {
     }
 
     public double eyeY() { return y + eyeHeight(); }
-    public double eyeHeight() { return sneaking ? 1.54 : 1.62; }
+    public double eyeHeight() { return elytraFlying ? 0.4 : sneaking ? 1.54 : 1.62; }
     public double dirX() { return Math.sin(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }
     public double dirY() { return -Math.sin(Math.toRadians(pitch)); }
     public double dirZ() { return -Math.cos(Math.toRadians(yaw)) * Math.cos(Math.toRadians(pitch)); }

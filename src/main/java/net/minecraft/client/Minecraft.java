@@ -2868,6 +2868,21 @@ public final class Minecraft implements GuiContext {
         StandardLighting.enable();
         glPushMatrix();
         glTranslated(player.x, player.y, player.z);
+        if (player.elytraFlying) {
+            // RenderPlayer.rotateCorpse while gliding: tipped to lie along the view, rolled into turns.
+            glRotatef(180f - body, 0f, 1f, 0f);
+            float time = player.ticksElytraFlying + partialTicks;
+            float lean = Math.max(0f, Math.min(1f, time * time / 100f));
+            glRotatef(lean * (-90f - player.pitch), 1f, 0f, 0f);
+            double lookX = player.dirX(), lookZ = player.dirZ();
+            double motion = player.motionX * player.motionX + player.motionZ * player.motionZ, look = lookX * lookX + lookZ * lookZ;
+            if (motion > 0 && look > 0) {
+                double cos = (player.motionX * lookX + player.motionZ * lookZ) / Math.sqrt(motion * look);
+                double cross = player.motionX * lookZ - player.motionZ * lookX;
+                glRotatef((float) (Math.signum(cross) * Math.toDegrees(Math.acos(Math.max(-1, Math.min(1, cos))))), 0f, 1f, 0f);
+            }
+            glRotatef(-(180f - body), 0f, 1f, 0f);
+        }
         drawPlayer(body, PlayerAnimation.wrap(PlayerAnimation.vanillaYaw(player) - body), player.pitch, swing, amount,
             animation.ticksExisted + partialTicks, animation.swingProgress(partialTicks), eyeLight());
         glPopMatrix();
@@ -2920,7 +2935,10 @@ public final class Minecraft implements GuiContext {
             net.minecraft.client.renderer.entity.SkullRenderer.render(guiTextures, -0.5, 0, -0.5, 1, 180f, headType, light);
             glPopMatrix();
         }
-        if (localCape.present() && gameSettings.isModelPartEnabled("cape")) renderCape(bodyYaw, light);
+        ItemStack chest = inventory == null ? null : inventory.armorInventory[2];
+        boolean elytra = chest != null && chest.item().name().path().equals("elytra");
+        if (elytra) renderElytra(light);
+        else if (localCape.present() && gameSettings.isModelPartEnabled("cape")) renderCape(bodyYaw, light);
         if (player.hurtTime > 0 || player.deathTime > 0) {
             // RendererLivingEntity.setBrightness: a hurt entity is mixed 30% toward red.
             glDisable(GL_TEXTURE_2D);
@@ -2963,6 +2981,30 @@ public final class Minecraft implements GuiContext {
      * falling behind upward), walking bobs it with the view bob, and sneaking
      * adds 25 degrees. Called in drawPlayer's model space.
      */
+    /** ModelElytra's wing angles, eased toward their target each frame (AbstractClientPlayer.rotateElytraX/Y/Z). */
+    private float elytraX = 0.2617994f, elytraY, elytraZ = -0.2617994f;
+
+    /** LayerElytra: the wings folded, spread while gliding (more the less steeply it falls), dropped when sneaking; the cape's texture if there is one. */
+    private void renderElytra(float[] light) {
+        float x = 0.2617994f, z = -0.2617994f, pivotY = 0f, y = 0f;
+        if (player.elytraFlying) {
+            float spread = 1f;
+            double length = Math.sqrt(player.motionX * player.motionX + player.motionY * player.motionY + player.motionZ * player.motionZ);
+            if (player.motionY < 0 && length > 0) spread = 1f - (float) Math.pow(-player.motionY / length, 1.5);
+            x = spread * 0.34906584f + (1f - spread) * x;
+            z = spread * -(float) Math.PI / 2f + (1f - spread) * z;
+        } else if (player.sneaking) {
+            x = 0.6981317f; z = -0.7853982f; pivotY = 3f; y = 0.08726646f;
+        }
+        elytraX += (x - elytraX) * 0.1f;
+        elytraY += (y - elytraY) * 0.1f;
+        elytraZ += (z - elytraZ) * 0.1f;
+        if (localCape.present() && gameSettings.isModelPartEnabled("cape")) localCape.bind();
+        else guiTextures.bind(net.minecraft.client.renderer.ArmorLayer.ELYTRA);
+        glColor4f(light[0], light[1], light[2], 1f);
+        net.minecraft.client.renderer.ArmorLayer.renderElytra(elytraX, elytraY, elytraZ, pivotY);
+    }
+
     private void renderCape(float bodyYaw, float[] light) {
         PlayerAnimation a = playerAnimation;
         localCape.bind();

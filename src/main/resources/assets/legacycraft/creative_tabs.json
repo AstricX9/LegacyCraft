@@ -1954,6 +1954,12 @@
      "key": "item.saddle.name"
     },
     {
+     "item": "elytra",
+     "id": 443,
+     "meta": 0,
+     "key": "item.elytra.name"
+    },
+    {
      "item": "boat",
      "id": 333,
      "meta": 0,

@@ -29,6 +29,7 @@ public final class ArmorValues {
             if (path.endsWith("_" + PIECES[piece]) && MATERIALS.containsKey(path.substring(0, path.length() - PIECES[piece].length() - 1)))
                 return 3 - piece;
         if (path.equals("pumpkin") || path.startsWith("skull_")) return 3;
+        if (path.equals("elytra")) return 2;
         return -1;
     }
 
