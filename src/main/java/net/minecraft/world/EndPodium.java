@@ -19,8 +19,13 @@ public final class EndPodium {
 
     /** Whether a podium is already there: the End has no bedrock of its own, so any at 0,0 is its pillar. */
     public static boolean exists(World world) {
-        for (int y = 0; y < World.HEIGHT; y++) if (world.get(0, y, 0).name().path().equals("bedrock")) return true;
-        return false;
+        return builtY(world) >= 0;
+    }
+
+    /** The centre height of the podium already built (one above the bedrock under its pillar), or -1. */
+    public static int builtY(World world) {
+        for (int y = 0; y < World.HEIGHT; y++) if (world.get(0, y, 0).name().path().equals("bedrock")) return y + 1;
+        return -1;
     }
 
     public static void build(World world, int cy, boolean active) {

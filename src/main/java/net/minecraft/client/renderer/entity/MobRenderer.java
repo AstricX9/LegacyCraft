@@ -47,6 +47,12 @@ public final class MobRenderer {
     public static final ResourceLocation WITHER = new ResourceLocation("minecraft:textures/entity/wither/wither.png");
     public static final ResourceLocation WITHER_INVULNERABLE = new ResourceLocation("minecraft:textures/entity/wither/wither_invulnerable.png");
     public static final ResourceLocation WITHER_ARMOR = new ResourceLocation("minecraft:textures/entity/wither/wither_armor.png");
+    public static final ResourceLocation DRAGON = new ResourceLocation("minecraft:textures/entity/enderdragon/dragon.png");
+    public static final ResourceLocation DRAGON_EYES = new ResourceLocation("minecraft:textures/entity/enderdragon/dragon_eyes.png");
+    public static final ResourceLocation DRAGON_EXPLODING = new ResourceLocation("minecraft:textures/entity/enderdragon/dragon_exploding.png");
+    public static final ResourceLocation DRAGON_FIREBALL = new ResourceLocation("minecraft:textures/entity/enderdragon/dragon_fireball.png");
+    public static final ResourceLocation CRYSTAL = new ResourceLocation("minecraft:textures/entity/endercrystal/endercrystal.png");
+    public static final ResourceLocation CRYSTAL_BEAM = new ResourceLocation("minecraft:textures/entity/endercrystal/endercrystal_beam.png");
 
     /** BossStatus.setBossStatus: the boss drawn this frame (its health share and name key), read by the HUD. */
     public float bossHealthScale;
@@ -796,6 +802,158 @@ public final class MobRenderer {
         glEnd();
         glPopMatrix();
         glColor4f(1, 1, 1, 1);
+    }
+
+    // ---- the End -----------------------------------------------------------------------------
+
+    /**
+     * RenderDragon: turned to the trail's yaw and tipped by its climb, dissolving
+     * into dragon_exploding as it dies, red when hurt, its eyes glowing (LayerEnderDragonEyes),
+     * with the beam from the crystal healing it.
+     */
+    public void renderDragon(net.minecraft.entity.boss.EntityDragon dragon, float partialTicks) {
+        double x = dragon.renderX(partialTicks), y = dragon.renderY(partialTicks), z = dragon.renderZ(partialTicks);
+        bossHealthScale = dragon.health / dragon.maxHealth();
+        bossName = dragon.displayName();
+        bossRendered = true;
+        float[] light = LightMap.color(15, 15);
+        float yaw = (float) dragon.movementOffsets(7, partialTicks)[0];
+        float climb = (float) (dragon.movementOffsets(5, partialTicks)[1] - dragon.movementOffsets(10, partialTicks)[1]);
+        StandardLighting.enable();
+        glPushMatrix();
+        glTranslated(x, y, z);
+        glRotatef(-yaw, 0f, 1f, 0f);
+        glRotatef(climb * 10f, 1f, 0f, 0f);
+        glTranslatef(0f, 0f, 1f);
+        glEnable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glScalef(-1f, -1f, 1f);
+        glTranslatef(0f, -1.5078125f, 0f);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glColor4f(light[0], light[1], light[2], 1f);
+        if (dragon.deathTicks > 0) {
+            glAlphaFunc(GL_GREATER, dragon.deathTicks / 200f);
+            textures.bind(DRAGON_EXPLODING);
+            DragonModels.dragon(dragon, partialTicks);
+            glAlphaFunc(GL_GREATER, 0.1f);
+            glDepthFunc(GL_EQUAL);
+        }
+        glAlphaFunc(GL_GREATER, 0.1f);
+        textures.bind(DRAGON);
+        DragonModels.dragon(dragon, partialTicks);
+        glDepthFunc(GL_LEQUAL);
+        if (dragon.hurtTime > 0) {
+            glDisable(GL_TEXTURE_2D);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthFunc(GL_EQUAL);
+            glColor4f(1f, 0f, 0f, 0.5f);
+            DragonModels.dragon(dragon, partialTicks);
+            glDepthFunc(GL_LEQUAL);
+            glDisable(GL_BLEND);
+            glEnable(GL_TEXTURE_2D);
+        }
+        textures.bind(DRAGON_EYES);
+        glEnable(GL_BLEND);
+        glDisable(GL_ALPHA_TEST);
+        glBlendFunc(GL_ONE, GL_ONE);
+        StandardLighting.disable();
+        glDepthFunc(GL_EQUAL);
+        glColor4f(1f, 1f, 1f, 1f);
+        DragonModels.dragon(dragon, partialTicks);
+        glDepthFunc(GL_LEQUAL);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_BLEND);
+        glEnable(GL_ALPHA_TEST);
+        glDisable(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL);
+        glPopMatrix();
+        glColor4f(1, 1, 1, 1);
+        net.minecraft.entity.EntityEnderCrystal crystal = dragon.healingCrystal;
+        if (crystal != null) {
+            float spin = crystal.innerRotation + partialTicks;
+            float bob = (float) Math.sin(spin * 0.2f) / 2f + 0.5f;
+            bob = (bob * bob + bob) * 0.2f;
+            renderBeam(x, y + 2.0, z, crystal.x() - x, crystal.y() + bob - 1.0 - y, crystal.z() - z,
+                dragon.ticksExisted + partialTicks);
+        }
+    }
+
+    /** RenderEnderCrystal: the spinning crystal on its bedrock plate, fully lit, with its beam if it has a target. */
+    public void renderCrystal(net.minecraft.entity.EntityEnderCrystal crystal, float partialTicks) {
+        double x = crystal.renderX(partialTicks), y = crystal.renderY(partialTicks), z = crystal.renderZ(partialTicks);
+        float spin = crystal.innerRotation + partialTicks;
+        float bob = (float) Math.sin(spin * 0.2f) / 2f + 0.5f;
+        bob = bob * bob + bob;
+        StandardLighting.enable();
+        glPushMatrix();
+        glTranslated(x, y, z);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        glDisable(GL_CULL_FACE);
+        textures.bind(CRYSTAL);
+        glColor4f(1f, 1f, 1f, 1f);
+        DragonModels.crystal(spin * 3f, bob * 0.2f, crystal.showBottom);
+        glPopMatrix();
+        StandardLighting.disable();
+        if (crystal.beamTarget != null) {
+            double bx = crystal.beamTarget[0] + 0.5, by = crystal.beamTarget[1] + 0.5, bz = crystal.beamTarget[2] + 0.5;
+            renderBeam(bx, by - 0.3 + bob * 0.4 + 2.0, bz, x - bx, y - 1.0 - by, z - bz, crystal.innerRotation + partialTicks);
+        }
+    }
+
+    /**
+     * RenderDragon.renderCrystalBeams: a widening eight-sided tube of the beam
+     * texture from (x, y, z) along (dx, dy, dz), dark at the start, scrolling with time.
+     */
+    private void renderBeam(double x, double y, double z, double dx, double dy, double dz, float time) {
+        float fx = (float) dx, fy = (float) dy, fz = (float) dz;
+        float flat = (float) Math.sqrt(fx * fx + fz * fz), length = (float) Math.sqrt(fx * fx + fy * fy + fz * fz);
+        glPushMatrix();
+        glTranslated(x, y, z);
+        glRotatef((float) (-Math.atan2(fz, fx)) * (180f / (float) Math.PI) - 90f, 0f, 1f, 0f);
+        glRotatef((float) (-Math.atan2(flat, fy)) * (180f / (float) Math.PI) - 90f, 1f, 0f, 0f);
+        glEnable(GL_TEXTURE_2D);
+        glDisable(GL_CULL_FACE);
+        glShadeModel(GL_SMOOTH);
+        textures.bind(CRYSTAL_BEAM);
+        float v0 = -time * 0.01f, v1 = length / 32f - time * 0.01f;
+        glBegin(GL_TRIANGLE_STRIP);
+        for (int j = 0; j <= 8; j++) {
+            float sin = (float) Math.sin(j % 8 * Math.PI * 2 / 8) * 0.75f, cos = (float) Math.cos(j % 8 * Math.PI * 2 / 8) * 0.75f;
+            float u = j % 8 / 8f;
+            glColor4f(0f, 0f, 0f, 1f);
+            glTexCoord2f(u, v0); glVertex3f(sin * 0.2f, cos * 0.2f, 0f);
+            glColor4f(1f, 1f, 1f, 1f);
+            glTexCoord2f(u, v1); glVertex3f(sin, cos, length);
+        }
+        glEnd();
+        glShadeModel(GL_FLAT);
+        glPopMatrix();
+        glColor4f(1, 1, 1, 1);
+    }
+
+    /** RenderDragonFireball: dragon_fireball.png facing the camera, two blocks wide, fully lit. */
+    public void renderDragonFireball(net.minecraft.entity.MovingEntity fireball, float partialTicks) {
+        double x = fireball.renderX(partialTicks), y = fireball.renderY(partialTicks), z = fireball.renderZ(partialTicks);
+        glPushMatrix();
+        glTranslated(x, y, z);
+        glRotatef(180f - cameraYaw, 0f, 1f, 0f);
+        glRotatef(-cameraPitch, 1f, 0f, 0f);
+        glScalef(2f, 2f, 2f);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, 0.1f);
+        textures.bind(DRAGON_FIREBALL);
+        glColor4f(1f, 1f, 1f, 1f);
+        glBegin(GL_QUADS);
+        glNormal3f(0f, 1f, 0f);
+        glTexCoord2f(0f, 1f); glVertex3f(-0.5f, -0.25f, 0f);
+        glTexCoord2f(1f, 1f); glVertex3f(0.5f, -0.25f, 0f);
+        glTexCoord2f(1f, 0f); glVertex3f(0.5f, 0.75f, 0f);
+        glTexCoord2f(0f, 0f); glVertex3f(-0.5f, 0.75f, 0f);
+        glEnd();
+        glPopMatrix();
     }
 
     // ---- thrown items ------------------------------------------------------------------------

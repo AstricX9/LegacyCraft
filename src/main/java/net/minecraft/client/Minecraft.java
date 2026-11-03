@@ -219,6 +219,11 @@ public final class Minecraft implements GuiContext {
                 particles.spawnSpell(false, x, y, z, 0, 0, 0, (float) vx, (float) vy, (float) vz);
                 return;
             }
+            // shortcut: ParticleDragonBreath drawn as a purple spell swirl, until it has its own sprite and drag.
+            if (kind.equals("dragonbreath")) {
+                particles.spawnSpell(false, x, y, z, vx, vy, vz, 0.72f + random.nextFloat() * 0.15f, 0f, 0.82f + random.nextFloat() * 0.15f);
+                return;
+            }
             ParticleManager.Kind type = switch (kind) {
                 case "explode" -> ParticleManager.Kind.EXPLODE;
                 case "largeexplode" -> ParticleManager.Kind.LARGE_EXPLODE;
@@ -651,6 +656,7 @@ public final class Minecraft implements GuiContext {
                 net.minecraft.world.MobSpawner.spawnCreatures(world, entityHost, random, levelInfo.totalTime,
                     levelInfo.spawnX, levelInfo.spawnY, levelInfo.spawnZ);
             spawnGeneratedCreatures();
+            tickDragonFight();
             server.tick();
             tickItemEntities();
             levelInfo.totalTime++;
@@ -1197,6 +1203,56 @@ public final class Minecraft implements GuiContext {
      * prepared behind the "Downloading terrain" screen, then the travel
      * sound plays.
      */
+    /** The End's dragon fight, loaded the first time the End ticks; null outside a world. */
+    private net.minecraft.world.DragonFight dragonFight;
+
+    /**
+     * DragonFightManager.tick: with the End loaded, the exit portal is built
+     * (unlit while the dragon lives) and the dragon is there unless it was killed.
+     */
+    private void tickDragonFight() {
+        if (dimension != net.minecraft.world.Dimension.END || server == null) return;
+        if (dragonFight == null) {
+            Path directory = dragonFightDirectory();
+            dragonFight = directory == null ? new net.minecraft.world.DragonFight(levelInfo.randomSeed)
+                : net.minecraft.world.DragonFight.load(directory, levelInfo.randomSeed);
+            if (!net.minecraft.world.EndPodium.exists(world))
+                net.minecraft.world.EndPodium.build(world, net.minecraft.world.EndPodium.centreY(world), dragonFight.dragonKilled);
+        }
+        net.minecraft.entity.boss.EntityDragon dragon = null;
+        for (Entity entity : server.entities().values())
+            if (entity instanceof net.minecraft.entity.boss.EntityDragon d && !d.isRemoved()) { dragon = d; break; }
+        if (dragon == null && !dragonFight.dragonKilled) {
+            dragon = new net.minecraft.entity.boss.EntityDragon(world, 0, 128, 0);
+            spawnEntity(dragon);
+        }
+        if (dragon != null && dragon.fight == null) {
+            dragon.fight = dragonFight;
+            dragon.podiumTop = net.minecraft.world.EndPodium.builtY(world) + 4;
+            dragon.onDeath = this::dragonKilled;
+        }
+    }
+
+    private Path dragonFightDirectory() {
+        return worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve(net.minecraft.world.Dimension.END.folder());
+    }
+
+    /**
+     * DragonFightManager.processDragonDeath: the exit portal lights, the egg
+     * appears on its pillar the first time, and the first gateway opens.
+     */
+    private void dragonKilled() {
+        boolean first = !dragonFight.previouslyKilled;
+        dragonFight.dragonKilled = true;
+        dragonFight.previouslyKilled = true;
+        int cy = net.minecraft.world.EndPodium.builtY(world);
+        if (cy < 0) cy = net.minecraft.world.EndPodium.centreY(world);
+        net.minecraft.world.EndPodium.build(world, cy, true);
+        if (first) world.setStateAndUpdate(0, cy + 4, 0, BlockState.defaultOf(blockRegistry.get("minecraft:dragon_egg")));
+        // shortcut: the end gateway isn't opened yet (Phase 3c adds gateways).
+        triggerAchievement("theEnd2");
+    }
+
     private void changeDimension(net.minecraft.world.Dimension target, boolean throughPortal) {
         if (player == null || target == dimension) return;
         boolean end = target == net.minecraft.world.Dimension.END, fromEnd = dimension == net.minecraft.world.Dimension.END;
@@ -1221,9 +1277,6 @@ public final class Minecraft implements GuiContext {
                     for (int dy = -1; dy <= 2; dy++)
                         world.setStateAndUpdate(100 + dx, 49 + dy, dz, dy < 0
                             ? BlockState.of(blockRegistry.get("minecraft:obsidian"), 0) : BlockState.of(blockRegistry.air(), 0));
-            // shortcut: no ender dragon yet, so the exit portal is built already lit; light it when the dragon dies once there is one.
-            if (!net.minecraft.world.EndPodium.exists(world))
-                net.minecraft.world.EndPodium.build(world, net.minecraft.world.EndPodium.centreY(world), true);
         } else if (fromEnd) {
             // Leaving the End through its exit portal: back to the player's spawn point (ServerConfigurationManager.recreatePlayerEntity).
             x = player.spawnX;
@@ -1259,6 +1312,7 @@ public final class Minecraft implements GuiContext {
 
     private void startThrowawayWorld() {
         worldFolder = null;
+        dragonFight = null;
         // Developer worlds start in Creative with a starter hotbar (vanilla worlds start empty).
         WorldSettings settings = new WorldSettings(cliSeed, WorldSettings.GameType.CREATIVE, true, false,
             WorldType.DEFAULT, true, false, "");
@@ -1302,6 +1356,11 @@ public final class Minecraft implements GuiContext {
                 Files.createDirectories(dimensionDirectory);
                 WorldStorage.save(dimensionDirectory, entry.getValue());
                 saveEntities(dimensionDirectory, servers.get(entry.getKey()));
+            }
+            if (dragonFight != null) {
+                Path endDirectory = directory.resolve(net.minecraft.world.Dimension.END.folder());
+                Files.createDirectories(endDirectory);
+                dragonFight.save(endDirectory);
             }
             levelInfo.sizeOnDisk = directorySize(directory);
             saveFormat.saveWorldInfo(worldFolder, levelInfo);
@@ -1369,6 +1428,7 @@ public final class Minecraft implements GuiContext {
         if (server != null && !servers.containsValue(server)) server.close();
         servers.clear();
         otherWorlds.clear();
+        dragonFight = null;
         overworld = null;
         eventsInstalled = false;
         dimension = net.minecraft.world.Dimension.OVERWORLD;
@@ -1579,29 +1639,38 @@ public final class Minecraft implements GuiContext {
             best = Math.sqrt(hx * hx + hy * hy + hz * hz);
         }
         MovingEntity found = null;
+        int foundPart = -1;
         double foundDistance = best;
         for (Entity entity : server.entities().values()) {
             if (entity == ridingBoat) continue;
             if (entity.isRemoved() || !(entity instanceof EntityLiving || entity instanceof EntityTNTPrimed
-                || entity instanceof net.minecraft.entity.EntityBoat
+                || entity instanceof net.minecraft.entity.EntityBoat || entity instanceof net.minecraft.entity.EntityEnderCrystal
                 || entity instanceof net.minecraft.entity.EntityFireball fb && fb.deflectable())) continue;
-            AxisAlignedBB box = ((MovingEntity) entity).boundingBox();
-            box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
-            if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
-                if (foundDistance >= 0) {
-                    found = (MovingEntity) entity;
-                    foundDistance = 0;
+            // The dragon is hit through its parts (EntityDragonPart), not its own box.
+            AxisAlignedBB[] boxes = entity instanceof net.minecraft.entity.boss.EntityDragon dragon ? dragon.partBoxes()
+                : new AxisAlignedBB[]{((MovingEntity) entity).boundingBox()};
+            for (int part = 0; part < boxes.length; part++) {
+                AxisAlignedBB box = boxes[part];
+                box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
+                if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
+                    if (foundDistance >= 0) {
+                        found = (MovingEntity) entity;
+                        foundPart = part;
+                        foundDistance = 0;
+                    }
+                    continue;
                 }
-                continue;
-            }
-            AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
-            if (entry == null || entry.distance() > best) continue;
-            if (entry.distance() < foundDistance || foundDistance == 0) {
-                found = (MovingEntity) entity;
-                foundDistance = entry.distance();
+                AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
+                if (entry == null || entry.distance() > best) continue;
+                if (entry.distance() < foundDistance || foundDistance == 0) {
+                    found = (MovingEntity) entity;
+                    foundPart = part;
+                    foundDistance = entry.distance();
+                }
             }
         }
         if (found == null) return hit;
+        if (found instanceof net.minecraft.entity.boss.EntityDragon dragon) dragon.hitPart = foundPart;
         if (limited && foundDistance > 3.0) return null;
         pointedEntity = found;
         return null;
@@ -1621,6 +1690,10 @@ public final class Minecraft implements GuiContext {
     private void attackEntity(MovingEntity target) {
         if (target instanceof net.minecraft.entity.EntityBoat boat) {
             if (!isSpectator() && boat.hitByPlayer(isCreative()) && boat == ridingBoat) dismountBoat();
+            return;
+        }
+        if (target instanceof net.minecraft.entity.EntityEnderCrystal crystal) {
+            if (!isSpectator()) crystal.hit(false);
             return;
         }
         if (!isSpectator() && target instanceof net.minecraft.entity.EntityFireball fireball && fireball.deflectable()) {
@@ -1945,6 +2018,12 @@ public final class Minecraft implements GuiContext {
             } else if (entity instanceof net.minecraft.entity.boss.EntityWither wither) {
                 mobRenderer.renderWither(wither, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 1f, 1f);
+            } else if (entity instanceof net.minecraft.entity.boss.EntityDragon dragon) {
+                mobRenderer.renderDragon(dragon, partialTicks);
+            } else if (entity instanceof net.minecraft.entity.EntityEnderCrystal crystal) {
+                mobRenderer.renderCrystal(crystal, partialTicks);
+            } else if (entity instanceof net.minecraft.entity.EntityDragonFireball) {
+                mobRenderer.renderDragonFireball(moving, partialTicks);
             } else if (entity instanceof net.minecraft.entity.EntityWitherSkull skull) {
                 mobRenderer.renderWitherSkull(skull, partialTicks);
             } else if (entity instanceof net.minecraft.entity.EntityArrow arrow) {
@@ -3893,7 +3972,11 @@ public final class Minecraft implements GuiContext {
         if (server == null || world == null) return;
         for (World.CreatureSpawn spawn : world.takeCreatureSpawns()) {
             MovingEntity entity = net.minecraft.entity.EntityList.create(spawn.entity(), world, spawn.x(), spawn.y(), spawn.z());
-            if (!(entity instanceof EntityLiving living)) continue;
+            if (entity == null) continue;
+            if (!(entity instanceof EntityLiving living)) {
+                spawnEntity(entity);
+                continue;
+            }
             living.setPositionAndRotation(spawn.x(), spawn.y(), spawn.z(), spawn.yaw(), 0f);
             living.prevRotationYaw = spawn.yaw();
             living.rotationYawHead = living.prevRotationYawHead = living.renderYawOffset = living.prevRenderYawOffset = spawn.yaw();
@@ -3936,6 +4019,20 @@ public final class Minecraft implements GuiContext {
      * water stays.
      */
     private boolean fillBottle(ItemStack held) {
+        // ItemGlassBottle (1.9): a dragon's breath cloud within 2 blocks fills it first, shrinking by half a block.
+        AxisAlignedBB near = player.boundingBox().grow(2.0, 2.0, 2.0);
+        for (Entity entity : server == null ? List.<Entity>of() : server.entities().values()) {
+            if (!(entity instanceof net.minecraft.entity.EntityAreaEffectCloud cloud) || cloud.isRemoved() || !cloud.dragonBreath
+                || !cloud.boundingBox().intersects(near)) continue;
+            Item breath = itemByName("dragon_breath");
+            if (breath == null) break;
+            cloud.radius -= 0.5f;
+            playSound("item.bottle.fill_dragonbreath", player.x, player.y, player.z, 1f, 1f);
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = new ItemStack(breath);
+            else if (!inventory.addItemStackToInventory(new ItemStack(breath))) dropPlayerItem(new ItemStack(breath));
+            return true;
+        }
         WorldRenderer.Hit hit = WorldRenderer.raycast(world, player.x, player.eyeY(), player.z,
             player.dirX(), player.dirY(), player.dirZ(), 5.0, true);
         if (hit == null || levelInfo.gameType == WorldSettings.GameType.ADVENTURE) return false;

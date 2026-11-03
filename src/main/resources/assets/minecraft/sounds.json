@@ -2199,5 +2199,30 @@
       "item/shovel/flatten4"
     ],
     "subtitle": "subtitles.item.shovel.flatten"
+  },
+  "entity.enderdragon.shoot": {
+    "category": "hostile",
+    "sounds": [
+      "mob/ghast/fireball4"
+    ],
+    "subtitle": "subtitles.entity.enderdragon.shoot"
+  },
+  "entity.enderdragon_fireball.explode": {
+    "category": "hostile",
+    "sounds": [
+      "random/explode1",
+      "random/explode2",
+      "random/explode3",
+      "random/explode4"
+    ],
+    "subtitle": "subtitles.entity.generic.explode"
+  },
+  "item.bottle.fill_dragonbreath": {
+    "category": "player",
+    "sounds": [
+      "item/bottle/fill_dragonbreath1",
+      "item/bottle/fill_dragonbreath2"
+    ],
+    "subtitle": "subtitles.item.bottle.fill"
   }
 }
