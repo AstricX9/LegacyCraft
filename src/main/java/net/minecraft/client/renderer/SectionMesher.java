@@ -196,12 +196,13 @@ final class SectionMesher {
                     if (model == null) continue;
                     String name = block.name().path();
                     Buffer target = TRANSLUCENT.contains(name) ? mesh.translucent : CUTOUT.contains(name) ? mesh.cutout : mesh.opaque;
+                    float[] offset = offset(name, x, z);
                     for (BakedQuad quad : model.quads()) {
                         Direction cull = quad.cullFace();
                         if (cull != null && !faceVisible(state, view.getState(x + cull.xOffset, y + cull.yOffset, z + cull.zOffset)))
                             continue;
                         lighting.light(block, model, quad, x, y, z, light);
-                        emitQuad(target, view, x, y, z, startX, startY, startZ, actual, quad, light, shader != null);
+                        emitQuad(target, view, x, y, z, startX, startY, startZ, actual, quad, light, shader != null, offset);
                     }
                     if (shader != null) target.tag(shader.blockId(name, actual::get), x - startX, y - startY, z - startZ, block.lightLevel());
                 }
@@ -213,6 +214,23 @@ final class SectionMesher {
             mesh.translucent.widen();
         }
         return mesh;
+    }
+
+    private static final float[] NO_OFFSET = new float[3];
+
+    /**
+     * Vanilla's per-position model shift (Block.EnumOffsetType): flowers and double plants move in
+     * X/Z, tall grass also sinks in Y. Seeded with y = 0 as in 1.8.9, so both halves of a double plant line up.
+     */
+    static float[] offset(String block, int x, int z) {
+        boolean xyz = block.equals("tallgrass");
+        if (!xyz && !block.equals("yellow_flower") && !block.equals("red_flower") && !block.equals("double_plant")) return NO_OFFSET;
+        long seed = (long) (x * 3129871) ^ (long) z * 116129781L;
+        seed = seed * seed * 42317861L + seed * 11L;
+        return new float[] {
+            ((seed >> 16 & 15) / 15f - .5f) * .5f,
+            xyz ? ((seed >> 20 & 15) / 15f - 1f) * .2f : 0f,
+            ((seed >> 24 & 15) / 15f - .5f) * .5f };
     }
 
     static boolean faceVisible(BlockState self, BlockState neighbor) {
@@ -227,7 +245,7 @@ final class SectionMesher {
     }
 
     private void emitQuad(Buffer out, RenderView view, int x, int y, int z, int startX, int startY, int startZ,
-                          ActualState state, BakedQuad quad, BlockLighting.Result light, boolean shader) {
+                          ActualState state, BakedQuad quad, BlockLighting.Result light, boolean shader, float[] offset) {
         Block block = state.block();
         TextureAtlas.Tile tile = atlas.tile(quad.texture());
         Direction face = quad.face();
@@ -242,9 +260,9 @@ final class SectionMesher {
         int at = out.size;
         for (int i = 0; i < 4; i++) {
             float occlusion = light.occlusion[i];
-            data[at++] = Float.floatToRawIntBits(x - startX + quad.x(i));
-            data[at++] = Float.floatToRawIntBits(y - startY + quad.y(i));
-            data[at++] = Float.floatToRawIntBits(z - startZ + quad.z(i));
+            data[at++] = Float.floatToRawIntBits(x - startX + quad.x(i) + offset[0]);
+            data[at++] = Float.floatToRawIntBits(y - startY + quad.y(i) + offset[1]);
+            data[at++] = Float.floatToRawIntBits(z - startZ + quad.z(i) + offset[2]);
             data[at++] = shader && !water ? rgba(red, green, blue, channel(occlusion))
                 : rgba(red * occlusion, green * occlusion, blue * occlusion, alpha);
             data[at++] = Float.floatToRawIntBits(mix(tile.u0(), tile.u1(), quad.u(i)));
