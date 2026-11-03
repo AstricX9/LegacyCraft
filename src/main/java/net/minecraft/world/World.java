@@ -750,6 +750,7 @@ public final class World implements IBlockWorld {
         @Override public void spawnCreature(String entity, double x, double y, double z, float yaw) {
             pendingCreatures.add(new CreatureSpawn(entity, x, y, z, yaw));
         }
+        @Override public void setSkull(int x, int y, int z, int type, int rotation) { World.this.setSkull(x, y, z, type, rotation); }
 
         @Override
         public int height(int x, int z) {

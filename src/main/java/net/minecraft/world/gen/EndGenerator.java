@@ -26,6 +26,7 @@ public final class EndGenerator {
     public record Spike(int x, int z, int radius, int height, boolean guarded) {}
 
     private final List<Spike> spikes;
+    private final EndCity cities;
 
     public EndGenerator(GenBlocks blocks, long seed) {
         this.b = blocks;
@@ -44,7 +45,10 @@ public final class EndGenerator {
         chorusPlant = blocks.state("chorus_plant", 0);
         chorusFlower = blocks.state("chorus_flower", 0);
         spikes = spikes(seed);
+        cities = new EndCity(blocks, seed, this);
     }
+
+    public EndCity cities() { return cities; }
 
     /** WorldGenSpikes positions (BiomeEndDecorator.SpikeCacheLoader): ten in a ring of radius 42, sizes shuffled by the seed. */
     static List<Spike> spikes(long seed) {
@@ -150,6 +154,7 @@ public final class EndGenerator {
         popRand.setSeed(seed);
         long a = popRand.nextLong() / 2L * 2L + 1L, c = popRand.nextLong() / 2L * 2L + 1L;
         popRand.setSeed((long) chunkX * a + (long) chunkZ * c ^ seed);
+        cities.populate(w, chunkX, chunkZ);
         for (Spike spike : spikes)
             if (spike.x() >> 4 == chunkX && spike.z() >> 4 == chunkZ) buildSpike(w, spike);
         long distance = (long) chunkX * chunkX + (long) chunkZ * chunkZ;
