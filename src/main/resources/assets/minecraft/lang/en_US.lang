@@ -1290,6 +1290,10 @@ potion.wither=Wither
 potion.healthBoost=Health Boost
 potion.absorption=Absorption
 potion.saturation=Saturation
+potion.glowing=Glowing
+potion.levitation=Levitation
+potion.luck=Luck
+potion.unluck=Bad Luck
 
 potion.moveSpeed.postfix=Potion of Swiftness
 potion.moveSlowdown.postfix=Potion of Slowness

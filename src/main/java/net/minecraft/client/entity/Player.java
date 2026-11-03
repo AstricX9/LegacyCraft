@@ -881,7 +881,10 @@ public final class Player {
             }
             move(motionX, motionY, motionZ);
             if (collidedHorizontally && onLadder()) motionY = 0.2;
-            motionY -= 0.08;
+            // 1.9 Levitation: drifts up at 0.05 a level instead of falling.
+            PotionEffect levitation = activeEffects.get(Potion.LEVITATION.id);
+            if (levitation != null) motionY += (0.05 * (levitation.amplifier() + 1) - motionY) * 0.2;
+            else motionY -= 0.08;
             motionY *= 0.98;
             motionX *= friction;
             motionZ *= friction;

@@ -35,6 +35,11 @@ public final class Potion {
     public static final Potion HEALTH_BOOST = new Potion(21, "healthBoost", 16284963, false, 7, 2);
     public static final Potion ABSORPTION = new Potion(22, "absorption", 2445989, false, 2, 2);
     public static final Potion SATURATION = new Potion(23, "saturation", 16262179, false, -1, -1);
+    // 1.9
+    public static final Potion GLOWING = new Potion(24, "glowing", 9740385, false, 4, 2);
+    public static final Potion LEVITATION = new Potion(25, "levitation", 13565951, true, 3, 2);
+    public static final Potion LUCK = new Potion(26, "luck", 3381504, false, 5, 2);
+    public static final Potion UNLUCK = new Potion(27, "unluck", 12624973, true, 6, 2);
 
     public final int id;
     /** The translation key, e.g. {@code potion.regeneration}. */
