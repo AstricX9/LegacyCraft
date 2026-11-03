@@ -185,6 +185,7 @@ public final class EnchantmentHelper {
         Map<Integer, Data> map = null;
         boolean book = isBook(stack);
         for (Enchantment enchantment : Enchantment.ALL) {
+            if (enchantment.isTreasure()) continue;
             if (!enchantment.type.canEnchantItem(stack.item()) && !book) continue;
             for (int i = enchantment.minLevel(); i <= enchantment.maxLevel; i++) {
                 if (level >= enchantment.minEnchantability(i) && level <= enchantment.maxEnchantability(i)) {
@@ -214,8 +215,7 @@ public final class EnchantmentHelper {
     /**
      * The protection points worn armour gives against a source
      * (getEnchantmentModifierDamage): each Protection-type enchantment's
-     * modifier summed, capped at 25, then half of it rounded up plus a random
-     * 0..half.
+     * modifier summed (1.9: no longer capped at 25 or randomised).
      */
     public static int protectionPoints(ItemStack[] armour, DamageSource source, Random random) {
         int modifier = 0;
@@ -227,9 +227,8 @@ public final class EnchantmentHelper {
                     if (enchantment != null) modifier += enchantment.protectionModifier(entry.getValue(), source);
                 }
             }
-        if (modifier > 25) modifier = 25;
-        else if (modifier < 0) modifier = 0;
-        return (modifier + 1 >> 1) + random.nextInt((modifier >> 1) + 1);
+        // 1.9: the plain sum, no longer randomised; the caller caps it at 20.
+        return Math.max(modifier, 0);
     }
 
     /**
@@ -264,6 +263,22 @@ public final class EnchantmentHelper {
         amount -= saved;
         if (amount <= 0) return false;
         return stack.damage(amount);
+    }
+
+    /**
+     * Mending (EntityXPOrb.onCollideWithPlayer, 1.9): a random worn or held
+     * damaged item with Mending gets 2 durability back per experience point;
+     * the points used up are taken from the orb. Returns the points left.
+     */
+    public static int mend(int xp, ItemStack[] equipment, Random random) {
+        List<ItemStack> damaged = new ArrayList<>();
+        for (ItemStack stack : equipment)
+            if (stack != null && stack.damage() > 0 && level(Enchantment.MENDING, stack) > 0) damaged.add(stack);
+        if (damaged.isEmpty()) return xp;
+        ItemStack stack = damaged.get(random.nextInt(damaged.size()));
+        int repair = Math.min(xp * 2, stack.damage());
+        stack.setDamage(stack.damage() - repair);
+        return xp - repair / 2;
     }
 
     /** Levels of the Roman numerals 1.8.9's lang files have ("enchantment.level.1" .. 10). */

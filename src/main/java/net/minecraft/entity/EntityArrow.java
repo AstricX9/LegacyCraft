@@ -123,6 +123,20 @@ public final class EntityArrow extends MovingEntity {
         if (speed > 1.0E-7 && host != null) {
             AxisAlignedBB sweep = boundingBox().addCoord(motionX, motionY, motionZ).grow(1.0);
             for (Entity entity : host.entities()) {
+                if (entity instanceof EntityEnderCrystal crystal && !crystal.isRemoved()) {
+                    double d = entryDistance(crystal.boundingBox().grow(0.3), speed);
+                    if (d >= 0 && d < nearest) { nearest = d; hitEntity = crystal; }
+                    continue;
+                }
+                if (entity instanceof net.minecraft.entity.boss.EntityDragon dragon && dragon.isAlive()) {
+                    // EntityDragonPart: the arrow meets whichever part it reaches first.
+                    AxisAlignedBB[] parts = dragon.partBoxes();
+                    for (int part = 0; part < parts.length; part++) {
+                        double d = entryDistance(parts[part].grow(0.3), speed);
+                        if (d >= 0 && d < nearest) { nearest = d; hitEntity = dragon; dragon.hitPart = part; }
+                    }
+                    continue;
+                }
                 if (!(entity instanceof EntityLiving living) || !living.isAlive()) continue;
                 if (living == shooter && ticksInAir < 5) continue;
                 if (!living.boundingBox().intersects(sweep)) continue;
@@ -189,7 +203,9 @@ public final class EntityArrow extends MovingEntity {
         boolean hurt;
         Player thrower = shotByPlayer && host != null ? host.player() : null;
         String name = shooter != null ? shooter.displayName() : null;
-        if (target instanceof Player player) {
+        if (target instanceof EntityEnderCrystal crystal) {
+            hurt = crystal.hit(false);
+        } else if (target instanceof Player player) {
             double fx = shooter != null ? shooter.x() : x - motionX, fz = shooter != null ? shooter.z() : z - motionZ;
             if (isBurning()) player.setFire(5);
             hurt = player.attackBy(DamageSource.ARROW, amount, fx, fz, name);

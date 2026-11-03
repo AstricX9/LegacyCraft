@@ -15,6 +15,8 @@ public enum DamageSource {
     DROWN("drown", true, false, false),
     CACTUS("cactus", false, false, false),
     FALL("fall", true, false, false),
+    /** 1.9: gliding into a wall with an elytra too fast. */
+    FLY_INTO_WALL("flyIntoWall", false, false, false),
     OUT_OF_WORLD("outOfWorld", true, false, true),
     GENERIC("generic", true, false, false),
     /** Starving: bypasses armour and is absolute (no Resistance, no Protection). */

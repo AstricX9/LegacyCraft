@@ -1,0 +1,8 @@
+{
+  "class": "end_rod",
+  "material": "circuits",
+  "hardness": 0.0,
+  "opaque": false,
+  "fullCube": false,
+  "lightLevel": 14
+}

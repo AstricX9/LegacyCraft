@@ -162,7 +162,8 @@ final class PlayerLife {
     boolean startEating(ServerPlayer player) {
         ItemStack held = player.heldStack();
         if (held == null || !held.item().isFood() || held.item().useAction() != Item.UseAction.EAT) return false;
-        boolean always = held.item().vanillaId().path().equals("golden_apple");
+        String path = held.item().vanillaId().path();
+        boolean always = path.equals("golden_apple") || path.equals("chorus_fruit");
         if (!player.isSurvivalLike() || !(always || player.food.needFood())) return false;
         player.useStartTick = server.tick();
         player.useSlot = player.inventory.currentItem;
@@ -185,7 +186,7 @@ final class PlayerLife {
         if (stack.isEmpty()) player.inventory.mainInventory[player.useSlot] = null;
         player.food.addStats(item.food(), item.saturation());
         String name = item.name().path();
-        if (name.equals("mushroom_stew") || name.equals("rabbit_stew")) {
+        if (name.equals("mushroom_stew") || name.equals("rabbit_stew") || name.equals("beetroot_soup")) {
             ItemStack bowl = new ItemStack(server.itemByName("bowl"));
             if (player.inventory.mainInventory[player.useSlot] == null) player.inventory.mainInventory[player.useSlot] = bowl;
             else if (!player.inventory.addItemStackToInventory(bowl)) server.throwItem(player, bowl);

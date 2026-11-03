@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "axis": [
+      "y",
+      "x",
+      "z"
+    ]
+  },
+  "meta": [
+    {
+      "property": "axis",
+      "shift": 2,
+      "bits": 2,
+      "map": [
+        "y",
+        "x",
+        "z",
+        null
+      ]
+    }
+  ]
+}

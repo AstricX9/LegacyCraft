@@ -944,6 +944,36 @@
      "id": 182,
      "meta": 0,
      "key": "tile.stoneSlab2.red_sandstone.name"
+    },
+    {
+     "item": "purpur_block",
+     "id": 201,
+     "meta": 0,
+     "key": "tile.purpurBlock.name"
+    },
+    {
+     "item": "purpur_pillar",
+     "id": 202,
+     "meta": 0,
+     "key": "tile.purpurPillar.name"
+    },
+    {
+     "item": "purpur_stairs",
+     "id": 203,
+     "meta": 0,
+     "key": "tile.stairsPurpur.name"
+    },
+    {
+     "item": "purpur_slab",
+     "id": 205,
+     "meta": 0,
+     "key": "tile.purpurSlab.name"
+    },
+    {
+     "item": "end_bricks",
+     "id": 206,
+     "meta": 0,
+     "key": "tile.endBricks.name"
     }
    ]
   },
@@ -1554,6 +1584,24 @@
      "key": "tile.acaciaFence.name"
     },
     {
+     "item": "end_rod",
+     "id": 198,
+     "meta": 0,
+     "key": "tile.endRod.name"
+    },
+    {
+     "item": "chorus_plant",
+     "id": 199,
+     "meta": 0,
+     "key": "tile.chorusPlant.name"
+    },
+    {
+     "item": "chorus_flower",
+     "id": 200,
+     "meta": 0,
+     "key": "tile.chorusFlower.name"
+    },
+    {
      "item": "painting",
      "id": 321,
      "meta": 0,
@@ -1904,6 +1952,12 @@
      "id": 329,
      "meta": 0,
      "key": "item.saddle.name"
+    },
+    {
+     "item": "elytra",
+     "id": 443,
+     "meta": 0,
+     "key": "item.elytra.name"
     },
     {
      "item": "boat",
@@ -2371,6 +2425,24 @@
      "id": 424,
      "meta": 0,
      "key": "item.muttonCooked.name"
+    },
+    {
+     "item": "chorus_fruit",
+     "id": 432,
+     "meta": 0,
+     "key": "item.chorusFruit.name"
+    },
+    {
+     "item": "beetroot",
+     "id": 434,
+     "meta": 0,
+     "key": "item.beetroot.name"
+    },
+    {
+     "item": "beetroot_soup",
+     "id": 436,
+     "meta": 0,
+     "key": "item.beetroot_soup.name"
     }
    ]
   },
@@ -2699,6 +2771,12 @@
      "id": 317,
      "meta": 0,
      "key": "item.bootsGold.name"
+    },
+    {
+     "item": "shield",
+     "id": 442,
+     "meta": 0,
+     "key": "item.shield.name"
     }
    ]
   },
@@ -2773,6 +2851,12 @@
      "id": 414,
      "meta": 0,
      "key": "item.rabbitFoot.name"
+    },
+    {
+     "item": "dragon_breath",
+     "id": 437,
+     "meta": 0,
+     "key": "item.dragon_breath.name"
     }
    ]
   },
@@ -3069,6 +3153,18 @@
      "id": 415,
      "meta": 0,
      "key": "item.rabbitHide.name"
+    },
+    {
+     "item": "chorus_fruit_popped",
+     "id": 433,
+     "meta": 0,
+     "key": "item.chorusFruitPopped.name"
+    },
+    {
+     "item": "beetroot_seeds",
+     "id": 435,
+     "meta": 0,
+     "key": "item.beetroot_seeds.name"
     }
    ]
   },

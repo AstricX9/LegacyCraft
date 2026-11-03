@@ -22,7 +22,7 @@ final class GuiOverlayDebugTest {
     @Test
     void leftColumnMatchesVanillaFormats() {
         List<String> lines = GuiOverlayDebug.leftLines(snapshot(-0.5, 64, 17.25, 0f, null, false));
-        assertEquals("Minecraft 1.8.9 (1.8.9/legacycraft)", lines.get(0));
+        assertEquals("Minecraft 1.9 (1.9/legacycraft)", lines.get(0));
         assertEquals("60 fps (3 chunk updates)", lines.get(1));
         assertEquals("C: 81/81 (s) D: 4, pC: 000, pU: 0, aB: 0", lines.get(2));
         assertEquals("", lines.get(6));

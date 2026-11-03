@@ -81,20 +81,18 @@ final class EnchantmentHelperTest {
     }
 
     @Test
-    void protectionPointsAreHalfTheModifierPlusARandomHalf() {
+    void protectionPointsAreTheModifier() {
         ItemStack boots = stack("diamond_boots", 429);
         boots.addEnchantment(Enchantment.FEATHER_FALLING.id, 4);
         ItemStack[] armour = {boots, null, null, null};
         Random random = new Random(7);
-        Set<Integer> seen = new HashSet<>();
-        for (int i = 0; i < 500; i++) seen.add(EnchantmentHelper.protectionPoints(armour, DamageSource.FALL, random));
-        assertEquals(9, seen.stream().min(Integer::compare).orElseThrow(), "modifier 18: 9 + 0..9");
-        assertEquals(18, seen.stream().max(Integer::compare).orElseThrow());
+        // 1.9 removed the random half.
+        assertEquals(12, EnchantmentHelper.protectionPoints(armour, DamageSource.FALL, random));
         assertEquals(0, EnchantmentHelper.protectionPoints(armour, DamageSource.CACTUS, random));
     }
 
     @Test
-    void protectionIsCappedAtTwentyFive() {
+    void protectionPointsAreThePlainSum() {
         ItemStack[] armour = new ItemStack[4];
         for (int i = 0; i < 4; i++) {
             armour[i] = stack("diamond_helmet", 363);
@@ -102,10 +100,8 @@ final class EnchantmentHelperTest {
             armour[i].addEnchantment(Enchantment.FIRE_PROTECTION.id, 4);
         }
         Random random = new Random(3);
-        for (int i = 0; i < 200; i++) {
-            int points = EnchantmentHelper.protectionPoints(armour, DamageSource.LAVA, random);
-            assertTrue(points >= 13 && points <= 25, "(25 + 1) / 2 + 0..12: " + points);
-        }
+        // 4 pieces x (Protection 4 + Fire Protection 4 x 2); the damage code caps it at 20.
+        assertEquals(48, EnchantmentHelper.protectionPoints(armour, DamageSource.LAVA, random));
     }
 
     @Test

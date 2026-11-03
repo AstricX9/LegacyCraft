@@ -297,7 +297,7 @@ public final class LevelInfo {
             info.player = new PlayerPosition(((NbtTag.Double) pos.values().get(0)).value(),
                 ((NbtTag.Double) pos.values().get(1)).value(), ((NbtTag.Double) pos.values().get(2)).value(),
                 yaw, pitch, byteOr(playerTag, "OnGround", 0) != 0);
-            if (playerTag.get("Dimension") instanceof NbtTag.Int dimension) info.playerDimension = dimension.value() == -1 ? -1 : 0;
+            if (playerTag.get("Dimension") instanceof NbtTag.Int dimension) info.playerDimension = net.minecraft.world.Dimension.byId(dimension.value()).id;
         }
         if (data.get("Player") instanceof NbtTag.Compound playerTag) {
             if (playerTag.get("Inventory") instanceof NbtTag.NbtList list) {
@@ -305,7 +305,7 @@ public final class LevelInfo {
                 for (NbtTag element : list.values()) {
                     if (!(element instanceof NbtTag.Compound tag) || !(tag.get("id") instanceof NbtTag.Str id)) continue;
                     int damage = tag.get("Damage") instanceof NbtTag.Short value ? value.value() : 0;
-                    info.inventory.add(new SavedStack(byteOr(tag, "Slot", 0) & 0xFF, id.value(), byteOr(tag, "Count", 1), damage,
+                    info.inventory.add(new SavedStack(byteOr(tag, "Slot", 0), id.value(), byteOr(tag, "Count", 1), damage,
                         tag.get("tag") instanceof NbtTag.Compound extra ? extra : null));
                 }
                 info.selectedItemSlot = intOr(playerTag, "SelectedItemSlot", 0);

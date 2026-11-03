@@ -152,11 +152,16 @@ public final class World implements IBlockWorld {
     private final Dimension dimension;
     private final net.minecraft.world.gen.NetherGenerator netherGenerator;
     private final net.minecraft.world.gen.NetherPopulator netherPopulator;
-    /** The one biome of the Nether (Hell, id 8). */
+    /** The End's terrain and spikes, or null. */
+    private final net.minecraft.world.gen.EndGenerator endGenerator;
+    /** The one biome of the Nether (Hell, id 8) or the End (Sky, id 9). */
     private final Biome hellBiome;
 
     public Dimension dimension() { return dimension; }
     public boolean isNether() { return dimension == Dimension.NETHER; }
+    public boolean isEnd() { return dimension == Dimension.END; }
+    /** The End's generator (for its spikes), or null. */
+    public net.minecraft.world.gen.EndGenerator endGenerator() { return endGenerator; }
     /** The Nether's generator (for its fortresses), or null. */
     public net.minecraft.world.gen.NetherGenerator netherGenerator() { return netherGenerator; }
 
@@ -180,7 +185,7 @@ public final class World implements IBlockWorld {
     /** A world of the given dimension (the Nether ignores {@code flat}). */
     public World(BlockRegistry registry, BiomeRegistry biomeRegistry, long seed, FlatGeneratorInfo flat, Dimension dimension) {
         this.dimension = dimension;
-        if (dimension == Dimension.NETHER) flat = null;
+        if (dimension != Dimension.OVERWORLD) flat = null;
         this.flat = flat;
         Biome chosen = flat == null ? null : biomeRegistry.byId(flat.biome());
         this.flatBiome = flat == null ? null : chosen != null ? chosen : biomeRegistry.get("minecraft:plains");
@@ -191,13 +196,14 @@ public final class World implements IBlockWorld {
         bedrock = registry.get("minecraft:bedrock");
         biomes = new BiomeSource(biomeRegistry, seed);
         genBlocks = new GenBlocks(registry);
-        boolean nether = dimension == Dimension.NETHER;
-        generator = flat == null && !nether ? new ChunkGenerator(genBlocks, biomeRegistry, biomes.layers(), seed) : null;
-        populator = nether ? null : new ChunkPopulator(genBlocks, seed);
-        Biome hell = biomeRegistry.byId(8);
+        boolean nether = dimension == Dimension.NETHER, end = dimension == Dimension.END;
+        generator = flat == null && !nether && !end ? new ChunkGenerator(genBlocks, biomeRegistry, biomes.layers(), seed) : null;
+        populator = nether || end ? null : new ChunkPopulator(genBlocks, seed);
+        Biome only = nether || end ? biomeRegistry.byId(nether ? 8 : 9) : null;
         netherGenerator = nether ? new net.minecraft.world.gen.NetherGenerator(genBlocks, seed) : null;
         netherPopulator = nether ? new net.minecraft.world.gen.NetherPopulator(genBlocks, seed) : null;
-        hellBiome = nether ? (hell != null ? hell : biomeRegistry.get("minecraft:plains")) : null;
+        endGenerator = end ? new net.minecraft.world.gen.EndGenerator(genBlocks, seed) : null;
+        hellBiome = nether || end ? (only != null ? only : biomeRegistry.get("minecraft:plains")) : null;
         light = new LightEngine(this, registry);
         liquids = new LiquidFlow(this, registry);
         fire = new FireSpread(this);
@@ -353,6 +359,7 @@ public final class World implements IBlockWorld {
             if (state.block() != tick.block() || state.block().isAir()) continue;
             if (liquids.isFlowing(state.block())) liquids.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
             else if (fire.isFire(state.block())) fire.tick(tick.x(), tick.y(), tick.z(), state, tickRandom);
+            else if (state.block() instanceof net.minecraft.block.BlockFrostedIce ice) ice.tick(this, tick.x(), tick.y(), tick.z(), state, tickRandom);
         }
         tickFurnaces();
     }
@@ -646,6 +653,7 @@ public final class World implements IBlockWorld {
             return;
         }
         ChunkPrimer primer = netherGenerator != null ? netherGenerator.generate(chunk.chunkX(), chunk.chunkZ())
+            : endGenerator != null ? endGenerator.generate(chunk.chunkX(), chunk.chunkZ())
             : generator.generate(chunk.chunkX(), chunk.chunkZ());
         for (int x = 0; x < Chunk.SIZE; x++)
             for (int z = 0; z < Chunk.SIZE; z++)
@@ -682,6 +690,7 @@ public final class World implements IBlockWorld {
                 if (!exists(next[0] + 1, next[1]) || !exists(next[0], next[1] + 1) || !exists(next[0] + 1, next[1] + 1)) continue;
                 corner.markPopulated();
                 if (netherPopulator != null) netherPopulator.populate(genAccess, netherGenerator, next[0], next[1]);
+                else if (endGenerator != null) endGenerator.populate(genAccess, next[0], next[1]);
                 else populator.populate(genAccess, next[0], next[1]);
             }
         } finally {
@@ -741,6 +750,7 @@ public final class World implements IBlockWorld {
         @Override public void spawnCreature(String entity, double x, double y, double z, float yaw) {
             pendingCreatures.add(new CreatureSpawn(entity, x, y, z, yaw));
         }
+        @Override public void setSkull(int x, int y, int z, int type, int rotation) { World.this.setSkull(x, y, z, type, rotation); }
 
         @Override
         public int height(int x, int z) {
