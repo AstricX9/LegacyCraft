@@ -183,8 +183,10 @@ public final class Minecraft implements GuiContext {
     // The singleplayer session; all null on the title screen.
     private World world;
     /** The dimensions' worlds and entity lists this session ({@link #world}/{@link #server} are the current ones). */
-    private World overworld, netherWorld;
-    private IntegratedServer overworldServer, netherServer;
+    private World overworld;
+    /** The Nether's and the End's worlds and entity lists, once visited. */
+    private final java.util.EnumMap<net.minecraft.world.Dimension, World> otherWorlds = new java.util.EnumMap<>(net.minecraft.world.Dimension.class);
+    private final java.util.EnumMap<net.minecraft.world.Dimension, IntegratedServer> servers = new java.util.EnumMap<>(net.minecraft.world.Dimension.class);
     private net.minecraft.world.Dimension dimension = net.minecraft.world.Dimension.OVERWORLD;
     /** Portal travel (Entity.portalCounter / timeUntilPortal): ticks spent in a portal, and the cooldown after travelling. */
     private int portalCounter, timeUntilPortal;
@@ -999,8 +1001,8 @@ public final class Minecraft implements GuiContext {
         overworld = world;
         dimension = net.minecraft.world.Dimension.OVERWORLD;
         chooseSpawn(info);
-        if (settings == null && info.playerDimension == -1 && info.player != null && cliSpawnX == null) {
-            dimension = net.minecraft.world.Dimension.NETHER;
+        if (settings == null && info.playerDimension != 0 && info.player != null && cliSpawnX == null) {
+            dimension = net.minecraft.world.Dimension.byId(info.playerDimension);
             world = dimensionWorld(dimension);
         }
         loadingScreen.setTitle(I18n.format("menu.loadingLevel"));
@@ -1101,8 +1103,8 @@ public final class Minecraft implements GuiContext {
         particles.sounds = this::playSound;
         eventsInstalled = true;
         installEvents(overworld);
-        if (netherWorld != null) installEvents(netherWorld);
-        sky.setNether(world.isNether());
+        otherWorlds.values().forEach(this::installEvents);
+        sky.setDimension(world.dimension());
         gameSettings.difficulty = levelInfo.difficulty;
         if (worldFolder != null) saveWorld();
         displayGuiScreen(null);
@@ -1131,37 +1133,38 @@ public final class Minecraft implements GuiContext {
 
     // ---- dimensions ---------------------------------------------------------------------------
 
-    /** A dimension's world, loaded from its folder (DIM-1) or created the first time it is visited. */
+    /** A dimension's world, loaded from its folder (DIM-1, DIM1) or created the first time it is visited. */
     private World dimensionWorld(net.minecraft.world.Dimension target) {
         if (target == net.minecraft.world.Dimension.OVERWORLD) return overworld;
-        if (netherWorld != null) return netherWorld;
+        World existing = otherWorlds.get(target);
+        if (existing != null) return existing;
         long seed = levelInfo.randomSeed;
         Path directory = worldFolder == null ? null : saveFormat.worldDirectory(worldFolder).resolve(target.folder());
+        World loaded = null;
         try {
             if (directory != null && WorldStorage.exists(directory))
-                netherWorld = WorldStorage.load(directory, blockRegistry, s -> createNetherWorld(s));
+                loaded = WorldStorage.load(directory, blockRegistry, s -> createDimensionWorld(s, target));
         } catch (IOException error) {
-            System.err.println("Couldn't load the Nether; it will be regenerated: " + error.getMessage());
+            System.err.println("Couldn't load " + target + "; it will be regenerated: " + error.getMessage());
         }
-        if (netherWorld == null) netherWorld = createNetherWorld(seed);
-        if (eventsInstalled) installEvents(netherWorld);
-        return netherWorld;
+        if (loaded == null) loaded = createDimensionWorld(seed, target);
+        otherWorlds.put(target, loaded);
+        if (eventsInstalled) installEvents(loaded);
+        return loaded;
     }
 
-    private World createNetherWorld(long seed) {
-        World created = new World(blockRegistry, biomeRegistry, seed, null, net.minecraft.world.Dimension.NETHER);
+    private World createDimensionWorld(long seed, net.minecraft.world.Dimension target) {
+        World created = new World(blockRegistry, biomeRegistry, seed, null, target);
         created.setSmelting(smelting, this::itemByName);
         return created;
     }
 
     /** A dimension's entity list, its saved entities loaded the first time. */
     private IntegratedServer dimensionServer(net.minecraft.world.Dimension target) {
-        boolean nether = target == net.minecraft.world.Dimension.NETHER;
-        IntegratedServer existing = nether ? netherServer : overworldServer;
+        IntegratedServer existing = servers.get(target);
         if (existing != null) return existing;
         IntegratedServer created = new IntegratedServer(dimensionWorld(target));
-        if (nether) netherServer = created;
-        else overworldServer = created;
+        servers.put(target, created);
         IntegratedServer previous = server;
         server = created;
         loadEntities(target);
@@ -1179,7 +1182,8 @@ public final class Minecraft implements GuiContext {
      */
     private void changeDimension(net.minecraft.world.Dimension target, boolean throughPortal) {
         if (player == null || target == dimension) return;
-        double scale = target == net.minecraft.world.Dimension.NETHER ? 1.0 / 8.0 : 8.0;
+        boolean end = target == net.minecraft.world.Dimension.END, fromEnd = dimension == net.minecraft.world.Dimension.END;
+        double scale = target == net.minecraft.world.Dimension.NETHER ? 1.0 / 8.0 : dimension == net.minecraft.world.Dimension.NETHER ? 8.0 : 1.0;
         double x = Math.max(-29999872, Math.min(29999872, player.x * scale));
         double z = Math.max(-29999872, Math.min(29999872, player.z * scale));
         double y = player.y;
@@ -1189,7 +1193,25 @@ public final class Minecraft implements GuiContext {
         levelInfo.playerDimension = target.id;
         player.setWorld(world);
         if (target == net.minecraft.world.Dimension.NETHER && throughPortal) triggerAchievement("portal");
-        if (throughPortal) {
+        if (end) {
+            // WorldServer.getSpawnCoordinate and Teleporter.placeInPortal for the End: a 5x5 obsidian platform at (100, 48, 0).
+            triggerAchievement("theEnd");
+            x = 100.5;
+            y = 49;
+            z = 0.5;
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    for (int dy = -1; dy <= 2; dy++)
+                        world.setStateAndUpdate(100 + dx, 49 + dy, dz, dy < 0
+                            ? BlockState.of(blockRegistry.get("minecraft:obsidian"), 0) : BlockState.of(blockRegistry.air(), 0));
+        } else if (fromEnd) {
+            // Leaving the End through its exit portal: The End. and back to the player's spawn point
+            // (EntityPlayerMP.travelToDimension, ServerConfigurationManager.recreatePlayerEntity). shortcut: no end poem.
+            triggerAchievement("theEnd2");
+            x = player.spawnX;
+            z = player.spawnZ;
+            y = world.surfaceHeight((int) Math.floor(x), (int) Math.floor(z)) + 2;
+        } else if (throughPortal) {
             double[] spot = net.minecraft.world.Teleporter.placeInPortal(world, x, y, z, random);
             x = spot[0];
             y = spot[1];
@@ -1205,7 +1227,7 @@ public final class Minecraft implements GuiContext {
         if (particles != null) particles.clear();
         particles = new ParticleManager(world, atlas, guiTextures, modelManager, biomeColors);
         particles.sounds = this::playSound;
-        sky.setNether(world.isNether());
+        sky.setDimension(world.dimension());
         loadingScreen.setTitle(I18n.format("multiplayer.downloadingTerrain"));
         loadingScreen.setMessage("");
         loadingScreen.setProgress(0);
@@ -1256,12 +1278,12 @@ public final class Minecraft implements GuiContext {
             Path directory = saveFormat.worldDirectory(worldFolder);
             Files.createDirectories(directory);
             WorldStorage.save(directory, overworld);
-            saveEntities(directory, overworldServer);
-            if (netherWorld != null) {
-                Path netherDirectory = directory.resolve(net.minecraft.world.Dimension.NETHER.folder());
-                Files.createDirectories(netherDirectory);
-                WorldStorage.save(netherDirectory, netherWorld);
-                saveEntities(netherDirectory, netherServer);
+            saveEntities(directory, servers.get(net.minecraft.world.Dimension.OVERWORLD));
+            for (var entry : otherWorlds.entrySet()) {
+                Path dimensionDirectory = directory.resolve(entry.getKey().folder());
+                Files.createDirectories(dimensionDirectory);
+                WorldStorage.save(dimensionDirectory, entry.getValue());
+                saveEntities(dimensionDirectory, servers.get(entry.getKey()));
             }
             levelInfo.sizeOnDisk = directorySize(directory);
             saveFormat.saveWorldInfo(worldFolder, levelInfo);
@@ -1325,11 +1347,11 @@ public final class Minecraft implements GuiContext {
 
     private void closeSession() {
         if (soundHandler != null) soundHandler.stopAll();
-        if (overworldServer != null) overworldServer.close();
-        if (netherServer != null) netherServer.close();
-        if (server != null && server != overworldServer && server != netherServer) server.close();
-        overworldServer = netherServer = null;
-        overworld = netherWorld = null;
+        servers.values().forEach(IntegratedServer::close);
+        if (server != null && !servers.containsValue(server)) server.close();
+        servers.clear();
+        otherWorlds.clear();
+        overworld = null;
         eventsInstalled = false;
         dimension = net.minecraft.world.Dimension.OVERWORLD;
         portalCounter = timeUntilPortal = 0;
@@ -1538,29 +1560,38 @@ public final class Minecraft implements GuiContext {
             best = Math.sqrt(hx * hx + hy * hy + hz * hz);
         }
         MovingEntity found = null;
+        int foundPart = -1;
         double foundDistance = best;
         for (Entity entity : server.entities().values()) {
             if (entity == ridingBoat) continue;
             if (entity.isRemoved() || !(entity instanceof EntityLiving || entity instanceof EntityTNTPrimed
-                || entity instanceof net.minecraft.entity.EntityBoat
+                || entity instanceof net.minecraft.entity.EntityBoat || entity instanceof net.minecraft.entity.EntityEnderCrystal
                 || entity instanceof net.minecraft.entity.EntityFireball fb && fb.deflectable())) continue;
-            AxisAlignedBB box = ((MovingEntity) entity).boundingBox();
-            box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
-            if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
-                if (foundDistance >= 0) {
-                    found = (MovingEntity) entity;
-                    foundDistance = 0;
+            // The dragon is hit through its parts (EntityDragonPart), not its own box.
+            AxisAlignedBB[] boxes = entity instanceof net.minecraft.entity.boss.EntityDragon dragon ? dragon.partBoxes()
+                : new AxisAlignedBB[]{((MovingEntity) entity).boundingBox()};
+            for (int part = 0; part < boxes.length; part++) {
+                AxisAlignedBB box = boxes[part];
+                box = new AxisAlignedBB(box.minX() - 0.1, box.minY() - 0.1, box.minZ() - 0.1, box.maxX() + 0.1, box.maxY() + 0.1, box.maxZ() + 0.1);
+                if (ex >= box.minX() && ex <= box.maxX() && ey >= box.minY() && ey <= box.maxY() && ez >= box.minZ() && ez <= box.maxZ()) {
+                    if (foundDistance >= 0) {
+                        found = (MovingEntity) entity;
+                        foundPart = part;
+                        foundDistance = 0;
+                    }
+                    continue;
                 }
-                continue;
-            }
-            AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
-            if (entry == null || entry.distance() > best) continue;
-            if (entry.distance() < foundDistance || foundDistance == 0) {
-                found = (MovingEntity) entity;
-                foundDistance = entry.distance();
+                AxisAlignedBB.RayHit entry = box.rayEntry(ex, ey, ez, dx, dy, dz);
+                if (entry == null || entry.distance() > best) continue;
+                if (entry.distance() < foundDistance || foundDistance == 0) {
+                    found = (MovingEntity) entity;
+                    foundPart = part;
+                    foundDistance = entry.distance();
+                }
             }
         }
         if (found == null) return hit;
+        if (found instanceof net.minecraft.entity.boss.EntityDragon dragon) dragon.hitPart = foundPart;
         if (limited && foundDistance > 3.0) return null;
         pointedEntity = found;
         return null;
@@ -1576,6 +1607,10 @@ public final class Minecraft implements GuiContext {
     private void attackEntity(MovingEntity target) {
         if (target instanceof net.minecraft.entity.EntityBoat boat) {
             if (!isSpectator() && boat.hitByPlayer(isCreative()) && boat == ridingBoat) dismountBoat();
+            return;
+        }
+        if (target instanceof net.minecraft.entity.EntityEnderCrystal crystal) {
+            if (!isSpectator()) crystal.hit();
             return;
         }
         if (!isSpectator() && target instanceof net.minecraft.entity.EntityFireball fireball && fireball.deflectable()) {
@@ -1868,6 +1903,11 @@ public final class Minecraft implements GuiContext {
             } else if (entity instanceof net.minecraft.entity.boss.EntityWither wither) {
                 mobRenderer.renderWither(wither, partialTicks);
                 if (shadows) mobRenderer.renderShadow(ex, ey, ez, 1f, 1f);
+            } else if (entity instanceof net.minecraft.entity.boss.EntityDragon dragon) {
+                mobRenderer.renderDragon(dragon, partialTicks);
+            } else if (entity instanceof net.minecraft.entity.EntityEnderCrystal crystal) {
+                mobRenderer.renderCrystal(crystal, partialTicks);
+                if (shadows) mobRenderer.renderShadow(ex, ey, ez, 0.5f, 1f);
             } else if (entity instanceof net.minecraft.entity.EntityWitherSkull skull) {
                 mobRenderer.renderWitherSkull(skull, partialTicks);
             } else if (entity instanceof net.minecraft.entity.EntityArrow arrow) {
@@ -2113,7 +2153,7 @@ public final class Minecraft implements GuiContext {
             else glClearColor(0.50f, 0.69f, 1.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if (inWorld) {
-                net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : "world0";
+                net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : world.isEnd() ? "world1" : "world0";
                 net.minecraft.client.shaders.Shaders.select(shaderPackFile(),
                     "Iris".equals(additions.setting(net.minecraft.client.additions.Additions.SHADER_PACKS, "loader")), message -> printChatLine(message, 0));
                 renderWorld(fog);
@@ -2301,7 +2341,7 @@ public final class Minecraft implements GuiContext {
             Math.max(player == null ? 0f : player.nightVisionBrightness(partialTicks),
                 additions.isOn(net.minecraft.client.additions.Additions.FULL_BRIGHT)
                     ? (float) additions.number(net.minecraft.client.additions.Additions.FULL_BRIGHT, "brightness") / 100f : 0f),
-            world.isNether());
+            world.dimension());
         return fog;
     }
 
@@ -3215,7 +3255,7 @@ public final class Minecraft implements GuiContext {
                 return;
             }
             if (activateBlock(hit)) playerAnimation.swing();
-            else if (useFlintAndSteel(hit)) playerAnimation.swing();
+            else if (useFlintAndSteel(hit) || useEnderEye(hit)) playerAnimation.swing();
             else if (useSpawnEgg(hit)) playerAnimation.swing();
             else if (useSkull(hit)) playerAnimation.swing();
             else if (!useBucket()) {
@@ -3443,6 +3483,31 @@ public final class Minecraft implements GuiContext {
         }
     }
 
+
+    /**
+     * An eye of ender into an empty end portal frame (ItemEnderEye.onItemUse):
+     * the eye sits in the frame (used up outside Creative), and a ring of
+     * twelve filled frames around a 3x3 hollow fills it with end portal.
+     */
+    private boolean useEnderEye(WorldRenderer.Hit hit) {
+        ItemStack held = inventory.getCurrentItem();
+        if (hit == null || held == null || !held.item().name().path().equals("ender_eye")) return false;
+        BlockState frame = world.getState(hit.x(), hit.y(), hit.z());
+        if (!frame.block().name().path().equals("end_portal_frame") || frame.get("eye").equals("true")) return false;
+        world.setStateAndUpdate(hit.x(), hit.y(), hit.z(), frame.with("eye", "true"));
+        if (!isCreative()) {
+            held.split(1);
+            if (held.isEmpty()) inventory.mainInventory[inventory.currentItem] = null;
+        }
+        int[] centre = net.minecraft.world.EndPodium.portalCentre(world, hit.x(), hit.y(), hit.z());
+        if (centre != null) {
+            BlockState portal = BlockState.of(blockRegistry.get("minecraft:end_portal"), 0);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++) world.setStateAndUpdate(centre[0] + dx, centre[1], centre[2] + dz, portal);
+        }
+        return true;
+    }
+
     /**
      * Flint and steel on a block (ItemFlintAndSteel.onItemUse): fire in the
      * air beside the face clicked, with the ignite sound, and one use of
@@ -3505,9 +3570,15 @@ public final class Minecraft implements GuiContext {
         } else {
             player.timeInPortal = Math.max(0f, player.timeInPortal - 0.05f);
         }
-        if (travel && !player.dead)
+        if (travel && !player.dead && dimension != net.minecraft.world.Dimension.END)
             changeDimension(dimension == net.minecraft.world.Dimension.NETHER ? net.minecraft.world.Dimension.OVERWORLD
                 : net.minecraft.world.Dimension.NETHER, true);
+        if (player.inEndPortal && !player.dead && preparing == null) {
+            player.inEndPortal = false;
+            if (dimension == net.minecraft.world.Dimension.END) changeDimension(net.minecraft.world.Dimension.OVERWORLD, true);
+            else if (dimension == net.minecraft.world.Dimension.OVERWORLD) changeDimension(net.minecraft.world.Dimension.END, true);
+        }
+        player.inEndPortal = false;
     }
 
     /**
@@ -3713,7 +3784,11 @@ public final class Minecraft implements GuiContext {
         if (server == null || world == null) return;
         for (World.CreatureSpawn spawn : world.takeCreatureSpawns()) {
             MovingEntity entity = net.minecraft.entity.EntityList.create(spawn.entity(), world, spawn.x(), spawn.y(), spawn.z());
-            if (!(entity instanceof EntityLiving living)) continue;
+            if (entity == null) continue;
+            if (!(entity instanceof EntityLiving living)) {
+                spawnEntity(entity);
+                continue;
+            }
             living.setPositionAndRotation(spawn.x(), spawn.y(), spawn.z(), spawn.yaw(), 0f);
             living.prevRotationYaw = spawn.yaw();
             living.rotationYawHead = living.prevRotationYawHead = living.renderYawOffset = living.prevRenderYawOffset = spawn.yaw();

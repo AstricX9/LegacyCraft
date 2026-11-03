@@ -297,7 +297,7 @@ public final class LevelInfo {
             info.player = new PlayerPosition(((NbtTag.Double) pos.values().get(0)).value(),
                 ((NbtTag.Double) pos.values().get(1)).value(), ((NbtTag.Double) pos.values().get(2)).value(),
                 yaw, pitch, byteOr(playerTag, "OnGround", 0) != 0);
-            if (playerTag.get("Dimension") instanceof NbtTag.Int dimension) info.playerDimension = dimension.value() == -1 ? -1 : 0;
+            if (playerTag.get("Dimension") instanceof NbtTag.Int dimension) info.playerDimension = net.minecraft.world.Dimension.byId(dimension.value()).id;
         }
         if (data.get("Player") instanceof NbtTag.Compound playerTag) {
             if (playerTag.get("Inventory") instanceof NbtTag.NbtList list) {

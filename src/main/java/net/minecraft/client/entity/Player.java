@@ -72,6 +72,8 @@ public final class Player {
     public boolean inWater, enteredWater;
     /** Touched a portal block this tick (BlockPortal.onEntityCollidedWithBlock); the client clears it once used. */
     public boolean inPortal;
+    /** Touched an end portal this tick (BlockEndPortal.onEntityCollidedWithBlock: travel is immediate). */
+    public boolean inEndPortal;
     /** How far the portal's purple haze has built up, 0-1 (EntityPlayerSP.timeInPortal), and last tick's value. */
     public float timeInPortal, prevTimeInPortal;
     public float fallDistance;
@@ -591,7 +593,7 @@ public final class Player {
     /** Moves the player into another dimension's world (Entity.travelToDimension; the caller places them). */
     public void setWorld(World world) { this.world = world; }
     public World world() { return world; }
-    private final double spawnX, spawnZ;
+    public final double spawnX, spawnZ;
     private int jumpTicks, flyToggleTimer, sprintToggleTimer;
     private boolean jumpWasDown, sneakWasDown, inWeb, firstUpdate = true;
     private float lastForward;
@@ -1030,6 +1032,7 @@ public final class Player {
                         case "soul_sand" -> { motionX *= 0.4; motionZ *= 0.4; }
                         case "web" -> inWeb = true;
                         case "portal" -> inPortal = true;
+                        case "end_portal" -> inEndPortal = true;
                         case "cactus" -> attack(DamageSource.CACTUS, 1f);
                         case "slime" -> {
                             if (Math.abs(motionY) < 0.1 && !sneaking) {

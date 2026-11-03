@@ -37,6 +37,8 @@ public final class EntityList {
             case "Chicken" -> new net.minecraft.entity.passive.EntityChicken(world, x, y, z);
             case "Boat" -> new EntityBoat(world, x, y, z);
             case "VillagerGolem" -> new net.minecraft.entity.passive.EntityIronGolem(world, x, y, z);
+            case "EnderDragon" -> new net.minecraft.entity.boss.EntityDragon(world, x, y, z);
+            case "EnderCrystal" -> new EntityEnderCrystal(world, x, y, z);
             default -> null;
         };
     }
