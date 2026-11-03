@@ -143,7 +143,13 @@ public final class EnchantmentHelper {
      * compatible one is added. Null when nothing fits.
      */
     public static List<Data> buildEnchantmentList(Random random, ItemStack stack, int level) {
-        int enchantability = enchantability(stack.item());
+        return build(random, enchantability(stack.item()), stack.item(), isBook(stack), level);
+    }
+
+    /** buildEnchantmentList for a plain book, which needs no item loaded (ItemEnchantedBook.getRandom). */
+    public static List<Data> buildBookList(Random random, int level) { return build(random, 1, null, true, level); }
+
+    private static List<Data> build(Random random, int enchantability, Item item, boolean book, int level) {
         if (enchantability <= 0) return null;
         enchantability /= 4;
         enchantability = 1 + random.nextInt((enchantability >> 1) + 1) + random.nextInt((enchantability >> 1) + 1);
@@ -152,7 +158,7 @@ public final class EnchantmentHelper {
         int modified = (int) (total * (1f + spread) + 0.5f);
         if (modified < 1) modified = 1;
         List<Data> list = null;
-        Map<Integer, Data> map = candidates(modified, stack);
+        Map<Integer, Data> map = candidates(modified, item, book);
         if (map != null && !map.isEmpty()) {
             Data first = weighted(random, map.values());
             if (first != null) {
@@ -181,11 +187,10 @@ public final class EnchantmentHelper {
      * {@code level} and that the table puts on the item, or on anything for a
      * book (mapEnchantmentData). A HashMap by id, iterated in HashMap order as vanilla's.
      */
-    static Map<Integer, Data> candidates(int level, ItemStack stack) {
+    static Map<Integer, Data> candidates(int level, Item item, boolean book) {
         Map<Integer, Data> map = null;
-        boolean book = isBook(stack);
         for (Enchantment enchantment : Enchantment.ALL) {
-            if (!enchantment.type.canEnchantItem(stack.item()) && !book) continue;
+            if (!book && !enchantment.type.canEnchantItem(item)) continue;
             for (int i = enchantment.minLevel(); i <= enchantment.maxLevel; i++) {
                 if (level >= enchantment.minEnchantability(i) && level <= enchantment.maxEnchantability(i)) {
                     if (map == null) map = new HashMap<>();

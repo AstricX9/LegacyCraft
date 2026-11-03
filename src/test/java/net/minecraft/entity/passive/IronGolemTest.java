@@ -85,12 +85,15 @@ final class IronGolemTest {
     void huntsAndHitsTheNearestHostileMob() {
         EntityIronGolem golem = new EntityIronGolem(world, 0.5, FLOOR + 1, 0.5);
         EntityCreeper creeper = new EntityCreeper(world, 1.5, FLOOR + 1, 0.5);
+        net.minecraft.entity.monster.EntityZombie zombie = new net.minecraft.entity.monster.EntityZombie(world, 3.5, FLOOR + 1, 0.5);
         host.spawn(golem);
         host.spawn(creeper);
-        float before = creeper.health;
-        for (int i = 0; i < 40; i++) golem.tick();
-        assertSame(creeper, golem.target());
-        assertTrue(creeper.health < before, "the creeper was hit");
+        host.spawn(zombie);
+        float before = zombie.health, creeperBefore = creeper.health;
+        for (int i = 0; i < 80; i++) golem.tick();
+        assertSame(zombie, golem.target(), "creepers are left alone");
+        assertTrue(zombie.health < before, "the zombie was hit");
+        assertEquals(creeperBefore, creeper.health);
     }
 
     @Test

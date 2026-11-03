@@ -1,6 +1,6 @@
 package net.minecraft.world.gen;
 
-import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
@@ -11,7 +11,7 @@ import java.util.Random;
 /**
  * Generated chest loot (1.8.9 WeightedRandomChestContent and the tables of
  * WorldGenDungeons, StructureStrongholdPieces and StructureNetherBridgePieces,
- * HYPOTHESIS: recalled). Each draw picks an entry by weight and a count in
+ * checked against minecraft.wiki's pre-1.9 Module:LootChest). Each draw picks an entry by weight and a count in
  * its range, then puts the stack in a random slot (overwriting whatever was
  * there); a count over the item's stack size goes in one at a time. The
  * random draws happen whether or not the items are loaded, so generation
@@ -58,15 +58,16 @@ public final class ChestLoot {
 
     /**
      * ItemEnchantedBook.getRandom(rand, min, max, weight) added to a table
-     * (WeightedRandomChestContent.func_177629_a): a book with one random
-     * enchantment at a random level.
+     * (WeightedRandomChestContent.func_177629_a): a book given a level-30
+     * table enchantment (EnchantmentHelper.addRandomEnchantment), so it can
+     * carry several, and every book drawn into the chest shares them.
      */
     static List<Entry> withBook(List<Entry> table, Random rand, int min, int max, int weight) {
-        Enchantment enchantment = Enchantment.ALL.get(rand.nextInt(Enchantment.ALL.size()));
-        int lo = enchantment.minLevel(), hi = enchantment.maxLevel;
-        int level = lo >= hi ? lo : rand.nextInt(hi - lo + 1) + lo;
+        java.util.Map<Integer, Integer> enchantments = new java.util.LinkedHashMap<>();
+        List<EnchantmentHelper.Data> list = EnchantmentHelper.buildBookList(rand, 30);
+        if (list != null) for (EnchantmentHelper.Data data : list) enchantments.put(data.enchantment().id, data.level());
         List<Entry> result = new ArrayList<>(table);
-        result.add(new Entry("enchanted_book", 0, min, max, weight, java.util.Map.of(enchantment.id, level)));
+        result.add(new Entry("enchanted_book", 0, min, max, weight, enchantments));
         return result;
     }
 

@@ -10,8 +10,9 @@ import net.minecraft.world.World;
 /**
  * The iron golem (1.8.9 EntityIronGolem, HYPOTHESIS: behaviour recalled from
  * play, see DEV-039): 100 health, 1.4 x 2.9, slow (0.25), never takes fall
- * damage and barely moves when hit. It hunts the nearest hostile mob within
- * 16 blocks and hits it for 7-21, flinging it upwards. Golems the player
+ * damage, and takes normal knockback (full resistance came in 1.9). It hunts
+ * the nearest hostile mob other than a creeper within 16 blocks and hits it
+ * for 7-21, flinging it upwards. Golems the player
  * builds never turn on the player (LegacyCraft has no villages, so every
  * golem here is player-built). Drops 3-5 iron ingots and 0-2 poppies.
  */
@@ -47,16 +48,6 @@ public final class EntityIronGolem extends EntityLiving {
         playSound("mob.irongolem.walk", 1f, 1f);
     }
 
-    /** Barely budges: a tenth of the usual knockback. */
-    @Override
-    public void knockBack(double dx, double dz) {
-        double mx = motionX, my = motionY, mz = motionZ;
-        super.knockBack(dx, dz);
-        motionX = mx + (motionX - mx) * 0.1;
-        motionY = my + (motionY - my) * 0.1;
-        motionZ = mz + (motionZ - mz) * 0.1;
-    }
-
     @Override
     protected void livingUpdate() {
         if (attackTimer > 0) attackTimer--;
@@ -65,7 +56,7 @@ public final class EntityIronGolem extends EntityLiving {
         huntMobs();
     }
 
-    /** Picks the nearest hostile mob in range every so often, walks to it and hits it when close. */
+    /** AINearestAttackableTargetNonCreeper: picks the nearest hostile mob in range every so often, walks to it and hits it when close. */
     private void huntMobs() {
         if (host == null) return;
         if (target != null && (target.isRemoved() || !target.isAlive() || target.distanceSqTo(x, y, z) > 32 * 32)) target = null;
@@ -73,7 +64,8 @@ public final class EntityIronGolem extends EntityLiving {
             retargetDelay = 10;
             double best = followRange() * followRange();
             for (Entity entity : host.entities()) {
-                if (!(entity instanceof EntityLiving mob) || !(entity instanceof IMob) || entity.isRemoved() || !mob.isAlive()) continue;
+                if (!(entity instanceof EntityLiving mob) || !(entity instanceof IMob)
+                    || entity instanceof net.minecraft.entity.monster.EntityCreeper || entity.isRemoved() || !mob.isAlive()) continue;
                 double d = mob.distanceSqTo(x, y, z);
                 if (d < best && Math.abs(mob.y() - y) < 8) {
                     best = d;
