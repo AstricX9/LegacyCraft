@@ -70,7 +70,7 @@ final class ScreenFlowTest {
     }
 
     @Test
-    void clickingTheLogoFiveTimesTurnsAdditionsOn() throws Exception {
+    void clickingTheLogoFiveTimesTogglesAdditions() throws Exception {
         mc.displayGuiScreen(new GuiMainMenu());
         int x = mc.screen.width / 2, y = 50;
         for (int i = 1; i < GuiMainMenu.LOGO_CLICKS_TO_UNLOCK; i++) mc.screen.mouseClicked(x, y, 0);
@@ -80,6 +80,9 @@ final class ScreenFlowTest {
         GuiButton additions = button("Additions", false);
         assertTrue(additions.alpha < 1, "fades in");
         assertTrue(Files.readAllLines(mc.directory.resolve("additions.txt")).contains("enabled:true"));
+        for (int i = 0; i < GuiMainMenu.LOGO_CLICKS_TO_UNLOCK; i++) mc.screen.mouseClicked(x, y, 0);
+        assertFalse(mc.additions.enabled(), "five more clicks switch them back off");
+        for (GuiButton b : mc.screen.buttonList) assertNotEquals("Additions", b.displayString);
     }
 
     @Test

@@ -48,11 +48,11 @@ public class GuiMainMenu extends GuiScreen {
     private boolean logoLoaded;
     private int logoTexture, logoTextureWidth, logoTextureHeight;
     private boolean checkedWhatsNew;
-    /** Clicking the logo this many times turns Additions on for the instance, without the launcher. */
+    /** Clicking the logo this many times switches Additions on or off for the instance, without the launcher. */
     static final int LOGO_CLICKS_TO_UNLOCK = 5;
     private static final long FADE_MILLIS = 1000;
     private int logoClicks;
-    private long additionsShownAt;
+    private long additionsShownAt, logoBouncedAt;
 
     public GuiMainMenu() {}
 
@@ -96,12 +96,18 @@ public class GuiMainMenu extends GuiScreen {
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         super.mouseClicked(mouseX, mouseY, mouseButton);
         int logoLeft = width / 2 - LOGO_WIDTH / 2;
-        if (mouseButton != 0 || mc.additions().enabled() || mouseX < logoLeft || mouseX >= logoLeft + LOGO_WIDTH
-            || mouseY < LOGO_TOP || mouseY >= LOGO_TOP + LOGO_HEIGHT || ++logoClicks < LOGO_CLICKS_TO_UNLOCK) return;
-        mc.additions().setEnabled(true);
+        if (mouseButton != 0 || mouseX < logoLeft || mouseX >= logoLeft + LOGO_WIDTH
+            || mouseY < LOGO_TOP || mouseY >= LOGO_TOP + LOGO_HEIGHT) return;
+        if (++logoClicks < LOGO_CLICKS_TO_UNLOCK) {
+            if (logoClicks >= 3) logoBouncedAt = System.currentTimeMillis();
+            return;
+        }
+        logoClicks = 0;
+        boolean on = !mc.additions().enabled();
+        mc.additions().setEnabled(on);
         mc.additions().save();
         mc.playClickSound();
-        additionsShownAt = System.currentTimeMillis();
+        additionsShownAt = on ? System.currentTimeMillis() : 0;
         buttonList.clear();
         initGui();
     }
@@ -165,7 +171,15 @@ public class GuiMainMenu extends GuiScreen {
         drawGradientRect(0, 0, width, height, 0x00000000, 0x80000000);
 
         int logoLeft = width / 2 - LOGO_WIDTH / 2;
+        // Clicks 3 and 4 on the logo make it bounce a little, hinting that the 5th does something.
+        float bounce = Math.min(1, (System.currentTimeMillis() - logoBouncedAt) / 250f);
+        float scale = 1 + 0.04f * (float) Math.sin(bounce * Math.PI);
+        glPushMatrix();
+        glTranslatef(width / 2f, LOGO_TOP + LOGO_HEIGHT / 2f, 0);
+        glScalef(scale, scale, 1);
+        glTranslatef(-width / 2f, -(LOGO_TOP + LOGO_HEIGHT / 2f), 0);
         if (!drawLegacyCraftLogo(logoLeft, LOGO_TOP)) drawVanillaLogo(logoLeft, LOGO_TOP);
+        glPopMatrix();
 
         glPushMatrix();
         glTranslatef(width / 2f + 90, 70, 0);
