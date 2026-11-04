@@ -32,7 +32,7 @@ public class GuiMainMenu extends GuiScreen {
     /** LegacyCraft's own full-resolution logo; drawn instead of the vanilla sheet when a pack provides it. */
     private static final ResourceLocation LEGACYCRAFT_LOGO = new ResourceLocation("minecraft:textures/gui/title/legacycraft.png");
     /** Vanilla's logo is 274x44 GUI units; LegacyCraft's keeps that width. */
-    private static final int LOGO_WIDTH = 274, LOGO_HEIGHT = 44;
+    private static final int LOGO_WIDTH = 274, LOGO_HEIGHT = 44, LOGO_TOP = 30;
     private static final ResourceLocation[] PANORAMA = new ResourceLocation[6];
     private static final Random RANDOM = new Random();
 
@@ -48,6 +48,11 @@ public class GuiMainMenu extends GuiScreen {
     private boolean logoLoaded;
     private int logoTexture, logoTextureWidth, logoTextureHeight;
     private boolean checkedWhatsNew;
+    /** Clicking the logo this many times turns Additions on for the instance, without the launcher. */
+    static final int LOGO_CLICKS_TO_UNLOCK = 5;
+    private static final long FADE_MILLIS = 1000;
+    private int logoClicks;
+    private long additionsShownAt;
 
     public GuiMainMenu() {}
 
@@ -80,10 +85,33 @@ public class GuiMainMenu extends GuiScreen {
         buttonList.add(new GuiButton(2, width / 2 - 100, top + 24, I18n.format("menu.multiplayer")));
         buttonList.add(new GuiButton(14, width / 2 - 100, top + 24 * 2, I18n.format("menu.online")));
         if (additions) buttonList.add(new GuiButton(20, width / 2 - 100, top + 72, GuiAdditions.TITLE));
+        fadeAdditionsButton();
         int bottom = top + 24 * rows + 12;
         buttonList.add(new GuiButton(0, width / 2 - 100, bottom, 98, 20, I18n.format("menu.options")));
         buttonList.add(new GuiButton(4, width / 2 + 2, bottom, 98, 20, I18n.format("menu.quit")));
         buttonList.add(new GuiButtonLanguage(5, width / 2 - 124, bottom));
+    }
+
+    @Override
+    public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        super.mouseClicked(mouseX, mouseY, mouseButton);
+        int logoLeft = width / 2 - LOGO_WIDTH / 2;
+        if (mouseButton != 0 || mc.additions().enabled() || mouseX < logoLeft || mouseX >= logoLeft + LOGO_WIDTH
+            || mouseY < LOGO_TOP || mouseY >= LOGO_TOP + LOGO_HEIGHT || ++logoClicks < LOGO_CLICKS_TO_UNLOCK) return;
+        mc.additions().setEnabled(true);
+        mc.additions().save();
+        mc.playClickSound();
+        additionsShownAt = System.currentTimeMillis();
+        buttonList.clear();
+        initGui();
+    }
+
+    /** Fades the Additions button in during the second after the logo unlocked it. */
+    private void fadeAdditionsButton() {
+        if (additionsShownAt == 0) return;
+        float alpha = Math.min(1, (System.currentTimeMillis() - additionsShownAt) / (float) FADE_MILLIS);
+        for (GuiButton b : buttonList) if (b.id == 20) b.alpha = alpha;
+        if (alpha >= 1) additionsShownAt = 0;
     }
 
     /** A random splashes.txt line, replaced by vanilla's date-specific splashes on their days. */
@@ -136,8 +164,8 @@ public class GuiMainMenu extends GuiScreen {
         drawGradientRect(0, 0, width, height, 0x80FFFFFF, 0x00FFFFFF);
         drawGradientRect(0, 0, width, height, 0x00000000, 0x80000000);
 
-        int logoLeft = width / 2 - LOGO_WIDTH / 2, logoTop = 30;
-        if (!drawLegacyCraftLogo(logoLeft, logoTop)) drawVanillaLogo(logoLeft, logoTop);
+        int logoLeft = width / 2 - LOGO_WIDTH / 2;
+        if (!drawLegacyCraftLogo(logoLeft, LOGO_TOP)) drawVanillaLogo(logoLeft, LOGO_TOP);
 
         glPushMatrix();
         glTranslatef(width / 2f + 90, 70, 0);
@@ -148,6 +176,7 @@ public class GuiMainMenu extends GuiScreen {
         drawCenteredString(fontRendererObj, splashText, 0, -8, 0xFFFF00);
         glPopMatrix();
 
+        fadeAdditionsButton();
         drawString(fontRendererObj, Branding.TITLE_VERSION, 2, height - 10, 0xFFFFFF);
         drawString(fontRendererObj, Branding.TITLE_NOTICE, width - fontRendererObj.getStringWidth(Branding.TITLE_NOTICE) - 2,
             height - 10, 0xFFFFFF);

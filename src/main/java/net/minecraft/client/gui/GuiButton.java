@@ -18,6 +18,8 @@ public class GuiButton extends Gui {
     public String displayString;
     public boolean enabled = true;
     public boolean visible = true;
+    /** Opacity of the whole button, for fading it in. */
+    public float alpha = 1;
     protected boolean hovered;
     /** Overrides the label colour when non-zero. */
     public int packedFGColour;
@@ -38,10 +40,10 @@ public class GuiButton extends Gui {
     public boolean isMouseOver() { return hovered; }
 
     public void drawButton(GuiContext context, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible || alpha <= 0) return;
         hovered = mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width && mouseY < yPosition + height;
         context.textures().bind(GuiTextures.WIDGETS);
-        glColor4f(1, 1, 1, 1);
+        glColor4f(1, 1, 1, alpha);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         int state = getHoverState(hovered);
@@ -52,6 +54,7 @@ public class GuiButton extends Gui {
         if (packedFGColour != 0) color = packedFGColour;
         else if (!enabled) color = COLOR_DISABLED;
         else if (hovered) color = COLOR_HOVERED;
+        if (alpha < 1) color = (color & 0xFFFFFF) | Math.max(1, Math.round(alpha * 255)) << 24;
         drawCenteredString(context.font(), displayString, xPosition + width / 2, yPosition + (height - 8) / 2, color);
     }
 
