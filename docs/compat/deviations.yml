@@ -1341,8 +1341,10 @@
     Minecraft Realms and Options.
   replica_behavior: >
     LegacyCraft has Additions, its own mod system: optional changes, each
-    defined by its own file in assets/legacycraft/additions/ (_template.json
-    there is skipped and shows every field), grouped as Gameplay, Graphics,
+    defined by its manifest in additions/ beside resourcepacks/ (_template.json
+    there is skipped and shows every field), with its executable Java entry point
+    and independent JAR in additions/<id>/. Hosts expose public hooks; feature
+    implementations are not compiled into the game or launcher JAR. Grouped as Gameplay, Graphics,
     Interface, Accessibility and Launcher. Each instance turns Additions on
     or off as a whole (the "enabled" line of additions.txt in the game
     folder; off by default, and then the game is plain 1.8.9 with no
@@ -1362,7 +1364,11 @@
     still DEV-010). An addition can have settings (toggle, slider, choice,
     file), saved as addition.setting:value lines and opened from a settings
     button (textures/gui/settings.png, or a drawn gear without it) in game
-    and in the launcher.
+    and in the launcher. Legacy Console Graphics adds an optional native
+    console-inspired lightmap, distance fog and horizon gradient, with
+    weather-dependent colours, liquid fog and persisted controls. It takes
+    priority over shader packs while active; its OFF path restores the
+    original rendering (see docs/legacy-console-graphics.md).
     With Additions on, the title screen has an Additions button under
     Minecraft Realms, which moves Options, Quit and the language button down
     one row (and the whole column up on windows too short for it); it opens

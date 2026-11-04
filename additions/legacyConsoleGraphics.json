@@ -1,0 +1,79 @@
+{
+  "id": "legacyConsoleGraphics",
+  "category": "graphics",
+  "scope": "game",
+  "default": false,
+  "name": "Legacy Console Graphics",
+  "description": "Recreates the lighting, fog and colour characteristics of Minecraft's classic console editions.",
+  "settings": [
+    {
+      "id": "fogStart",
+      "type": "slider",
+      "name": "Fog Start",
+      "description": "Distance where terrain starts fading, as a percentage of render distance. Kept below Fog End automatically.",
+      "min": 0,
+      "max": 85,
+      "step": 5,
+      "unit": "%",
+      "default": 35
+    },
+    {
+      "id": "fogEnd",
+      "type": "slider",
+      "name": "Fog End",
+      "description": "Distance where terrain disappears into the atmosphere. Capped inside the loaded terrain to hide its edge.",
+      "min": 25,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 90
+    },
+    {
+      "id": "brightness",
+      "type": "slider",
+      "name": "Console Gamma",
+      "description": "Lifts the rendered world's midtones, including sunlit block textures. Keeps black unchanged and leaves menus and the HUD alone.",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 25
+    },
+    {
+      "id": "warmth",
+      "type": "slider",
+      "name": "Daylight Warmth",
+      "description": "Subtle warm daylight and atmospheric colours. Fades at night and during bad weather.",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 35
+    },
+    {
+      "id": "contrast",
+      "type": "slider",
+      "name": "Contrast",
+      "description": "Contrast of the rendered world: darkens shadow colours and brightens highlights. Original block-face shading stays intact.",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 20
+    },
+    {
+      "id": "waterVisibility",
+      "type": "slider",
+      "name": "Water Visibility",
+      "description": "Underwater viewing distance. Water stays blue and foggy; lava keeps its original dense fog.",
+      "min": 50,
+      "max": 150,
+      "step": 10,
+      "unit": "%",
+      "default": 100
+    }
+  ],
+  "entrypoint": "net.legacycraft.additions.legacyConsoleGraphics.LegacyConsoleGraphicsAddition",
+  "code": "legacyConsoleGraphics/addition.jar",
+  "api": 1
+}

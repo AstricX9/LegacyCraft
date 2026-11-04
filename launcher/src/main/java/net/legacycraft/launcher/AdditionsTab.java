@@ -75,7 +75,7 @@ final class AdditionsTab extends JPanel {
     /** Rebuilds the tab for the instance picked in the bottom bar; onChange (the launcher's refresh) calls it after every change. */
     void refresh() {
         profile = data.selected();
-        Additions catalog = data.additions();
+        Additions catalog = data.additions(profile);
         title.setText(profile == null ? "Additions" : "Additions for " + profile.name);
         game = profile == null ? Map.of() : Additions.readInstance(data.gameDirFor(profile));
         settings = profile == null ? Map.of() : Additions.readSettings(data.gameDirFor(profile));

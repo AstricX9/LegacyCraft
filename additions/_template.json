@@ -1,0 +1,55 @@
+{
+  "comment": "Copy _template.json to <id>.json and _template/ to <id>/. Set a unique id, entrypoint, code path and settings. Implement ClientAddition using the public engine API; no Minecraft.java edits or hard-coded ID checks are needed. Run gradlew buildAdditions, or supply a prebuilt JAR. api is the executable API version (currently 1). Files beginning with _ are ignored. Switches and settings remain in additions.txt.",
+  "id": "myAddition",
+  "category": "gameplay",
+  "scope": "game",
+  "default": false,
+  "name": "My Addition",
+  "description": "One sentence saying what changes when this is on.",
+  "settings": [
+    {
+      "id": "someSwitch",
+      "type": "toggle",
+      "name": "Some Switch",
+      "description": "What this switch does.",
+      "default": true
+    },
+    {
+      "id": "amount",
+      "type": "slider",
+      "name": "Amount",
+      "description": "What this number changes.",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 50
+    },
+    {
+      "id": "mode",
+      "type": "choice",
+      "name": "Mode",
+      "description": "Pick one of a few options.",
+      "options": [
+        "First",
+        "Second",
+        "Third"
+      ],
+      "default": "First"
+    },
+    {
+      "id": "file",
+      "type": "file",
+      "name": "File",
+      "description": "Pick a file from a folder in the instance folder.",
+      "folder": "myaddition",
+      "extensions": [
+        ".txt"
+      ],
+      "default": ""
+    }
+  ],
+  "entrypoint": "example.MyAddition",
+  "code": "myAddition/addition.jar",
+  "api": 1
+}

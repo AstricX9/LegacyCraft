@@ -1,0 +1,11 @@
+{
+  "id": "fpsCounter",
+  "category": "interface",
+  "scope": "game",
+  "default": false,
+  "name": "FPS Counter",
+  "description": "Shows the frames per second in the top-right corner.",
+  "entrypoint": "net.legacycraft.additions.fpsCounter.FpsCounterAddition",
+  "code": "fpsCounter/addition.jar",
+  "api": 1
+}

@@ -5,7 +5,7 @@ import java.util.Locale;
 
 /**
  * One optional change to the 1.8.9 experience, defined by its own file in
- * {@code assets/legacycraft/additions/} ({@code _template.json} there shows
+ * {@code additions/} ({@code _template.json} there shows
  * every field). Game additions are switched per instance (in the game and in
  * the launcher); launcher additions only change the launcher and are listed
  * here so the definitions stay in one place. {@code defaultOn} is whether it
@@ -13,7 +13,7 @@ import java.util.Locale;
  * settings button on its row.
  */
 public record Addition(String id, Category category, Scope scope, boolean defaultOn, String name, String description,
-                       List<Setting> settings) {
+                       List<Setting> settings, String entrypoint, String code, String settingsNote, int api) {
     public Addition {
         settings = List.copyOf(settings);
     }

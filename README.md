@@ -98,6 +98,16 @@ For example:
 
 The dedicated server uses offline mode and listens on port `25565` by default. Its settings and world are stored in `run-server/`.
 
+## Additions
+
+Game and launcher mods live in [`additions/`](additions/), beside `resourcepacks/`.
+Each has a JSON manifest, Java source, and independent executable JAR. The host
+loads entry points through public hooks; feature implementations are absent from
+the host JARs. Run `gradlew buildAdditions` to build them. Packaged builds include
+the modules, and instances can supply their own folder. Existing switches and
+settings remain in `additions.txt`.
+See [`additions/README.md`](additions/README.md) for the format and loading rules.
+
 ## Website and launcher status
 
 The website in [`legacycraft-site/`](legacycraft-site/) showcases current client captures and provides setup instructions. It is a standalone static site with no build step. The launcher in [`launcher/`](launcher/) and packaged builds are early prototypes; use the Gradle commands above when working with LegacyCraft.

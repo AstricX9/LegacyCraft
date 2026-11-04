@@ -14,9 +14,19 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
-/** Reads every file in a classpath folder, whether the game runs from a build folder or a jar. */
+/** Reads loose addition definitions or the fallback catalog bundled in the jar. */
 final class Resources {
     private Resources() {}
+
+    static Map<String, byte[]> list(Path folder, String suffix) throws IOException {
+        Map<String, byte[]> files = new TreeMap<>();
+        try (Stream<Path> stream = Files.list(folder)) {
+            for (Path p : (Iterable<Path>) stream::iterator)
+                if (Files.isRegularFile(p) && p.getFileName().toString().endsWith(suffix))
+                    files.put(p.getFileName().toString(), Files.readAllBytes(p));
+        }
+        return files;
+    }
 
     /** The files directly in {@code folder} (a classpath path ending in /) whose names end in {@code suffix}, by name. */
     static Map<String, byte[]> list(String folder, String suffix) throws IOException {
@@ -24,10 +34,8 @@ final class Resources {
         URL url = Resources.class.getResource(folder);
         if (url == null) throw new IOException(folder + " is missing");
         if ("file".equals(url.getProtocol())) {
-            try (Stream<Path> stream = Files.list(Path.of(url.toURI()))) {
-                for (Path p : (Iterable<Path>) stream::iterator)
-                    if (Files.isRegularFile(p) && p.getFileName().toString().endsWith(suffix))
-                        files.put(p.getFileName().toString(), Files.readAllBytes(p));
+            try {
+                files.putAll(list(Path.of(url.toURI()), suffix));
             } catch (URISyntaxException e) {
                 throw new IOException(e);
             }

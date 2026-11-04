@@ -1,0 +1,11 @@
+{
+  "id": "noHurtTilt",
+  "category": "accessibility",
+  "scope": "game",
+  "default": false,
+  "name": "No Damage Tilt",
+  "description": "The view no longer rolls when you get hurt.",
+  "entrypoint": "net.legacycraft.additions.noHurtTilt.NoHurtTiltAddition",
+  "code": "noHurtTilt/addition.jar",
+  "api": 1
+}

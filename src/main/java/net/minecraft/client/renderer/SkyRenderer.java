@@ -16,8 +16,9 @@ import static org.lwjgl.opengl.GL11.*;
  * (3D, 12-block cells) and fast (flat) styles.
  *
  * <p>HYPOTHESIS throughout: the formulas and constants are recalled from
- * how 1.8.9 behaves, not copied; no rain, thunder, lightning flashes,
- * blindness, underwater fog or End/Nether skies (deviations.yml DEV-017).
+ * how 1.8.9 behaves, not copied. The optional graphics profile adds weather
+ * grading, blindness darkening and a fog-matched horizon; the default path
+ * retains its original formulas. Lightning flashes are not simulated here.
  */
 public final class SkyRenderer {
     public static final ResourceLocation SUN = new ResourceLocation("minecraft:textures/environment/sun.png");
@@ -37,6 +38,10 @@ public final class SkyRenderer {
     private float skyR, skyG, skyB, fogR, fogG, fogB;
     private float angle;
     private float[] sunrise;
+    private net.minecraft.client.additions.api.GraphicsProfile graphics = net.minecraft.client.additions.api.GraphicsProfile.NONE;
+    private float rain, previousRain, thunder, previousThunder, frameRain, frameThunder;
+    private boolean weatherInitialized, submerged;
+    private float visibility = 1f;
 
     public SkyRenderer(GuiTextures textures) { this.textures = textures; }
 
@@ -199,6 +204,22 @@ public final class SkyRenderer {
      * brightness toward the light at the camera's feet.
      */
     public void tick(long worldTime, int skyLight, int blockLight, int renderDistanceChunks) {
+        tick(worldTime, skyLight, blockLight, renderDistanceChunks, false, false);
+    }
+
+    /** Weather eases over five seconds, independently of frame rate and the graphics switch. */
+    public void tick(long worldTime, int skyLight, int blockLight, int renderDistanceChunks, boolean raining, boolean thundering) {
+        float targetRain = raining && !nether && !end ? 1f : 0f;
+        float targetThunder = thundering && !nether && !end ? 1f : 0f;
+        if (!weatherInitialized) {
+            rain = targetRain;
+            thunder = targetThunder;
+            weatherInitialized = true;
+        }
+        previousRain = rain;
+        previousThunder = thunder;
+        rain += Math.max(-.01f, Math.min(.01f, targetRain - rain));
+        thunder += Math.max(-.01f, Math.min(.01f, targetThunder - thunder));
         cloudTicks++;
         int light = nether || end ? blockLight : Math.max(skyLight - skylightSubtracted(celestialAngle(worldTime, 1f)), blockLight);
         float far = renderDistanceChunks / 32f;
@@ -211,14 +232,42 @@ public final class SkyRenderer {
     /** Computes this frame's sky and fog colours; returns the fog colour, which is also the clear colour. */
     public float[] prepare(long worldTime, float partialTicks, float temperature, double lookX, double lookY, double lookZ,
                            int renderDistanceChunks, double feetY, boolean flat, String liquid) {
+        return prepare(worldTime, partialTicks, temperature, lookX, lookY, lookZ, renderDistanceChunks, feetY, flat, liquid,
+            net.minecraft.client.additions.api.GraphicsProfile.NONE);
+    }
+
+    public float[] prepare(long worldTime, float partialTicks, float temperature, double lookX, double lookY, double lookZ,
+                           int renderDistanceChunks, double feetY, boolean flat, String liquid, net.minecraft.client.additions.api.GraphicsProfile profile) {
+        return prepare(worldTime, partialTicks, temperature, lookX, lookY, lookZ, renderDistanceChunks, feetY, flat, liquid, profile, 0f);
+    }
+
+    /** Blindness takes priority over the graphics atmosphere, including the sky and celestial bodies. */
+    public float[] prepare(long worldTime, float partialTicks, float temperature, double lookX, double lookY, double lookZ,
+                           int renderDistanceChunks, double feetY, boolean flat, String liquid,
+                           net.minecraft.client.additions.api.GraphicsProfile profile, float blindness) {
+        graphics = profile;
+        visibility = graphics.visibility(blindness);
+        submerged = liquid != null;
+        frameRain = previousRain + (rain - previousRain) * partialTicks;
+        frameThunder = previousThunder + (thunder - previousThunder) * partialTicks;
         angle = nether ? 0.5f : end ? 0f : celestialAngle(worldTime, partialTicks);
         sunrise = nether || end ? null : sunriseColor(angle);
         float[] sky = skyColor(angle, temperature);
-        skyR = sky[0]; skyG = sky[1]; skyB = sky[2];
         float light = previousFogLight + (fogLight - previousFogLight) * partialTicks;
         float[] fog = end && liquid == null ? new float[]{0xA0 / 255f * 0.15f * light, 0x80 / 255f * 0.15f * light, 0xA0 / 255f * 0.15f * light}
             : nether ? netherFog(sky, renderDistanceChunks, light, feetY, liquid)
             : fogColor(angle, sky, lookX, lookY, lookZ, renderDistanceChunks, light, feetY, flat, liquid);
+        if (graphics.enabled() && !nether && !end) {
+            sky = graphics.atmosphere(sky, angle, frameRain, frameThunder);
+            // Liquids keep their own palette and cave/void darkening; surface weather cannot tint lava or water.
+            if (liquid == null) fog = graphics.atmosphere(fog, angle, frameRain, frameThunder);
+            if (sunrise != null) sunrise[3] *= graphics.sunriseOpacity(frameRain);
+        }
+        if (graphics.enabled()) {
+            for (int c = 0; c < 3; c++) { sky[c] *= visibility; fog[c] *= visibility; }
+            if (sunrise != null) sunrise[3] *= visibility;
+        }
+        skyR = sky[0]; skyG = sky[1]; skyB = sky[2];
         fogR = fog[0]; fogG = fog[1]; fogB = fog[2];
         return fog;
     }
@@ -227,6 +276,13 @@ public final class SkyRenderer {
 
     /** This frame's sky colour (red, green, blue). */
     public float[] skyColor() { return new float[]{skyR, skyG, skyB}; }
+
+    /** Rain and thunder dim outdoor illumination, leaving torch light to the lightmap. */
+    public float lightmapSunBrightness() {
+        float sun = sunBrightness(angle);
+        return graphics.sunBrightness(sun,frameRain,frameThunder,
+            nether?net.minecraft.world.Dimension.NETHER:end?net.minecraft.world.Dimension.END:net.minecraft.world.Dimension.OVERWORLD);
+    }
 
     /**
      * Draws the sky around the camera. The modelview must hold only the
@@ -250,8 +306,17 @@ public final class SkyRenderer {
         glEnable(GL_FOG);
         glColor3f(skyR, skyG, skyB);
         net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_SKY);
-        glCallList(skyList);
+        if (graphics.replacesSky()) graphics.drawSkyBackground(skyColor(),new float[]{fogR,fogG,fogB},submerged);
+        else glCallList(skyList);
         if (net.minecraft.client.shaders.Shaders.active()) horizon();
+        if (graphics.replacesSky() && submerged) {
+            glEnable(GL_TEXTURE_2D);
+            glDepthMask(true);
+            glDisable(GL_CULL_FACE);
+            glColor4f(1f, 1f, 1f, 1f);
+            net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_NONE);
+            return;
+        }
         glDisable(GL_FOG);
         glDisable(GL_ALPHA_TEST);
         glEnable(GL_BLEND);
@@ -281,7 +346,8 @@ public final class SkyRenderer {
         glEnable(GL_TEXTURE_2D);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
         glPushMatrix();
-        glColor4f(1f, 1f, 1f, 1f);
+        float celestialAlpha = graphics.celestialOpacity(frameRain, visibility);
+        glColor4f(1f, 1f, 1f, celestialAlpha);
         glRotatef(-90f, 0f, 1f, 0f);
         glRotatef(angle * 360f, 1f, 0f, 0f);
         float size = 30f;
@@ -307,7 +373,7 @@ public final class SkyRenderer {
         glEnd();
         net.minecraft.client.shaders.Shaders.use("gbuffers_skybasic");
         glDisable(GL_TEXTURE_2D);
-        float stars = starBrightness(angle);
+        float stars = starBrightness(angle) * celestialAlpha;
         if (stars > 0f) {
             net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_STARS);
             glColor4f(stars, stars, stars, stars);
@@ -320,6 +386,14 @@ public final class SkyRenderer {
         glEnable(GL_ALPHA_TEST);
         glEnable(GL_FOG);
         glPopMatrix();
+
+        if (graphics.replacesSky()) {
+            glDisable(GL_CULL_FACE);
+            glEnable(GL_TEXTURE_2D);
+            glDepthMask(true);
+            net.minecraft.client.shaders.Shaders.renderStage(net.minecraft.client.shaders.Shaders.STAGE_NONE);
+            return;
+        }
 
         glDisable(GL_TEXTURE_2D);
         double belowHorizon = eyeY - HORIZON;
@@ -394,6 +468,7 @@ public final class SkyRenderer {
     public void renderClouds(double eyeX, double eyeY, double eyeZ, float partialTicks, boolean fancy) {
         if (nether || end) return;
         float[] color = cloudColor(angle);
+        if (graphics.enabled()) color = graphics.atmosphere(color, angle, frameRain, frameThunder);
         textures.bind(CLOUDS);
         glEnable(GL_TEXTURE_2D);
         glDisable(GL_CULL_FACE);

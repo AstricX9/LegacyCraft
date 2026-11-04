@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * The Additions catalog (one JSON file per addition in the game's
- * assets/legacycraft/additions folder, read from the LegacyCraft folder, or
+ * additions folder beside resourcepacks, read from the instance or LegacyCraft folder, or
  * the copy run-launcher.bat puts next to the classes; files starting with _,
  * like the template, are skipped) and the switches and settings the launcher
  * edits. Game additions are per instance, in additions.txt in its folder, the
@@ -20,7 +20,7 @@ import java.util.Map;
  * launcher additions are the launcher's own, in launcher_profiles.json.
  */
 final class Additions {
-    static final String CATALOG = "src/main/resources/assets/legacycraft/additions";
+    static final String CATALOG = "additions";
     /** Where the game's settings button image is, in the LegacyCraft folder. */
     static final String SETTINGS_ICON = "src/main/resources/assets/minecraft/textures/gui/settings.png";
     static final String INSTANCE_FILE = "additions.txt";
@@ -37,7 +37,7 @@ final class Additions {
     }
 
     record Entry(String id, Category category, boolean launcher, boolean defaultOn, String name, String description,
-                 List<Setting> settings) {}
+                 List<Setting> settings, String entrypoint, String code, int api) {}
 
     /** One of an addition's settings; see the game's Addition.Setting, which this mirrors. */
     record Setting(String id, String type, String name, String description, String defaultValue, List<String> options,
@@ -93,25 +93,35 @@ final class Additions {
 
     /** The catalog from the LegacyCraft folder when there is one, else the launcher's copy; empty if neither can be read. */
     static Additions load(Path installDir) {
+        return load(installDir, null);
+    }
+
+    /** Uses an instance's own additions folder when present, otherwise the installation's catalog. */
+    static Additions load(Path installDir, Path gameDir) {
         try {
             Map<String, String> files = new java.util.TreeMap<>();
-            Path folder = installDir == null ? null : installDir.resolve(CATALOG);
+            Path instanceFolder = gameDir == null ? null : gameDir.resolve(CATALOG);
+            Path folder = instanceFolder != null && Files.isDirectory(instanceFolder) ? instanceFolder
+                : installDir == null ? null : installDir.resolve(CATALOG);
             if (folder != null && Files.isDirectory(folder)) {
                 try (java.util.stream.Stream<Path> stream = Files.list(folder)) {
                     for (Path p : (Iterable<Path>) stream::iterator)
-                        if (p.getFileName().toString().endsWith(".json"))
+                        if (Files.isRegularFile(p) && p.getFileName().toString().endsWith(".json"))
                             files.put(p.getFileName().toString(), Files.readString(p, StandardCharsets.UTF_8));
                 }
             } else {
                 files.putAll(bundled());
             }
-            if (files.isEmpty()) throw new IOException("can't find " + CATALOG);
             List<Entry> list = new ArrayList<>();
+            java.util.Set<String> ids = new java.util.HashSet<>();
             for (Map.Entry<String, String> file : files.entrySet()) {
                 if (file.getKey().startsWith("_")) continue;
                 try {
                     Entry e = parseEntry(Json.object(Json.parse(file.getValue())));
-                    if (e != null) list.add(e);
+                    if (e != null) {
+                        if (!ids.add(e.id())) throw new IllegalArgumentException("duplicate addition id: " + e.id());
+                        list.add(e);
+                    }
                 } catch (RuntimeException e) {
                     System.err.println("Skipping the addition " + file.getKey() + ": " + e);
                 }
@@ -127,7 +137,7 @@ final class Additions {
     /** The copy of the additions folder next to the launcher's classes (or in its jar). */
     private static Map<String, String> bundled() throws IOException {
         Map<String, String> files = new java.util.TreeMap<>();
-        java.net.URL url = Additions.class.getResource("additions/");
+        java.net.URL url = Additions.class.getResource("/additions/");
         if (url == null) return files;
         try {
             if ("file".equals(url.getProtocol())) {
@@ -161,14 +171,15 @@ final class Additions {
         Category category;
         try { category = Category.valueOf(Json.string(a.get("category"), "").toUpperCase(java.util.Locale.ROOT)); }
         catch (IllegalArgumentException e) { return null; }
-        if (id == null) return null;
+        if (id == null || !id.matches("[A-Za-z0-9_-]+")) return null;
         List<Setting> settings = new ArrayList<>();
         if (a.get("settings") != null) for (Object o : Json.array(a.get("settings"))) {
             Setting s = parseSetting(Json.object(o));
             if (s != null) settings.add(s);
         }
         return new Entry(id, category, "launcher".equals(a.get("scope")), Json.bool(a.get("default"), false),
-            Json.string(a.get("name"), id), Json.string(a.get("description"), ""), List.copyOf(settings));
+            Json.string(a.get("name"), id), Json.string(a.get("description"), ""), List.copyOf(settings),
+            Json.string(a.get("entrypoint"), ""), Json.string(a.get("code"), ""), (int)number(a.get("api"),1));
     }
 
     private static Setting parseSetting(Map<String, Object> o) {

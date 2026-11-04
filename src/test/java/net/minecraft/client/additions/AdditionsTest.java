@@ -3,6 +3,7 @@ package net.minecraft.client.additions;
 import net.minecraft.client.entity.Player;
 import net.minecraft.client.settings.KeyBinding;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,7 +13,56 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Catalog discovery, instance switches, and settings shared by the game and launcher. */
 final class AdditionsTest {
+    @Test
+    void instanceFolderIsAuthoritativeAndRemovingDefinitionsKeepsTheirSavedChoices(@TempDir Path dir) throws Exception {
+        Path catalog = Files.createDirectories(dir.resolve("additions"));
+        Path definition = catalog.resolve("fullBright.json");
+        String json;
+        try (var in = AdditionsTest.class.getResourceAsStream("/additions/fullBright.json")) {
+            json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        json = json.replace("Full Bright", "Folder Full Bright");
+        Files.writeString(definition, json);
+        Files.writeString(catalog.resolve("_ignored.json"), "invalid JSON");
+        Files.writeString(catalog.resolve("bad.json"), "invalid JSON");
+        Files.createDirectory(catalog.resolve("notAFile.json"));
+        Path settings = dir.resolve("additions.txt");
+        Files.writeString(settings, "enabled:true\nfullBright:true\nfullBright.brightness:70\ncoordinates:true\n");
+        Additions additions = Additions.load(settings);
+        assertEquals(1, additions.game().size(), "an instance catalog replaces the installation catalog");
+        assertEquals("Folder Full Bright", additions.find(Additions.FULL_BRIGHT).name());
+        assertTrue(additions.isOn(Additions.FULL_BRIGHT));
+        assertEquals(70, additions.number(Additions.FULL_BRIGHT, "brightness"));
+        assertFalse(additions.isOn(Additions.COORDINATES));
+        additions.save();
+        assertTrue(Files.readString(settings).contains("coordinates:true"), "absent definitions keep their saved choices");
+
+        Files.delete(definition);
+        Additions removed = Additions.load(settings);
+        assertTrue(removed.game().isEmpty(), "an empty folder does not restore bundled additions");
+        assertFalse(removed.isOn(Additions.FULL_BRIGHT));
+        removed.save();
+        Files.writeString(definition, json);
+        Additions restored = Additions.load(settings);
+        assertTrue(restored.isOn(Additions.FULL_BRIGHT));
+        assertEquals(70, restored.number(Additions.FULL_BRIGHT, "brightness"));
+    }
+
+    @Test
+    void bundledCatalogIsAvailableWithoutLooseFilesAndDuplicateIdsAreSkipped(@TempDir Path dir) throws Exception {
+        List<Addition> bundled = Additions.loadCatalog(dir.resolve("missing"));
+        assertTrue(bundled.stream().anyMatch(a -> a.id().equals(Additions.LEGACY_CONSOLE_GRAPHICS)));
+        assertTrue(bundled.stream().anyMatch(a -> a.scope() == Addition.Scope.LAUNCHER));
+        Path catalog = Files.createDirectory(dir.resolve("catalog"));
+        byte[] json;
+        try (var in = AdditionsTest.class.getResourceAsStream("/additions/fullBright.json")) { json = in.readAllBytes(); }
+        Files.write(catalog.resolve("first.json"), json);
+        Files.write(catalog.resolve("second.json"), json);
+        assertEquals(1, Additions.loadCatalog(catalog).size(), "one row per addition ID");
+    }
+
     @Test
     void catalogCoversEveryCategoryAndEveryAdditionTheGameChecks() throws Exception {
         Additions additions = Additions.defaults();
@@ -64,7 +114,7 @@ final class AdditionsTest {
     void theTemplateIsSkippedButShowsEveryKindOfSetting() throws Exception {
         assertNull(Additions.defaults().find("myAddition"), "files starting with _ aren't additions");
         Addition template;
-        try (var in = AdditionsTest.class.getResourceAsStream("/assets/legacycraft/additions/_template.json")) {
+        try (var in = AdditionsTest.class.getResourceAsStream("/additions/_template.json")) {
             template = Additions.parse(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
         }
         Set<Addition.Setting.Type> types = new HashSet<>();
@@ -109,23 +159,4 @@ final class AdditionsTest {
         assertEquals(List.of("A.zip", "b.zip", "Unzipped"), again.files(pack));
     }
 
-    @Test
-    void toggleSprintLatchesOnOnePressAndLetsGoOnTheNext() {
-        KeyBinding sprint = new KeyBinding("key.sprint", 29, "key.categories.movement");
-        KeyBinding sneak = new KeyBinding("key.sneak", 42, "key.categories.movement");
-        ToggleKeys toggles = new ToggleKeys();
-        Player.Input none = Player.Input.NONE;
-        // Presses made while the addition is off are thrown away.
-        KeyBinding.onTransition(List.of(sprint), 29, true);
-        assertFalse(toggles.apply(none, sprint, sneak, false, false).sprint());
-        assertFalse(toggles.apply(none, sprint, sneak, true, false).sprint());
-        KeyBinding.onTransition(List.of(sprint), 29, true);
-        assertTrue(toggles.apply(none, sprint, sneak, true, false).sprint());
-        assertTrue(toggles.apply(none, sprint, sneak, true, false).sprint(), "stays on with the key up");
-        KeyBinding.onTransition(List.of(sprint), 29, true);
-        assertFalse(toggles.apply(none, sprint, sneak, true, false).sprint());
-        KeyBinding.onTransition(List.of(sneak), 42, true);
-        assertTrue(toggles.apply(none, sprint, sneak, true, true).sneak());
-        assertFalse(toggles.apply(none, sprint, sneak, true, false).sneak(), "turning the addition off lets go");
-    }
 }

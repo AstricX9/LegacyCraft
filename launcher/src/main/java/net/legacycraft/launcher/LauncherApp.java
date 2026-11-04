@@ -135,9 +135,8 @@ public final class LauncherApp {
         }
         Windows.resizable(frame);
         refreshProfiles();
-        if (data.launcherAddition(Additions.REMEMBER_TAB)) {
-            for (int i = 0; i < tabs.getTabCount(); i++) if (tabs.getTitleAt(i).equals(data.lastTab)) tabs.setSelectedIndex(i);
-        }
+        String initialTab=data.additionRuntime().initialTab(data.lastTab,tabs.getTitleAt(tabs.getSelectedIndex()));
+        for(int i=0;i<tabs.getTabCount();i++) if(tabs.getTitleAt(i).equals(initialTab)) tabs.setSelectedIndex(i);
         if (previous != null) tabs.setSelectedIndex(previous.tabs.getSelectedIndex());
         tabs.addChangeListener(e -> {
             String title = tabs.getTitleAt(tabs.getSelectedIndex());
@@ -146,28 +145,13 @@ public final class LauncherApp {
             data.save();
         });
         frame.setVisible(true);
-        if (previous == null) SwingUtilities.invokeLater(this::whatsNew);
+        if (previous == null) SwingUtilities.invokeLater(this::startAdditions);
     }
 
-    /** The What's New addition: lists Additions the launcher hasn't told you about yet, once. */
-    private void whatsNew() {
-        List<Additions.Entry> fresh = new ArrayList<>();
-        for (Additions.Entry e : data.additions().entries) if (!data.seenAdditions.contains(e.id())) fresh.add(e);
-        if (fresh.isEmpty()) return;
-        boolean firstTime = data.seenAdditions.isEmpty();
-        for (Additions.Entry e : fresh) data.seenAdditions.add(e.id());
-        data.save();
-        if (!data.launcherAddition(Additions.WHATS_NEW)) return;
-        StringBuilder text = new StringBuilder("<html><body style='width:380px'>");
-        text.append(firstTime
-            ? "<p>LegacyCraft now has <b>Additions</b>, its own mod system: optional changes you can turn on for each instance. "
-                + "They're off until you turn them on, so the game stays plain 1.8.9 until you choose otherwise.</p>"
-            : "<p>This update brings new Additions:</p>");
-        text.append("<ul>");
-        for (Additions.Entry e : fresh)
-            text.append("<li><b>").append(e.name()).append("</b> (").append(e.category().title).append("): ").append(e.description()).append("</li>");
-        text.append("</ul><p>Turn them on in the <b>Additions</b> tab.</p></body></html>");
-        Windows.message(frame, firstTime ? "Additions" : "What's new", text.toString());
+    /** Generic launcher-start callbacks; feature logic is supplied by module JARs. */
+    private void startAdditions() {
+        data.additionRuntime().started(data.seenAdditions,seen->{data.seenAdditions.clear();data.seenAdditions.addAll(seen);data.save();},
+            (title,message)->Windows.message(frame,title,message));
     }
 
     // ------------------------------------------------------------------ tabs

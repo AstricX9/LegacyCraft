@@ -9,8 +9,9 @@ import net.minecraft.world.Dimension;
  * day (keeping a blue tint at night), block light tinted warm (red first,
  * blue last), the gamma slider, and a small floor so darkness is never pure
  * black. Colours between whole levels are bilinear, as the texture's linear
- * filtering gives them. HYPOTHESIS: recalled formula, without torch flicker,
- * lightning flashes, night vision or rain.
+ * filtering gives them. HYPOTHESIS: recalled base formula, without torch
+ * flicker or lightning flashes. The optional console curve is an artistic
+ * approximation applied before the same texture and entity-light consumers.
  */
 public final class LightMap {
     private static final float[] BRIGHTNESS = new float[16];
@@ -24,6 +25,7 @@ public final class LightMap {
     private static volatile float[][][] table = build(1f, 0f, 0f, Dimension.OVERWORLD);
     private static float builtSun = 1f, builtGamma = 0f, builtNight = 0f;
     private static Dimension builtDimension = Dimension.OVERWORLD;
+    private static net.minecraft.client.additions.api.GraphicsProfile builtProfile = net.minecraft.client.additions.api.GraphicsProfile.NONE;
     private static int version;
 
     private LightMap() {}
@@ -45,13 +47,20 @@ public final class LightMap {
      * the torch light (EntityRenderer.updateLightmap, dimension 1).
      */
     public static void update(float sunBrightness, float gamma, float nightVision, Dimension dimension) {
+        update(sunBrightness, gamma, nightVision, dimension, net.minecraft.client.additions.api.GraphicsProfile.NONE);
+    }
+
+    /** Optional console transfer curve, shared by the terrain texture, entities, particles and hand. */
+    public static void update(float sunBrightness, float gamma, float nightVision, Dimension dimension,
+                              net.minecraft.client.additions.api.GraphicsProfile profile) {
         if (Math.abs(sunBrightness - builtSun) < 1e-4f && Math.abs(gamma - builtGamma) < 1e-4f
-            && Math.abs(nightVision - builtNight) < 1e-4f && dimension == builtDimension) return;
+            && Math.abs(nightVision - builtNight) < 1e-4f && dimension == builtDimension && profile.equals(builtProfile)) return;
         builtSun = sunBrightness;
         builtGamma = gamma;
         builtNight = nightVision;
         builtDimension = dimension;
-        table = build(sunBrightness, gamma, nightVision, dimension);
+        builtProfile = profile;
+        table = build(sunBrightness, gamma, nightVision, dimension, profile);
         version++;
     }
 
@@ -59,6 +68,10 @@ public final class LightMap {
     public static int version() { return version; }
 
     private static float[][][] build(float sun, float gamma, float night, Dimension dimension) {
+        return build(sun, gamma, night, dimension, net.minecraft.client.additions.api.GraphicsProfile.NONE);
+    }
+
+    private static float[][][] build(float sun, float gamma, float night, Dimension dimension, net.minecraft.client.additions.api.GraphicsProfile profile) {
         boolean nether = dimension == Dimension.NETHER;
         float[][][] result = new float[16][16][];
         float skyScale = sun * 0.95f + 0.05f;
@@ -87,7 +100,8 @@ public final class LightMap {
                     green = Math.min(1f, green * (1f - night) + green * scale * night);
                     blue = Math.min(1f, blue * (1f - night) + blue * scale * night);
                 }
-                result[sky][block] = new float[]{finish(red, gamma), finish(green, gamma), finish(blue, gamma)};
+                float[] original = new float[]{finish(red,gamma),finish(green,gamma),finish(blue,gamma)};
+                result[sky][block] = profile.lightmap(red,green,blue,original,skyBright,sun,gamma,dimension);
             }
         }
         return result;

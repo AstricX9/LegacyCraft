@@ -19,13 +19,14 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
  * closes, where the launcher shows them too.
  */
 public class GuiAdditionSettings extends GuiScreen {
-    private static final int DONE = 200, RESET = 201, FOLDER = 202, SHADER_OPTIONS = 203, SETTING = 300;
+    private static final int DONE = 200, RESET = 201, FOLDER = 202, SETTING = 300, EXTRA = 1000;
 
     private final GuiScreen parent;
     private final Addition addition;
     private Additions additions;
     private final List<GuiButton> controls = new ArrayList<>();
     private List<String> description = List.of();
+    private List<net.minecraft.client.additions.api.ClientAddition.SettingsAction> actions=List.of();
 
     public GuiAdditionSettings(GuiScreen parent, Addition addition) {
         this.parent = parent;
@@ -36,6 +37,8 @@ public class GuiAdditionSettings extends GuiScreen {
     public void initGui() {
         additions = mc.additions();
         description = fontRendererObj.listFormattedStringToWidth(addition.description(), 300);
+        String note=additions.runtime().settingsNote(addition.id());
+        if(!note.isEmpty()) { description=new ArrayList<>(description); description.addAll(fontRendererObj.listFormattedStringToWidth(note,300)); }
         controls.clear();
         int top = 34 + description.size() * 10 + 8;
         List<Addition.Setting> settings = addition.settings();
@@ -47,11 +50,12 @@ public class GuiAdditionSettings extends GuiScreen {
             controls.add(b);
             buttonList.add(b);
         }
-        if (addition.id().equals(Additions.SHADER_PACKS)) {
-            int i = settings.size();
-            GuiButton options = new GuiButton(SHADER_OPTIONS, width / 2 - 155 + (i % 2) * 160, top + (i / 2) * 24, 150, 20, "Shader Options...");
-            options.enabled = shaderPack() != null;
-            buttonList.add(options);
+        actions=additions.runtime().settingsActions(addition.id(),mc,this);
+        for(int n=0;n<actions.size();n++) {
+            int i=settings.size()+n;
+            var action=actions.get(n);
+            GuiButton extra=new GuiButton(EXTRA+n,width/2-155+(i%2)*160,top+(i/2)*24,150,20,action.title());
+            extra.enabled=action.enabled();buttonList.add(extra);
         }
         boolean files = settings.stream().anyMatch(s -> s.type() == Addition.Setting.Type.FILE);
         if (files) {
@@ -92,9 +96,8 @@ public class GuiAdditionSettings extends GuiScreen {
             initGui();
         } else if (button.id == FOLDER) {
             openFolder();
-        } else if (button.id == SHADER_OPTIONS) {
-            GuiShaderOptions options = shaderPack() == null ? null : GuiShaderOptions.open(this, shaderPack());
-            if (options != null) mc.displayGuiScreen(options);
+        } else if (button.id >= EXTRA) {
+            actions.get(button.id-EXTRA).action().run();
         } else if (button.id >= SETTING) {
             Addition.Setting s = addition.settings().get(button.id - SETTING);
             String value = additions.setting(addition.id(), s.id());
@@ -110,15 +113,9 @@ public class GuiAdditionSettings extends GuiScreen {
                 default -> {}
             }
             refresh();
-            for (GuiButton b : buttonList) if (b.id == SHADER_OPTIONS) b.enabled = shaderPack() != null;
+            actions=additions.runtime().settingsActions(addition.id(),mc,this);
+            for(GuiButton b:buttonList) if(b.id>=EXTRA) b.enabled=actions.get(b.id-EXTRA).enabled();
         }
-    }
-
-    /** The Shader Packs addition's picked pack file, or null. */
-    private java.nio.file.Path shaderPack() {
-        Addition.Setting s = addition.setting("pack");
-        String name = s == null ? "" : additions.setting(addition.id(), s.id());
-        return name == null || name.isEmpty() ? null : additions.folder(s).resolve(name);
     }
 
     /** {@code text}, cut short with "..." if it is wider than {@code width}. */

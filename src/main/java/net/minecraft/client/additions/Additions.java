@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * Which Additions are on for this instance (DEV-041), LegacyCraft's own
  * take on a mod loader. Each addition is defined by its own JSON file in
- * {@code assets/legacycraft/additions/} (files starting with {@code _}, like
+ * {@code additions/} beside {@code resourcepacks/} (files starting with {@code _}, like
  * the template, are skipped). The switches are saved to {@code additions.txt}
  * in the game folder as {@code id:true|false} lines, like options.txt, so the
  * launcher can set them before the game starts; an addition's settings follow
@@ -31,9 +31,9 @@ import java.util.Map;
 public final class Additions {
     public static final String TOGGLE_SPRINT = "toggleSprint", TOGGLE_SNEAK = "toggleSneak", FULL_BRIGHT = "fullBright",
         COORDINATES = "coordinates", FPS_COUNTER = "fpsCounter", NO_HURT_TILT = "noHurtTilt", STEADY_FOV = "steadyFov",
-        SOLID_CROSSHAIR = "solidCrosshair", SHADER_PACKS = "shaderPacks";
+        SOLID_CROSSHAIR = "solidCrosshair", SHADER_PACKS = "shaderPacks", LEGACY_CONSOLE_GRAPHICS = "legacyConsoleGraphics";
 
-    static final String CATALOG = "/assets/legacycraft/additions/";
+    static final String CATALOG = "/additions/";
     /** The additions.txt line that turns Additions on or off for the instance. */
     static final String ENABLED = "enabled";
 
@@ -44,6 +44,8 @@ public final class Additions {
     /** Lines of additions.txt for additions this build doesn't know, written back unchanged. */
     private final List<String> unknown = new ArrayList<>();
     private Path file;
+    private Path catalogFolder = Path.of("additions").toAbsolutePath().normalize();
+    private ClientAdditions runtime;
     /** Null until set or read: then Additions count as on if any addition is switched on (files from before the switch). */
     private Boolean enabled;
 
@@ -54,7 +56,9 @@ public final class Additions {
 
     /** Reads the switches from {@code file} (missing means all off); {@link #save()} writes them back there. */
     public static Additions load(Path file) {
-        Additions additions = defaults();
+        Path instanceFolder = file.toAbsolutePath().getParent().resolve("additions");
+        Additions additions = new Additions(loadCatalog(Files.isDirectory(instanceFolder) ? instanceFolder : Path.of("additions")));
+        additions.catalogFolder = (Files.isDirectory(instanceFolder) ? instanceFolder : Path.of("additions")).toAbsolutePath().normalize();
         additions.file = file;
         if (Files.isRegularFile(file)) {
             try (BufferedReader in = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
@@ -67,12 +71,21 @@ public final class Additions {
     }
 
     static List<Addition> loadCatalog() {
+        return loadCatalog(Path.of("additions"));
+    }
+
+    /** A loose folder is authoritative; a jar-only launch uses the bundled catalog. */
+    static List<Addition> loadCatalog(Path folder) {
         List<Addition> list = new ArrayList<>();
         try {
-            for (Map.Entry<String, byte[]> file : Resources.list(CATALOG, ".json").entrySet()) {
+            Map<String, byte[]> files = Files.isDirectory(folder) ? Resources.list(folder, ".json") : Resources.list(CATALOG, ".json");
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            for (Map.Entry<String, byte[]> file : files.entrySet()) {
                 if (file.getKey().startsWith("_")) continue;
                 try {
-                    list.add(parse(new InputStreamReader(new java.io.ByteArrayInputStream(file.getValue()), StandardCharsets.UTF_8)));
+                    Addition addition = parse(new InputStreamReader(new java.io.ByteArrayInputStream(file.getValue()), StandardCharsets.UTF_8));
+                    if (!ids.add(addition.id())) throw new IllegalArgumentException("duplicate addition id: " + addition.id());
+                    list.add(addition);
                 } catch (RuntimeException e) {
                     System.err.println("Skipping the addition " + file.getKey() + ": " + e);
                 }
@@ -84,6 +97,18 @@ public final class Additions {
         return list;
     }
 
+    /** Lazily loads trusted executable modules from the selected additions folder. */
+    public ClientAdditions runtime() {
+        if (runtime == null) runtime = new ClientAdditions(this, catalogFolder);
+        return runtime;
+    }
+
+    public void resetRuntime() { if(runtime!=null) runtime.reset(); }
+
+    public void closeRuntime() {
+        if (runtime != null) { runtime.close(); runtime = null; }
+    }
+
     /** Category order, then by name. */
     static final java.util.Comparator<Addition> ORDER = java.util.Comparator.comparing(Addition::category)
         .thenComparing(a -> a.name().toLowerCase(java.util.Locale.ROOT));
@@ -92,12 +117,13 @@ public final class Additions {
     static Addition parse(Reader reader) {
         JsonObject o = JsonParser.parseReader(reader).getAsJsonObject();
         String id = o.get("id").getAsString();
-        if (id.contains(".") || id.contains(":")) throw new IllegalArgumentException("an id can't contain '.' or ':'");
+        if (!id.matches("[A-Za-z0-9_-]+")) throw new IllegalArgumentException("invalid addition id: " + id);
         List<Addition.Setting> settings = new ArrayList<>();
         if (o.has("settings")) for (JsonElement element : o.getAsJsonArray("settings")) settings.add(parseSetting(element.getAsJsonObject()));
         return new Addition(id, Addition.Category.byId(o.get("category").getAsString()),
             "launcher".equals(o.get("scope").getAsString()) ? Addition.Scope.LAUNCHER : Addition.Scope.GAME,
-            o.has("default") && o.get("default").getAsBoolean(), o.get("name").getAsString(), text(o, "description", ""), settings);
+            o.has("default") && o.get("default").getAsBoolean(), o.get("name").getAsString(), text(o, "description", ""), settings,
+            text(o, "entrypoint", ""), text(o, "code", ""), text(o, "settingsNote", ""), o.has("api")?o.get("api").getAsInt():1);
     }
 
     private static Addition.Setting parseSetting(JsonObject o) {

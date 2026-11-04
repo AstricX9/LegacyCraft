@@ -1,8 +1,0 @@
-{
-  "id": "toggleSprint",
-  "category": "gameplay",
-  "scope": "game",
-  "default": false,
-  "name": "Toggle Sprint",
-  "description": "Press Sprint once to keep sprinting, press it again to stop."
-}

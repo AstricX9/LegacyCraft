@@ -1,0 +1,11 @@
+{
+  "id": "whatsNew",
+  "category": "launcher",
+  "scope": "launcher",
+  "default": true,
+  "name": "What's New",
+  "description": "When an update brings new Additions, the launcher lists them when it starts.",
+  "entrypoint": "net.legacycraft.launcher.additions.WhatsNewAddition",
+  "code": "whatsNew/addition.jar",
+  "api": 1
+}

@@ -1,0 +1,24 @@
+{
+  "id": "fullBright",
+  "category": "graphics",
+  "scope": "game",
+  "default": false,
+  "name": "Full Bright",
+  "description": "Caves and nights are lit as if you had Night Vision.",
+  "settings": [
+    {
+      "id": "brightness",
+      "type": "slider",
+      "name": "Brightness",
+      "description": "How bright dark places get: 100% is full Night Vision.",
+      "min": 10,
+      "max": 100,
+      "step": 10,
+      "unit": "%",
+      "default": 100
+    }
+  ],
+  "entrypoint": "net.legacycraft.additions.fullBright.FullBrightAddition",
+  "code": "fullBright/addition.jar",
+  "api": 1
+}

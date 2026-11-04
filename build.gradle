@@ -42,6 +42,12 @@ application {
     applicationDefaultJvmArgs = launcherJvmArgs?.trim() ? launcherJvmArgs.trim().split(/\s+/).toList() : ['-Xms512m', '-Xmx2g']
 }
 
+distributions {
+    main {
+        contents { from('additions') { exclude '**/build/**'; into 'additions' } }
+    }
+}
+
 // Read the built-in default pack straight from src/main/resources so F3+T picks up edits without a rebuild.
 tasks.named('run', JavaExec) {
     systemProperty 'legacycraft.resourceDir', file('src/main/resources').absolutePath
@@ -280,6 +286,10 @@ tasks.register('generateGameData') {
 
 tasks.named('processResources') {
     dependsOn(tasks.named('generateGameData'))
+    from('additions') {
+        include '*.json'
+        into 'additions'
+    }
     // LegacyCraft and Minecraft versions shown on the title screen (Branding).
     from(file('version.txt'))
 }
@@ -403,9 +413,9 @@ tasks.register('launcherJar', Jar) {
     from(tasks.named('compileLauncher'))
     from('launcher/src/main/resources')
     // The Additions are the game's; a copy goes with the launcher (a packaged game has no source folder to read them from).
-    from('src/main/resources/assets/legacycraft/additions') {
+    from('additions') {
         include '*.json'
-        into 'net/legacycraft/launcher/additions'
+        into 'additions'
     }
     manifest { attributes('Main-Class': 'net.legacycraft.launcher.LauncherApp') }
 }
@@ -447,6 +457,7 @@ packageTargets.each { String target, Map spec ->
             from(natives)
         }
         into('launcher') { from(tasks.named('launcherJar')) }
+        into('additions') { from('additions') { exclude '**/build/**' } }
         // runtime/ is where a Java 17 goes; Sync would otherwise delete one copied in by hand.
         preserve { include 'runtime/**' }
     }
@@ -465,3 +476,61 @@ packageTargets.each { String target, Map spec ->
     }
     if (target != 'windows') packageAll.configure { dependsOn(zip) }
 }
+
+// Every addition is compiled against the public host API into its own external JAR.
+// These classes are deliberately absent from sourceSets.main and the engine JAR.
+def additionBuilds = []
+def gameAdditionClasses = []
+fileTree('additions') { include '*.json'; exclude '_*' }.files.sort().each { manifest ->
+    def definition = new JsonSlurper().parse(manifest, 'UTF-8')
+    if (!definition.entrypoint || !definition.code) return
+    String id = definition.id
+    if (!(id ==~ /[A-Za-z0-9_-]+/)) throw new GradleException("Invalid addition ID: ${id}")
+    def moduleSources = fileTree("additions/${id}/src/main/java") { include '**/*.java' }
+    // A prebuilt third-party mod must never be overwritten with an empty JAR.
+    if (moduleSources.isEmpty()) return
+    def moduleRoot = file("additions").canonicalFile.toPath()
+    if (!file("additions/${definition.code}").canonicalFile.toPath().startsWith(moduleRoot))
+        throw new GradleException("Addition JAR must stay inside additions/: ${id}")
+    String suffix = id.capitalize()
+    boolean launcherModule = definition.scope == 'launcher'
+    def classesDir = layout.buildDirectory.dir("addition-classes/${id}")
+    def compile = tasks.register("compileAddition${suffix}", JavaCompile) {
+        dependsOn(launcherModule ? tasks.named('compileLauncher') : tasks.named('classes'))
+        source = fileTree("additions/${id}/src/main/java") { include '**/*.java' }
+        classpath = launcherModule ? files(launcherClasses) : sourceSets.main.compileClasspath + sourceSets.main.output
+        destinationDirectory = classesDir
+        javaCompiler = javaToolchains.compilerFor(java.toolchain)
+        options.encoding = 'UTF-8'
+    }
+    def jar = tasks.register("buildAddition${suffix}", Jar) {
+        dependsOn compile
+        archiveFileName = new File(definition.code as String).name
+        destinationDirectory = file("additions/${definition.code}").parentFile
+        from(compile)
+        from("additions/${id}/src/main/resources")
+    }
+    additionBuilds << jar
+    if (!launcherModule) {
+        gameAdditionClasses << classesDir
+        sourceSets.test.java.srcDir("additions/${id}/src/test/java")
+    }
+}
+tasks.register('buildAdditions') {
+    group = 'build'
+    description = 'Builds each independent addition JAR under additions/<id>/.'
+    dependsOn additionBuilds
+}
+tasks.named('run') { dependsOn 'buildAdditions' }
+tasks.named('compileTestJava') { dependsOn 'buildAdditions' }
+sourceSets.test.compileClasspath += files(gameAdditionClasses)
+sourceSets.test.runtimeClasspath += files(gameAdditionClasses)
+tasks.withType(Sync).configureEach {
+    if (name.startsWith('package') || name == 'installDist') dependsOn 'buildAdditions'
+}
+tasks.named('distZip') { dependsOn 'buildAdditions' }
+tasks.named('distTar') { dependsOn 'buildAdditions' }
+
+// Host API only: launcher implementations remain external JARs even in these integration tests.
+sourceSets.test.compileClasspath += files(launcherClasses)
+sourceSets.test.runtimeClasspath += files(launcherClasses)

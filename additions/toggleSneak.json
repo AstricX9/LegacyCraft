@@ -1,0 +1,11 @@
+{
+  "id": "toggleSneak",
+  "category": "gameplay",
+  "scope": "game",
+  "default": false,
+  "name": "Toggle Sneak",
+  "description": "Press Sneak once to keep sneaking, press it again to stand up.",
+  "entrypoint": "net.legacycraft.additions.toggleSneak.ToggleSneakAddition",
+  "code": "toggleSneak/addition.jar",
+  "api": 1
+}

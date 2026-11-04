@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  */
 final class InstancesTab extends JPanel {
     /** What a copied instance takes from the original's folder. */
-    private static final String[] COPIED = {"saves", "resourcepacks", "options.txt", "servers.dat", Additions.INSTANCE_FILE};
+    private static final String[] COPIED = {"saves", "resourcepacks", "additions", "options.txt", "servers.dat", Additions.INSTANCE_FILE};
 
     private final LauncherData data;
     private final ConsoleTab console;
@@ -137,10 +137,9 @@ final class InstancesTab extends JPanel {
         StringBuilder s = new StringBuilder("Minecraft ").append(LauncherData.GAME_VERSION);
         s.append("   ·   Memory ").append(p.memoryMb == null ? "default" : p.memoryMb % 1024 == 0 ? p.memoryMb / 1024 + " GB" : p.memoryMb + " MB");
         if (p.resolutionWidth != null && p.resolutionHeight != null) s.append("   ·   ").append(p.resolutionWidth).append('x').append(p.resolutionHeight);
-        if (data.launcherAddition(Additions.INSTANCE_SUMMARY) && !data.additions().entries.isEmpty()) {
-            Map<String, Boolean> on = Additions.readInstance(data.gameDirFor(p));
-            s.append("   ·   ").append(data.additions().enabled(on) ? "Additions on" : "Additions off");
-        }
+        Map<String,Boolean> switches=Additions.readInstance(data.gameDirFor(p));
+        String summary=data.additionRuntime().instanceSummary(data.additions(p).enabled(switches));
+        if(!summary.isEmpty()) s.append("   ·   ").append(summary);
         s.append("   ·   ").append(p.lastPlayed == null ? "Never played" : "Played " + ago(p.lastPlayed));
         return s.toString();
     }

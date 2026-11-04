@@ -41,7 +41,7 @@ mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
   - **New instance** makes an empty instance in
     `%USERPROFILE%\.legacycraft-launcher\instances\<name>`.
   - **Copy** makes a new instance with the same settings and copies the
-    original's `saves`, `resourcepacks`, `options.txt`, `servers.dat` and
+    original's `saves`, `resourcepacks`, `additions`, `options.txt`, `servers.dat` and
     `additions.txt`.
   - **Delete** removes the instance; for folders under `instances\` it offers
     to delete the folder too (off by default).
@@ -57,7 +57,8 @@ mode as long as it uses the default page's colours (`#ffffff`, `#000000`,
   game's `textures/gui/settings.png`, or a drawn gear while that image isn't
   there) that opens them under its row: switches, sliders, lists, and files
   from a folder in the instance (with a **Folder** link to open it).
-  Changes are saved straight away to `additions.txt` in the instance folder,
+  Definitions are loaded from `additions/` beside `resourcepacks/`; an instance's
+  own folder takes priority over the installation's. Changes are saved straight away to `additions.txt` in the instance folder,
   the same file the game's Additions screen edits. The Launcher section at
   the bottom applies to every instance: **Remember Tab** (open on the tab you
   used last), **What's New** (list new Additions after an update) and

@@ -1,8 +1,0 @@
-{
-  "id": "instanceSummary",
-  "category": "launcher",
-  "scope": "launcher",
-  "default": true,
-  "name": "Additions on Instances",
-  "description": "Each instance in the list shows whether Additions are on."
-}

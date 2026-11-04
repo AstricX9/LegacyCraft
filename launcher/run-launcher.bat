@@ -12,6 +12,12 @@ if errorlevel 1 (
 )
 xcopy /e /y /q "%LAUNCHER_ROOT%src\main\resources\*" "%LAUNCHER_CLASSES%\" > nul
 rem The Additions are the game's; a copy goes with the launcher for when it can't find the LegacyCraft folder.
-xcopy /y /q /i "%LAUNCHER_ROOT%..\src\main\resources\assets\legacycraft\additions\*.json" "%LAUNCHER_CLASSES%\net\legacycraft\launcher\additions\" > nul
+xcopy /y /q /i "%LAUNCHER_ROOT%..\additions\*.json" "%LAUNCHER_CLASSES%\additions\" > nul
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%LAUNCHER_ROOT%build-additions.ps1" -LauncherClasses "%LAUNCHER_CLASSES%"
+if errorlevel 1 (
+    pause
+    exit /b %errorlevel%
+)
 
 start "" javaw -cp "%LAUNCHER_CLASSES%" net.legacycraft.launcher.LauncherApp

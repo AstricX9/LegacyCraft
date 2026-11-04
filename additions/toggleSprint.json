@@ -1,0 +1,11 @@
+{
+  "id": "toggleSprint",
+  "category": "gameplay",
+  "scope": "game",
+  "default": false,
+  "name": "Toggle Sprint",
+  "description": "Press Sprint once to keep sprinting, press it again to stop.",
+  "entrypoint": "net.legacycraft.additions.toggleSprint.ToggleSprintAddition",
+  "code": "toggleSprint/addition.jar",
+  "api": 1
+}

@@ -37,6 +37,7 @@ import net.minecraft.client.renderer.PlayerModel;
 import net.minecraft.client.renderer.StandardLighting;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.client.renderer.LightMap;
+import net.minecraft.client.additions.api.GraphicsProfile;
 import net.minecraft.client.renderer.LocalCape;
 import net.minecraft.client.renderer.LocalSkin;
 import net.minecraft.client.renderer.SkyRenderer;
@@ -134,7 +135,6 @@ public final class Minecraft implements GuiContext {
     private final GameSettings gameSettings = new GameSettings();
     /** This instance's Additions (additions.txt in the game folder); all off is plain 1.8.9. */
     private net.minecraft.client.additions.Additions additions = net.minecraft.client.additions.Additions.defaults();
-    private final net.minecraft.client.additions.ToggleKeys toggleKeys = new net.minecraft.client.additions.ToggleKeys();
     /** The built-in 1.8.9 pack with the selected resource packs layered over it. */
     private final net.minecraft.client.resources.ResourcePackRepository resourceManager =
         new net.minecraft.client.resources.ResourcePackRepository(ClasspathResourceManager.fromSystemProperty());
@@ -195,6 +195,7 @@ public final class Minecraft implements GuiContext {
     private IntegratedServer server;
     private WorldRenderer renderer;
     private SkyRenderer sky;
+    private GraphicsProfile graphics = GraphicsProfile.NONE;
     private ParticleManager particles;
     private net.minecraft.client.renderer.entity.MobRenderer mobRenderer;
     /** Chests, signs, banners and the end portal (their tile-entity renderers). */
@@ -350,6 +351,7 @@ public final class Minecraft implements GuiContext {
         } finally {
             if (world != null && worldFolder != null) saveWorld();
             closeSession();
+            additions.closeRuntime();
             if (fontRenderer != null) fontRenderer.destroy();
             if (atlas != null) atlas.destroy();
             if (guiTextures != null) guiTextures.destroy();
@@ -1353,6 +1355,7 @@ public final class Minecraft implements GuiContext {
     }
 
     private void closeSession() {
+        additions.resetRuntime();
         if (soundHandler != null) soundHandler.stopAll();
         servers.values().forEach(IntegratedServer::close);
         if (server != null && !servers.containsValue(server)) server.close();
@@ -2175,9 +2178,11 @@ public final class Minecraft implements GuiContext {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if (inWorld) {
                 net.minecraft.client.shaders.Shaders.frame.dimension = world.isNether() ? "world-1" : world.isEnd() ? "world1" : "world0";
-                net.minecraft.client.shaders.Shaders.select(shaderPackFile(),
-                    "Iris".equals(additions.setting(net.minecraft.client.additions.Additions.SHADER_PACKS, "loader")), message -> printChatLine(message, 0));
+                var shaderSelection=additions.runtime().shaderSelection();
+                net.minecraft.client.shaders.Shaders.select(graphics.replacesShaderPacks() || shaderSelection==null ? null : shaderSelection.pack(),
+                    shaderSelection!=null && shaderSelection.iris(), message -> printChatLine(message,0));
                 renderWorld(fog);
+                additions.runtime().afterWorld(width,height,message -> printChatLine(message,0));
             }
         } finally {
             if (inWorld) {
@@ -2349,26 +2354,26 @@ public final class Minecraft implements GuiContext {
         boolean inside = y >= 0 && y < World.HEIGHT;
         int skyLight = inside ? world.getSkyLight(x, y, z) : y >= World.HEIGHT ? 15 : 0;
         int blockLight = inside ? world.getBlockLight(x, y, z) : 0;
-        sky.tick(levelInfo.worldTime, skyLight, blockLight, gameSettings.renderDistanceChunks);
+        sky.tick(levelInfo.worldTime, skyLight, blockLight, gameSettings.renderDistanceChunks,
+            world.isRaining(), levelInfo.thundering);
     }
 
     /** This frame's sky, fog and lightmap for the time of day; returns the fog (and clear) colour. */
     private float[] prepareSky() {
+        graphics = additions.runtime().graphics();
         int x = (int) Math.floor(player.x), y = (int) Math.floor(player.y), z = (int) Math.floor(player.z);
         float temperature = net.minecraft.world.gen.ChunkPopulator.temperature(world.biomeAt(x, z), x, y, z);
         float[] fog = sky.prepare(levelInfo.worldTime, partialTicks, temperature, player.dirX(), player.dirY(), player.dirZ(),
-            gameSettings.renderDistanceChunks, player.y, world.isFlat(), cameraLiquid());
-        LightMap.update(SkyRenderer.sunBrightness(sky.angle()), gameSettings.gammaSetting,
-            Math.max(player == null ? 0f : player.nightVisionBrightness(partialTicks),
-                additions.isOn(net.minecraft.client.additions.Additions.FULL_BRIGHT)
-                    ? (float) additions.number(net.minecraft.client.additions.Additions.FULL_BRIGHT, "brightness") / 100f : 0f),
-            world.dimension());
+            gameSettings.renderDistanceChunks, player.y, world.isFlat(), cameraLiquid(), graphics, blindnessFogStrength());
+        LightMap.update(sky.lightmapSunBrightness(), gameSettings.gammaSetting,
+            additions.runtime().nightVision(player.nightVisionBrightness(partialTicks)),
+            world.dimension(), graphics);
         return fog;
     }
 
     private void renderWorld(float[] fog) {
         int renderDistance = gameSettings.getRenderDistanceBlocks();
-        boolean skyVisible = gameSettings.renderDistanceChunks >= 4;
+        boolean skyVisible = graphics.replacesSky() || gameSettings.renderDistanceChunks >= 4;
         double eyeY = player.eyeY();
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
@@ -2377,8 +2382,9 @@ public final class Minecraft implements GuiContext {
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, 0.1f);
         String liquid = cameraLiquid();
-        glHint(GL_FOG_HINT, GL_FASTEST);
-        if (org.lwjgl.opengl.GL.getCapabilities().GL_NV_fog_distance) glFogi(0x855A, 0x855B); // eye-radial fog
+        glHint(GL_FOG_HINT, graphics.qualityFog() ? GL_NICEST : GL_FASTEST);
+        boolean radialFog = org.lwjgl.opengl.GL.getCapabilities().GL_NV_fog_distance;
+        if (radialFog) glFogi(0x855A, 0x855B); // eye-radial fog
         glFogfv(GL_FOG_COLOR, new float[]{fog[0], fog[1], fog[2], 1.0f});
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
@@ -2394,14 +2400,20 @@ public final class Minecraft implements GuiContext {
         }
         if (skyVisible) {
             setupFog(liquid, 0f, renderDistance);
-            perspective(worldFov(), width / (double) height, 0.05, renderDistance * 2.0);
+            perspective(worldFov(), width / (double) height, 0.05,
+                graphics.skyFarPlane(renderDistance));
             glMatrixMode(GL_MODELVIEW);
             sky.renderSky(levelInfo.worldTime, eyeY);
         }
         glEnable(GL_FOG);
-        // WorldProviderHell.doesXZShowFog: the Nether's fog starts almost at once and ends halfway out.
-        if (world.isNether() && liquid == null) setupFog(null, renderDistance * 0.05f, Math.min(renderDistance, 192f) * 0.5f);
-        else setupFog(liquid, renderDistance * 0.75f, renderDistance);
+        float nativeStart=world.isNether() && liquid==null ? renderDistance*.05f : renderDistance*.75f;
+        float nativeEnd=world.isNether() && liquid==null ? Math.min(renderDistance,192f)*.5f : renderDistance;
+        GraphicsProfile.Fog atmosphere=graphics.fog(new GraphicsProfile.Fog(nativeStart,nativeEnd,
+            liquid==null?0f:"water".equals(liquid)?.1f:2f),renderDistance,worldFov(),width/(float)height,radialFog,
+            world.dimension(),liquid,blindnessFogStrength());
+        if(atmosphere.density()>0f) {
+            glFogi(GL_FOG_MODE,GL_EXP);glFogf(GL_FOG_DENSITY,atmosphere.density());
+        } else setupFog(null,atmosphere.start(),atmosphere.end());
         if (eyeY < SkyRenderer.CLOUD_HEIGHT) renderClouds(renderDistance, skyVisible);
         perspective(worldFov(), width / (double) height, 0.05, renderDistance * SQRT_2);
         glMatrixMode(GL_MODELVIEW);
@@ -2450,15 +2462,6 @@ public final class Minecraft implements GuiContext {
         }
     }
 
-    /** The Shader Packs addition's pack, or null when it's off or none is picked. */
-    private Path shaderPackFile() {
-        String id = net.minecraft.client.additions.Additions.SHADER_PACKS;
-        if (!additions.isOn(id)) return null;
-        String name = additions.setting(id, "pack");
-        if (name == null || name.isEmpty()) return null;
-        return additions.folder(additions.find(id).setting("pack")).resolve(name);
-    }
-
     /** What the shader pack's uniforms read this frame. */
     private void fillShaderFrame(float[] fog, String liquid) {
         net.minecraft.client.shaders.Shaders.Frame f = net.minecraft.client.shaders.Shaders.frame;
@@ -2502,6 +2505,11 @@ public final class Minecraft implements GuiContext {
 
     // ---- camera, hand and player model --------------------------------------------------------
 
+    private float blindnessFogStrength() {
+        net.minecraft.potion.PotionEffect effect = player.getActivePotionEffect(net.minecraft.potion.Potion.BLINDNESS);
+        return effect == null ? 0f : Math.min(1f, Math.max(0f, (effect.duration() - partialTicks) / 20f));
+    }
+
     /**
      * Linear fog from {@code start} to {@code end}, or, with the camera in a
      * liquid, exponential fog: density 0.1 in water, 2.0 in lava (1.8.9
@@ -2521,7 +2529,7 @@ public final class Minecraft implements GuiContext {
     /** The field of view for the world: the setting times the sprint/flight modifier, narrower with the camera in water. */
     private float worldFov() {
         float fov = gameSettings.getFov();
-        if (!additions.isOn(net.minecraft.client.additions.Additions.STEADY_FOV)) fov *= playerAnimation.fov(partialTicks);
+        fov *= additions.runtime().fovMultiplier(playerAnimation.fov(partialTicks));
         if ("water".equals(cameraLiquid())) fov = fov * 60f / 70f;
         return fov;
     }
@@ -2534,7 +2542,7 @@ public final class Minecraft implements GuiContext {
     private void applyHurtEffect() {
         if (player == null) return;
         if (player.health <= 0) glRotatef(40f - 8000f / (player.deathTime + partialTicks + 200f), 0f, 0f, 1f);
-        if (additions.isOn(net.minecraft.client.additions.Additions.NO_HURT_TILT)) return;
+        if (!additions.runtime().hurtTilt()) return;
         float time = player.hurtTime - partialTicks;
         if (time < 0f) return;
         time /= player.maxHurtTime;
@@ -2652,8 +2660,8 @@ public final class Minecraft implements GuiContext {
     private void renderOverlays() {
         if (isSpectator()) return;
         glDisable(GL_ALPHA_TEST);
-        net.minecraft.client.shaders.ShaderPack pack = net.minecraft.client.shaders.Shaders.pack();
-        boolean waterOverlay = pack == null || !"false".equals(pack.property("underwaterOverlay"));
+        net.minecraft.client.additions.api.ShaderMaterial pack = net.minecraft.client.shaders.Shaders.pack();
+        boolean waterOverlay = pack == null || pack.underwaterOverlayEnabled();
         if (waterOverlay && eyesUnderWater()) renderWaterOverlay();
         if (playerFire > 0) renderFireOverlay();
         glEnable(GL_ALPHA_TEST);
@@ -2880,8 +2888,8 @@ public final class Minecraft implements GuiContext {
     private void renderClouds(int renderDistance, boolean skyVisible) {
         if (!skyVisible || !gameSettings.clouds) return;
         // Packs that draw their own clouds turn the game's off (clouds=off in shaders.properties).
-        net.minecraft.client.shaders.ShaderPack pack = net.minecraft.client.shaders.Shaders.pack();
-        if (pack != null && "off".equals(pack.property("clouds"))) return;
+        net.minecraft.client.additions.api.ShaderMaterial pack = net.minecraft.client.shaders.Shaders.pack();
+        if (pack != null && !pack.cloudsEnabled()) return;
         net.minecraft.client.shaders.Shaders.use("gbuffers_clouds");
         perspective(worldFov(), width / (double) height, 0.05, renderDistance * 4.0);
         glMatrixMode(GL_MODELVIEW);
@@ -3123,27 +3131,16 @@ public final class Minecraft implements GuiContext {
         ingameGui.renderGameOverlay(guiWidth, guiHeight, inventory, status, !axisCrosshair);
         if (axisCrosshair) GuiOverlayDebug.renderAxisCrosshair(guiWidth, guiHeight, player.yaw + 180f, player.pitch);
         if (showDebug) debugOverlay.render(fontRenderer, guiWidth, guiHeight, debugSnapshot(), gameSettings.showLagometer);
-        else drawAdditionsHud(guiWidth);
+        else drawExtensionHud(guiWidth,guiHeight);
         ingameGui.renderChat(guiHeight, currentScreen instanceof GuiChat);
         glEnable(GL_DEPTH_TEST);
         glColor4f(1, 1, 1, 1);
     }
 
-    /** The Coordinates and FPS Counter additions, in the corners F3 uses (so they hide while it is open). */
-    private void drawAdditionsHud(int guiWidth) {
-        if (additions.isOn(net.minecraft.client.additions.Additions.COORDINATES)) {
-            String[] facings = {"south", "west", "north", "east"};
-            // The player's yaw is LegacyCraft's; vanilla's (what F3 shows) is half a turn round from it.
-            String facing = facings[Math.floorMod((int) Math.floor((player.yaw + 180f) * 4f / 360f + 0.5f), 4)];
-            fontRenderer.drawStringWithShadow(String.format(Locale.ROOT, "XYZ: %.1f / %.1f / %.1f", player.x, player.y, player.z), 2, 2, 0xFFFFFF);
-            if (additions.settingOn(net.minecraft.client.additions.Additions.COORDINATES, "showFacing"))
-                fontRenderer.drawStringWithShadow("Facing: " + facing, 2, 12, 0xFFFFFF);
-        }
-        if (additions.isOn(net.minecraft.client.additions.Additions.FPS_COUNTER)) {
-            String text = fps + " fps";
-            fontRenderer.drawStringWithShadow(text, guiWidth - 2 - fontRenderer.getStringWidth(text), 2, 0xFFFFFF);
-        }
-        glColor4f(1, 1, 1, 1);
+    /** Optional HUD callbacks are suppressed by the debug overlay. */
+    private void drawExtensionHud(int guiWidth,int guiHeight) {
+        additions.runtime().hud(new net.minecraft.client.additions.api.ClientAddition.Hud(this,player,guiWidth,guiHeight,fps));
+        glColor4f(1,1,1,1);
     }
 
     private GuiOverlayDebug.Snapshot debugSnapshot() {
@@ -4267,8 +4264,7 @@ public final class Minecraft implements GuiContext {
             return;
         }
         Player.Input input = Player.Input.of(gameSettings);
-        Player.Input toggled = toggleKeys.apply(input, gameSettings.keyBindSprint, gameSettings.keyBindSneak,
-            additions.isOn(net.minecraft.client.additions.Additions.TOGGLE_SPRINT), additions.isOn(net.minecraft.client.additions.Additions.TOGGLE_SNEAK));
+        Player.Input toggled = additions.runtime().input(input,gameSettings);
         net.minecraft.entity.EntityBoat boat = ridingBoat;
         // Only a real press of Sneak climbs out of a boat, not a latched Toggle Sneak.
         if (boat != null && (boat.isRemoved() || player.dead || input.sneak())) {

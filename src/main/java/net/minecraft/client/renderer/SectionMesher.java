@@ -41,7 +41,7 @@ final class SectionMesher {
      */
     static final int SHADER_INTS_PER_VERTEX = 12;
     /** The pack the terrain is meshed for, or null for the plain layout: set on the render thread, read by the workers. */
-    static volatile net.minecraft.client.shaders.ShaderPack shaderPack;
+    static volatile net.minecraft.client.additions.api.ShaderMaterial shaderPack;
     /** Vanilla's TRANSLUCENT block layer. */
     private static final Set<String> TRANSLUCENT = Set.of("water", "flowing_water", "ice", "stained_glass",
         "stained_glass_pane", "slime", "portal");
@@ -164,7 +164,7 @@ final class SectionMesher {
 
     Mesh build(SectionSnapshot view, int sectionX, int sectionY, int sectionZ) {
         Mesh mesh = new Mesh();
-        net.minecraft.client.shaders.ShaderPack shader = shaderPack;
+        net.minecraft.client.additions.api.ShaderMaterial shader = shaderPack;
         BlockLighting lighting = new BlockLighting(view);
         BlockLighting.Result light = new BlockLighting.Result();
         int startX = sectionX * 16, startY = sectionY * 16, startZ = sectionZ * 16;

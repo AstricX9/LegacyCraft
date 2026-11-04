@@ -27,3 +27,6 @@ run-server/
 .env
 .env.*
 !.env.example
+
+# Independently built addition executables
+additions/*/addition.jar

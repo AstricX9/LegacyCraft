@@ -47,6 +47,8 @@ final class LauncherData {
     boolean darkMode;
     private Additions additions;
     private Path additionsFrom;
+    private LauncherAdditions additionRuntime;
+    private Path runtimeFrom;
 
     static final class SkinEntry {
         final String id;
@@ -241,6 +243,19 @@ final class LauncherData {
             additionsFrom = installDir;
         }
         return additions;
+    }
+
+    Additions additions(Profile profile) {
+        return Additions.load(installDir, profile == null ? null : gameDirFor(profile));
+    }
+
+    LauncherAdditions additionRuntime() {
+        if(additionRuntime==null || !java.util.Objects.equals(runtimeFrom,installDir)) {
+            if(additionRuntime!=null) additionRuntime.close();
+            additionRuntime=new LauncherAdditions(installDir,additions(),launcherAdditions);
+            runtimeFrom=installDir;
+        }
+        return additionRuntime;
     }
 
     boolean launcherAddition(String id) {

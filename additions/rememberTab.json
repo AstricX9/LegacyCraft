@@ -1,0 +1,11 @@
+{
+  "id": "rememberTab",
+  "category": "launcher",
+  "scope": "launcher",
+  "default": true,
+  "name": "Remember Tab",
+  "description": "The launcher opens on the tab you used last instead of News.",
+  "entrypoint": "net.legacycraft.launcher.additions.RememberTabAddition",
+  "code": "rememberTab/addition.jar",
+  "api": 1
+}
