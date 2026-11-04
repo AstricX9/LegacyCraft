@@ -99,7 +99,7 @@ public class GuiMainMenu extends GuiScreen {
         if (mouseButton != 0 || mouseX < logoLeft || mouseX >= logoLeft + LOGO_WIDTH
             || mouseY < LOGO_TOP || mouseY >= LOGO_TOP + LOGO_HEIGHT) return;
         if (++logoClicks < LOGO_CLICKS_TO_UNLOCK) {
-            if (logoClicks >= 3) logoBouncedAt = System.currentTimeMillis();
+            if (logoClicks == 3) logoBouncedAt = System.currentTimeMillis();
             return;
         }
         logoClicks = 0;
@@ -171,9 +171,9 @@ public class GuiMainMenu extends GuiScreen {
         drawGradientRect(0, 0, width, height, 0x00000000, 0x80000000);
 
         int logoLeft = width / 2 - LOGO_WIDTH / 2;
-        // Clicks 3 and 4 on the logo make it bounce a little, hinting that the 5th does something.
-        float bounce = Math.min(1, (System.currentTimeMillis() - logoBouncedAt) / 250f);
-        float scale = 1 + 0.04f * (float) Math.sin(bounce * Math.PI);
+        // From the 3rd logo click until the 5th the logo keeps bouncing, shrinking to 95%, hinting that the 5th does something.
+        float bounce = logoClicks >= 3 ? ((System.currentTimeMillis() - logoBouncedAt) % 400) / 400f : 0;
+        float scale = 1 - 0.05f * (float) Math.sin(bounce * Math.PI);
         glPushMatrix();
         glTranslatef(width / 2f, LOGO_TOP + LOGO_HEIGHT / 2f, 0);
         glScalef(scale, scale, 1);
