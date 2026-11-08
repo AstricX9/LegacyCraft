@@ -49,6 +49,9 @@ final class EntityArrowTest {
         World world = GameData.newWorld(5L);
         BlockState stone = BlockState.defaultOf(GameData.blocks().get("minecraft:stone"));
         for (int x = -4; x <= 4; x++) for (int z = -4; z <= 12; z++) world.setState(x, 200, z, stone);
+        // Tall grass all over the floor: arrows fly through it (no collision box) like 1.8.9.
+        BlockState grass = BlockState.defaultOf(GameData.blocks().get("minecraft:tallgrass"));
+        for (int x = -4; x <= 4; x++) for (int z = -4; z <= 12; z++) world.setState(x, 201, z, grass);
         Host host = new Host();
         EntityArrow arrow = new EntityArrow(world, 0.5, 203, 10.5);
         arrow.setHeading(0, -0.5, -1, 3f, 0, new Random(1));

@@ -589,6 +589,11 @@ public final class WorldRenderer {
      * (BlockLiquid.canCollideCheck with hitIfLiquid).
      */
     public static Hit raycast(IBlockAccess world,double ox,double oy,double oz,double dx,double dy,double dz,double reach,boolean sources){
+        return raycast(world,ox,oy,oz,dx,dy,dz,reach,sources,false);
+    }
+
+    /** As above; with {@code solidOnly} blocks with no collision box (tall grass, flowers) are passed through, as arrows do (ignoreBlockWithoutBoundingBox). */
+    public static Hit raycast(IBlockAccess world,double ox,double oy,double oz,double dx,double dy,double dz,double reach,boolean sources,boolean solidOnly){
         int x=floor(ox),y=floor(oy),z=floor(oz);
         int stepX=dx>0?1:-1,stepY=dy>0?1:-1,stepZ=dz>0?1:-1;
         double deltaX=dx==0?Double.POSITIVE_INFINITY:Math.abs(1/dx);
@@ -608,7 +613,7 @@ public final class WorldRenderer {
                     return new Hit(x,y,z,entry.face(),
                         (float)(ox+dx*entry.distance()-x),(float)(oy+dy*entry.distance()-y),(float)(oz+dz*entry.distance()-z),box);
             }
-            if(!stored.block().isAir()&&stored.block().isTargetable()){
+            if(!stored.block().isAir()&&stored.block().isTargetable()&&(!solidOnly||!net.minecraft.block.Block.collisionBoxesAt(world,x,y,z).isEmpty())){
                 ActualState state=stored.block().actualState(world,x,y,z,stored);
                 AxisAlignedBB local=stored.block().selectionBox(state,world,x,y,z);
                 if(local!=null){

@@ -112,7 +112,7 @@ public final class EntityArrow extends MovingEntity {
         double reach = speed;
         WorldRenderer.Hit block = null;
         if (speed > 1.0E-7) {
-            block = WorldRenderer.raycast(world, x, y, z, motionX / speed, motionY / speed, motionZ / speed, speed);
+            block = WorldRenderer.raycast(world, x, y, z, motionX / speed, motionY / speed, motionZ / speed, speed, false, true);
             if (block != null) {
                 // Hit.box is already in world space.
                 AxisAlignedBB.RayHit entry = block.box().rayEntry(x, y, z, motionX / speed, motionY / speed, motionZ / speed);
