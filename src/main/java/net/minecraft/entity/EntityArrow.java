@@ -114,8 +114,8 @@ public final class EntityArrow extends MovingEntity {
         if (speed > 1.0E-7) {
             block = WorldRenderer.raycast(world, x, y, z, motionX / speed, motionY / speed, motionZ / speed, speed);
             if (block != null) {
-                AxisAlignedBB.RayHit entry = block.box().offset(block.x(), block.y(), block.z())
-                    .rayEntry(x, y, z, motionX / speed, motionY / speed, motionZ / speed);
+                // Hit.box is already in world space.
+                AxisAlignedBB.RayHit entry = block.box().rayEntry(x, y, z, motionX / speed, motionY / speed, motionZ / speed);
                 reach = entry == null ? 0 : entry.distance();
             }
         }
