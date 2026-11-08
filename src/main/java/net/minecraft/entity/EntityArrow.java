@@ -54,7 +54,8 @@ public final class EntityArrow extends MovingEntity {
 
     /** EntityArrow(world, player, velocity): shot from the player's eyes along their view. */
     public static EntityArrow shotBy(World world, Player player, float velocity, java.util.Random random) {
-        double yaw = Math.toRadians(player.yaw), pitch = Math.toRadians(player.pitch);
+        // The client Player's yaw is vanilla's + 180 (see Player.dirX), so turn it back first.
+        double yaw = Math.toRadians(player.yaw + 180f), pitch = Math.toRadians(player.pitch);
         EntityArrow arrow = new EntityArrow(world, player.x - Math.cos(yaw) * 0.16, player.eyeY() - 0.1, player.z - Math.sin(yaw) * 0.16);
         arrow.shotByPlayer = true;
         arrow.pickup = 1;
