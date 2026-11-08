@@ -36,13 +36,14 @@ public abstract class EntityThrowable extends MovingEntity {
     /** EntityThrowable(world, thrower): placed at the player's eyes and aimed along their view. */
     public <T extends EntityThrowable> T aimFrom(Player player, java.util.Random random) {
         double yaw = Math.toRadians(player.yaw), pitch = Math.toRadians(player.pitch);
-        setPosition(player.x - Math.cos(yaw) * 0.16, player.eyeY() - 0.1, player.z - Math.sin(yaw) * 0.16);
+        // LegacyCraft's yaw is vanilla's plus 180, so vanilla's -sin/cos terms flip sign here.
+        setPosition(player.x + Math.cos(yaw) * 0.16, player.eyeY() - 0.1, player.z + Math.sin(yaw) * 0.16);
         prevX = x; prevY = y; prevZ = z;
         thrownByPlayer = true;
         rotationYaw = player.yaw;
         rotationPitch = player.pitch;
-        double mx = -Math.sin(yaw) * Math.cos(pitch) * 0.4;
-        double mz = Math.cos(yaw) * Math.cos(pitch) * 0.4;
+        double mx = Math.sin(yaw) * Math.cos(pitch) * 0.4;
+        double mz = -Math.cos(yaw) * Math.cos(pitch) * 0.4;
         double my = -Math.sin(pitch + Math.toRadians(pitchOffset())) * 0.4;
         setHeading(mx, my, mz, velocity(), 1f, random);
         @SuppressWarnings("unchecked") T self = (T) this;
